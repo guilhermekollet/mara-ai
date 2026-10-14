@@ -234,7 +234,7 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
             </a>
           </div>
           <div className="rise relative" style={after(780)}>
-            <CaptionDemo labels={{ label: t.a11y.captionDemo, you: t.demo.you, youInitials: t.demo.youInitials }} />
+            <CaptionDemo key={lang} copy={t.demo} />
           </div>
         </section>
 
@@ -306,10 +306,10 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
             <div data-reveal style={after(120)} aria-hidden="true" className="rounded-[32px] bg-linear-160 from-stage-from to-stage-to px-6 py-14">
               <div className="rounded-2xl bg-ink/90 px-6 py-[18px] text-center shadow-[0_20px_50px_rgba(0,0,0,0.35)]">
                 <p className="text-[clamp(16px,2.2vw,22px)] leading-[1.3] font-medium text-paper">
-                  Podemos revisar o contrato na quinta-feira.
+                  {t.demo.band.final}
                 </p>
                 <p className="mt-1.5 text-[clamp(16px,2.2vw,22px)] leading-[1.3] font-medium text-accent">
-                  {"E eu acho que o prazo de entrega".split(" ").map((word, index) => (
+                  {t.demo.band.draft.split(" ").map((word, index) => (
                     <span key={index}>
                       <span className="word-loop" style={after(index * 260)}>
                         {word}
@@ -317,7 +317,7 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
                     </span>
                   ))}
                 </p>
-                <p className="mt-2 text-[13px] text-paper/45 italic">And I think the delivery timeline…</p>
+                <p className="mt-2 text-[13px] text-paper/45 italic">{t.demo.band.source}</p>
               </div>
             </div>
           </div>

@@ -2,8 +2,9 @@
 // dictionary from the URL (/en, /pt, /es); the root URL sends visitors to the one that matches
 // their browser, falling back to English.
 //
-// The captions shown inside the demos stay in Portuguese in every language: the app translates
-// meetings into Brazilian Portuguese, so that is what it really displays.
+// The caption demos (`demo`) are captioned in the page's language: English speech becomes
+// Portuguese captions on /pt, Portuguese speech becomes English on /en, and English speech becomes
+// Spanish on /es.
 
 export const locales = ["en", "pt", "es"] as const;
 export type Locale = (typeof locales)[number];
@@ -30,7 +31,6 @@ const en = {
     language: "Language",
     toggleTheme: "Switch between light and dark theme",
     toggleThemeShort: "Toggle theme",
-    captionDemo: "Mara AI window showing captions translated into Portuguese",
   },
   nav: {
     howItWorks: "How it works",
@@ -47,7 +47,38 @@ const en = {
     text: "Real-time translated captions, right on your Mac. Understand every word while it is still being spoken.",
     seeHow: "See how it works",
   },
-  demo: { you: "You", youInitials: "YOU" },
+  demo: {
+    label: "Mara AI window showing a meeting in Portuguese with captions translated into English",
+    meeting: "Revisão trimestral — Acme Corp",
+    people: ["Ana Souza", "Rafael Lima", "Beatriz Costa"],
+    you: "You",
+    youInitials: "YOU",
+    phrases: [
+      {
+        source: "E acho que o prazo de entrega é realista para o nosso time.",
+        target: "And I think the delivery timeline is realistic for our team.",
+      },
+      {
+        source: "Você pode nos explicar os preços do plano empresarial?",
+        target: "Could you walk us through the pricing for the enterprise plan?",
+      },
+      {
+        source: "Vamos marcar uma continuação para terça-feira de manhã.",
+        target: "Let's schedule a follow-up for next Tuesday morning.",
+      },
+      {
+        source: "Precisamos fechar o trimestre com vinte por cento de crescimento.",
+        target: "We need to close the quarter with twenty percent growth.",
+      },
+    ],
+    // The still caption in the "incremental translation" band: a confirmed line, a line still
+    // forming word by word, and the speech it comes from.
+    band: {
+      final: "We can review the contract on Thursday.",
+      draft: "And I think the delivery timeline",
+      source: "E eu acho que o prazo de entrega…",
+    },
+  },
   steps: {
     title: "How it works",
     text: "Three steps, all happening while the other person speaks.",
@@ -63,7 +94,7 @@ const en = {
       },
       {
         title: "Translates as people speak",
-        text: "The Portuguese caption takes shape in real time and is refined at the end of each sentence.",
+        text: "The translated caption takes shape in real time and is refined at the end of each sentence.",
       },
     ],
   },
@@ -213,7 +244,6 @@ const pt: Dictionary = {
     language: "Idioma",
     toggleTheme: "Alternar entre tema claro e escuro",
     toggleThemeShort: "Alternar tema",
-    captionDemo: "Janela da Mara AI mostrando legendas traduzidas para português",
   },
   nav: {
     howItWorks: "Como funciona",
@@ -230,7 +260,36 @@ const pt: Dictionary = {
     text: "Legendas traduzidas em tempo real, direto no seu Mac. Entenda cada palavra enquanto ela ainda está sendo dita.",
     seeHow: "Ver como funciona",
   },
-  demo: { you: "Você", youInitials: "VOCÊ" },
+  demo: {
+    label: "Janela da Mara AI mostrando uma reunião em inglês com legendas traduzidas para português",
+    meeting: "Quarterly review — Acme Corp",
+    people: ["Sarah Kim", "James Miller", "Anna Lindqvist"],
+    you: "Você",
+    youInitials: "VOCÊ",
+    phrases: [
+      {
+        source: "And I think the delivery timeline is realistic for our team.",
+        target: "E acho que o prazo de entrega é realista para o nosso time.",
+      },
+      {
+        source: "Could you walk us through the pricing for the enterprise plan?",
+        target: "Você pode nos explicar os preços do plano empresarial?",
+      },
+      {
+        source: "Let's schedule a follow-up for next Tuesday morning.",
+        target: "Vamos marcar uma continuação para terça-feira de manhã.",
+      },
+      {
+        source: "We need to close the quarter with twenty percent growth.",
+        target: "Precisamos fechar o trimestre com vinte por cento de crescimento.",
+      },
+    ],
+    band: {
+      final: "Podemos revisar o contrato na quinta-feira.",
+      draft: "E eu acho que o prazo de entrega",
+      source: "And I think the delivery timeline…",
+    },
+  },
   steps: {
     title: "Como funciona",
     text: "Três etapas, todas acontecendo enquanto a pessoa fala.",
@@ -394,7 +453,6 @@ const es: Dictionary = {
     language: "Idioma",
     toggleTheme: "Cambiar entre tema claro y oscuro",
     toggleThemeShort: "Cambiar tema",
-    captionDemo: "Ventana de Mara AI mostrando subtítulos traducidos al portugués",
   },
   nav: {
     howItWorks: "Cómo funciona",
@@ -411,7 +469,36 @@ const es: Dictionary = {
     text: "Subtítulos traducidos en tiempo real, directamente en tu Mac. Entiende cada palabra mientras todavía se está diciendo.",
     seeHow: "Ver cómo funciona",
   },
-  demo: { you: "Tú", youInitials: "TÚ" },
+  demo: {
+    label: "Ventana de Mara AI mostrando una reunión en inglés con subtítulos traducidos al español",
+    meeting: "Quarterly review — Acme Corp",
+    people: ["Sarah Kim", "James Miller", "Anna Lindqvist"],
+    you: "Tú",
+    youInitials: "TÚ",
+    phrases: [
+      {
+        source: "And I think the delivery timeline is realistic for our team.",
+        target: "Y creo que el plazo de entrega es realista para nuestro equipo.",
+      },
+      {
+        source: "Could you walk us through the pricing for the enterprise plan?",
+        target: "¿Podrían explicarnos los precios del plan empresarial?",
+      },
+      {
+        source: "Let's schedule a follow-up for next Tuesday morning.",
+        target: "Agendemos un seguimiento para el próximo martes por la mañana.",
+      },
+      {
+        source: "We need to close the quarter with twenty percent growth.",
+        target: "Necesitamos cerrar el trimestre con un veinte por ciento de crecimiento.",
+      },
+    ],
+    band: {
+      final: "Podemos revisar el contrato el jueves.",
+      draft: "Y creo que el plazo de entrega",
+      source: "And I think the delivery timeline…",
+    },
+  },
   steps: {
     title: "Cómo funciona",
     text: "Tres pasos, todos ocurriendo mientras la otra persona habla.",
@@ -427,7 +514,7 @@ const es: Dictionary = {
       },
       {
         title: "Traduce mientras hablan",
-        text: "El subtítulo en portugués se va formando en tiempo real y se refina al final de cada frase.",
+        text: "El subtítulo traducido se va formando en tiempo real y se refina al final de cada frase.",
       },
     ],
   },
