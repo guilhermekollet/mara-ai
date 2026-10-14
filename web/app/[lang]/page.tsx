@@ -243,30 +243,31 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
 
         <section id="resumo" className="mx-auto max-w-[1120px] px-6 py-16 md:py-24">
           <div className="grid items-center gap-14 md:grid-cols-2">
-            {/* The summary as the app's menu bar panel shows it after a meeting. */}
+            {/* The summary after a meeting: what kind of conversation it was and what was talked about. */}
             <div data-reveal aria-hidden="true" className="rounded-[32px] bg-linear-160 from-stage-from to-stage-to p-5 sm:p-10">
               <div className="rounded-2xl bg-ink/90 p-4 text-left shadow-[0_20px_50px_rgba(0,0,0,0.35)]">
-                <p className="text-[14px] font-semibold text-paper">{mock.heading}</p>
-                <div className="mt-3 grid gap-3">
-                  {mock.sections.map((section) => (
-                    <div key={section.title}>
-                      <p className="text-[12.5px] font-medium text-paper/90">{section.title}</p>
-                      <ul className="mt-1 grid gap-0.5">
-                        {section.items.map((item) => (
-                          <li key={item} className="text-[12.5px] leading-[1.45] text-paper/70">
-                            - {item}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[14px] font-semibold text-paper">{mock.heading}</p>
+                  <span className="inline-flex h-[22px] items-center rounded-full bg-accent/15 px-2.5 text-[11px] font-medium text-accent">
+                    {mock.kind}
+                  </span>
                 </div>
-                <p className="mt-4 text-[12px] font-semibold text-paper">{mock.actionsTitle}</p>
+                <p className="mt-3 text-[12px] font-medium text-paper/55">{mock.overviewTitle}</p>
+                <p className="mt-1 text-[13px] leading-[1.5] text-paper/85">{mock.overview}</p>
+                <p className="mt-4 text-[12px] font-medium text-paper/55">{mock.topicsTitle}</p>
                 <ul className="mt-1.5 grid gap-1.5">
-                  {mock.actions.map((action) => (
-                    <li key={action.title} className="rounded-lg bg-white/[0.05] px-2.5 py-2">
-                      <p className="text-[12px] font-medium text-paper">{action.title}</p>
-                      <p className="mt-0.5 text-[10.5px] text-paper/55">{action.details}</p>
+                  {mock.topics.map((topic) => (
+                    <li key={topic.title} className="rounded-lg bg-white/[0.05] px-2.5 py-2">
+                      <p className="text-[12.5px] font-medium text-paper">{topic.title}</p>
+                      <p className="mt-0.5 text-[11.5px] leading-[1.45] text-paper/60">{topic.text}</p>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-4 text-[12px] font-medium text-paper/55">{mock.decisionsTitle}</p>
+                <ul className="mt-1 grid gap-0.5">
+                  {mock.decisions.map((decision) => (
+                    <li key={decision} className="text-[12.5px] leading-[1.45] text-paper/80">
+                      - {decision}
                     </li>
                   ))}
                 </ul>

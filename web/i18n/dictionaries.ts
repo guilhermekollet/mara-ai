@@ -101,8 +101,8 @@ const en = {
       },
       {
         title: "AI summaries",
-        text: "When the call ends, GPT turns the transcript into key points, decisions and action items, with your own OpenAI key.",
-        points: ["Key points and decisions", "Action items with owner and due date", "Saved as a file on your Mac"],
+        text: "When the call ends, GPT reads the transcript and sums up what was talked about, with your own OpenAI key.",
+        points: ["Tells a conversation from a talk", "Overview and the topics discussed", "Saved as a file on your Mac"],
       },
     ],
   },
@@ -118,25 +118,26 @@ const en = {
   summary: {
     eyebrow: "AI summary",
     title: "The meeting ends, the summary is ready.",
-    text: "With your own OpenAI key, Mara summarizes the call: the main points, what was decided and what's left to do, with owner and due date when they were said.",
+    text: "With your own OpenAI key, Mara reads the transcript and tells you what was talked about: the topics, what each side brought up and what was decided.",
     points: [
-      { title: "Points and decisions", text: "What mattered in the conversation, in short sentences, without rereading the transcript." },
-      { title: "Clear action items", text: "Each starts with a verb and carries owner and due date when they were mentioned." },
+      { title: "Knows what kind of talk it was", text: "A meeting between several people or someone speaking alone, like a class or a talk: the summary adapts to what happened." },
+      { title: "What was talked about", text: "A short overview and the topics that came up, each with what was said and decided." },
       { title: "Yours, on your Mac", text: "The summary is saved as a file in Documents and copied in one click. The transcript only goes to OpenAI when you ask." },
     ],
-    // The summary card illustrated next to the copy, as the app shows it.
+    // The summary card illustrated next to the copy: what was talked about, not a task list.
     mock: {
-      heading: "Meeting summary",
-      sections: [
-        { title: "Key points", items: ["The delivery timeline is realistic for the team.", "The client demo goes in next week."] },
-        { title: "Decisions", items: ["Keep the current deadline.", "Review the quarter's numbers at the end of the meeting."] },
+      heading: "Summary",
+      kind: "Conversation between several people",
+      overviewTitle: "Overview",
+      overview: "The team went over the delivery timeline and the client presentation, and agreed the current deadline is realistic.",
+      topicsTitle: "Topics",
+      topics: [
+        { title: "Delivery timeline", text: "Seen as realistic; the team keeps the current date." },
+        { title: "Revised proposal", text: "Goes out by Thursday, before the client demo." },
+        { title: "Quarter's numbers", text: "Left for the end of the meeting." },
       ],
-      actionsTitle: "Action items",
-      actions: [
-        { title: "Send the revised proposal", details: "Sarah Kim · Thursday" },
-        { title: "Prepare the demo for the client", details: "You · Tuesday" },
-        { title: "Share the slides in the chat", details: "Lucía" },
-      ],
+      decisionsTitle: "Decisions",
+      decisions: ["Keep the current deadline."],
       copy: "Copy",
       open: "Open file",
     },
@@ -174,7 +175,7 @@ const en = {
       {
         question: "How does the summary work?",
         answer:
-          "When the meeting ends you ask for the summary. The transcript goes to OpenAI with your key and comes back as key points, decisions and action items, with owner and due date when they were mentioned. Nothing is sent unless you ask.",
+          "When the meeting ends you ask for the summary. The transcript goes to OpenAI with your key, and GPT works out whether it was a conversation between several people or a talk, then tells you what was said: an overview, the topics and the decisions. Nothing is sent unless you ask.",
       },
       {
         question: "Is Mara open source?",
@@ -293,8 +294,8 @@ const pt: Dictionary = {
       },
       {
         title: "Resumo com IA",
-        text: "Quando a chamada termina, o GPT transforma a transcrição em pontos, decisões e pendências, com a sua chave da OpenAI.",
-        points: ["Pontos principais e decisões", "Pendências com responsável e prazo", "Salvo como arquivo no seu Mac"],
+        text: "Quando a chamada termina, o GPT lê a transcrição e resume o que foi conversado, com a sua chave da OpenAI.",
+        points: ["Entende se foi conversa ou apresentação", "Visão geral e assuntos discutidos", "Salvo como arquivo no seu Mac"],
       },
     ],
   },
@@ -310,25 +311,26 @@ const pt: Dictionary = {
   summary: {
     eyebrow: "Resumo com IA",
     title: "A reunião acaba, o resumo já está pronto.",
-    text: "Com a sua chave da OpenAI, a Mara resume a conversa: os assuntos principais, o que foi decidido e o que ficou para fazer, com responsável e prazo quando eles foram ditos.",
+    text: "Com a sua chave da OpenAI, a Mara lê a transcrição e conta o que foi conversado: os assuntos, o que cada lado trouxe e o que ficou decidido.",
     points: [
-      { title: "Pontos e decisões", text: "O que importou na conversa, em frases curtas, sem precisar reler a transcrição." },
-      { title: "Pendências claras", text: "Cada uma começa com um verbo e traz responsável e prazo quando foram mencionados." },
+      { title: "Entende o tipo de conversa", text: "Reunião entre várias pessoas ou alguém falando sozinho, como uma aula ou palestra: o resumo se adapta ao que aconteceu." },
+      { title: "O que foi conversado", text: "Uma visão geral em poucas linhas e os assuntos que surgiram, cada um com o que foi dito e decidido." },
       { title: "Seu, no seu Mac", text: "O resumo fica salvo como arquivo em Documentos e é copiado com um clique. A transcrição só vai para a OpenAI quando você pede." },
     ],
-    // The summary card illustrated next to the copy, as the app shows it.
+    // The summary card illustrated next to the copy: what was talked about, not a task list.
     mock: {
-      heading: "Resumo da reunião",
-      sections: [
-        { title: "Pontos principais", items: ["O prazo de entrega é realista para o time.", "A demo para o cliente entra na próxima semana."] },
-        { title: "Decisões", items: ["Manter o prazo atual.", "Revisar os números do trimestre no fim da reunião."] },
+      heading: "Resumo",
+      kind: "Conversa entre várias pessoas",
+      overviewTitle: "Visão geral",
+      overview: "O time revisou o prazo da entrega e a apresentação para o cliente, e concordou que o prazo atual é realista.",
+      topicsTitle: "Assuntos",
+      topics: [
+        { title: "Prazo de entrega", text: "Considerado realista; o time mantém a data atual." },
+        { title: "Proposta revisada", text: "Vai até quinta-feira, antes da demo para o cliente." },
+        { title: "Números do trimestre", text: "Ficaram para o fim da reunião." },
       ],
-      actionsTitle: "Pendências",
-      actions: [
-        { title: "Enviar a proposta revisada", details: "Sarah Kim · quinta-feira" },
-        { title: "Preparar a demo para o cliente", details: "Você · terça" },
-        { title: "Compartilhar os slides no chat", details: "Lucía" },
-      ],
+      decisionsTitle: "Decisões",
+      decisions: ["Manter o prazo atual."],
       copy: "Copiar",
       open: "Abrir arquivo",
     },
@@ -366,7 +368,7 @@ const pt: Dictionary = {
       {
         question: "Como funciona o resumo?",
         answer:
-          "Quando a reunião termina, você pede o resumo. A transcrição vai para a OpenAI com a sua chave e volta organizada em pontos, decisões e pendências, com responsável e prazo quando foram mencionados. Nada é enviado sem você pedir.",
+          "Quando a reunião termina, você pede o resumo. A transcrição vai para a OpenAI com a sua chave, e o GPT identifica se foi uma conversa entre várias pessoas ou uma apresentação e conta o que foi falado: visão geral, assuntos e decisões. Nada é enviado sem você pedir.",
       },
       {
         question: "A Mara é de código aberto?",
@@ -483,8 +485,8 @@ const es: Dictionary = {
       },
       {
         title: "Resumen con IA",
-        text: "Cuando termina la llamada, GPT convierte la transcripción en puntos, decisiones y pendientes, con tu propia clave de OpenAI.",
-        points: ["Puntos principales y decisiones", "Pendientes con responsable y fecha", "Guardado como archivo en tu Mac"],
+        text: "Cuando termina la llamada, GPT lee la transcripción y resume de qué se habló, con tu propia clave de OpenAI.",
+        points: ["Distingue una conversación de una charla", "Visión general y temas tratados", "Guardado como archivo en tu Mac"],
       },
     ],
   },
@@ -500,25 +502,26 @@ const es: Dictionary = {
   summary: {
     eyebrow: "Resumen con IA",
     title: "La reunión termina y el resumen ya está listo.",
-    text: "Con tu propia clave de OpenAI, Mara resume la conversación: los puntos principales, lo que se decidió y lo que quedó por hacer, con responsable y fecha cuando se dijeron.",
+    text: "Con tu propia clave de OpenAI, Mara lee la transcripción y cuenta de qué se habló: los temas, lo que aportó cada parte y lo que se decidió.",
     points: [
-      { title: "Puntos y decisiones", text: "Lo que importó en la conversación, en frases cortas, sin releer la transcripción." },
-      { title: "Pendientes claros", text: "Cada uno empieza con un verbo e incluye responsable y fecha cuando se mencionaron." },
+      { title: "Entiende el tipo de conversación", text: "Una reunión entre varias personas o alguien hablando solo, como una clase o una charla: el resumen se adapta a lo que pasó." },
+      { title: "Lo que se conversó", text: "Una visión general en pocas líneas y los temas que surgieron, cada uno con lo que se dijo y se decidió." },
       { title: "Tuyo, en tu Mac", text: "El resumen se guarda como archivo en Documentos y se copia con un clic. La transcripción solo va a OpenAI cuando lo pides." },
     ],
-    // The summary card illustrated next to the copy, as the app shows it.
+    // The summary card illustrated next to the copy: what was talked about, not a task list.
     mock: {
-      heading: "Resumen de la reunión",
-      sections: [
-        { title: "Puntos principales", items: ["El plazo de entrega es realista para el equipo.", "La demo para el cliente entra la próxima semana."] },
-        { title: "Decisiones", items: ["Mantener el plazo actual.", "Revisar los números del trimestre al final de la reunión."] },
+      heading: "Resumen",
+      kind: "Conversación entre varias personas",
+      overviewTitle: "Visión general",
+      overview: "El equipo revisó el plazo de entrega y la presentación para el cliente, y acordó que el plazo actual es realista.",
+      topicsTitle: "Temas",
+      topics: [
+        { title: "Plazo de entrega", text: "Considerado realista; el equipo mantiene la fecha actual." },
+        { title: "Propuesta revisada", text: "Sale antes del jueves, antes de la demo para el cliente." },
+        { title: "Números del trimestre", text: "Quedaron para el final de la reunión." },
       ],
-      actionsTitle: "Pendientes",
-      actions: [
-        { title: "Enviar la propuesta revisada", details: "Sarah Kim · jueves" },
-        { title: "Preparar la demo para el cliente", details: "Tú · martes" },
-        { title: "Compartir las diapositivas en el chat", details: "Lucía" },
-      ],
+      decisionsTitle: "Decisiones",
+      decisions: ["Mantener el plazo actual."],
       copy: "Copiar",
       open: "Abrir archivo",
     },
@@ -556,7 +559,7 @@ const es: Dictionary = {
       {
         question: "¿Cómo funciona el resumen?",
         answer:
-          "Cuando termina la reunión, pides el resumen. La transcripción va a OpenAI con tu clave y vuelve organizada en puntos, decisiones y pendientes, con responsable y fecha cuando se mencionaron. No se envía nada sin que lo pidas.",
+          "Cuando termina la reunión, pides el resumen. La transcripción va a OpenAI con tu clave, y GPT identifica si fue una conversación entre varias personas o una presentación y cuenta lo que se habló: visión general, temas y decisiones. No se envía nada sin que lo pidas.",
       },
       {
         question: "¿Mara es de código abierto?",
