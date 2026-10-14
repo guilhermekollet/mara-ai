@@ -191,6 +191,12 @@ const en = {
     text: "Open Mara, pick the language and join the meeting.",
   },
   footer: "© 2026 Mara AI. Made for macOS.",
+  notFound: {
+    eyebrow: "Error 404",
+    title: "Page not found.",
+    text: "The page you are looking for doesn't exist or has moved.",
+    home: "Back to home",
+  },
 };
 
 export type Dictionary = typeof en;
@@ -368,6 +374,12 @@ const pt: Dictionary = {
     text: "Abra a Mara, escolha o idioma e entre na reunião.",
   },
   footer: "© 2026 Mara AI. Feito para macOS.",
+  notFound: {
+    eyebrow: "Erro 404",
+    title: "Página não encontrada.",
+    text: "A página que você procura não existe ou mudou de endereço.",
+    home: "Voltar ao início",
+  },
 };
 
 const es: Dictionary = {
@@ -543,6 +555,12 @@ const es: Dictionary = {
     text: "Abre Mara, elige el idioma y entra en la reunión.",
   },
   footer: "© 2026 Mara AI. Hecho para macOS.",
+  notFound: {
+    eyebrow: "Error 404",
+    title: "Página no encontrada.",
+    text: "La página que buscas no existe o cambió de dirección.",
+    home: "Volver al inicio",
+  },
 };
 
 const dictionaries: Record<Locale, Dictionary> = { en, pt, es };

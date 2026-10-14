@@ -22,6 +22,9 @@ server; the workflow sets `PAGES_BASE_PATH` so links work under `/mara-ai`.
   in every language.
 - The root URL (`app/(root)/`) sends visitors to the language they picked in the header switcher or,
   if they never picked one, to the first browser language the site has, falling back to English.
+- Unknown URLs get `app/global-not-found.tsx`, which carries its copy in all three languages and
+  shows the visitor's. In `npm run dev`, a single-segment URL like `/foo` hits the `[lang]` route
+  and shows an export-mode error instead; try `/en/foo` to see the 404 page.
 - Design tokens (colors, fonts, light and dark themes) are in `app/globals.css`.
 - Components: `components/` (caption demo, brand mark, illustrations, background waves).
 - If a change to `app/globals.css` doesn't show up, stop the dev server, delete `.next` and start it

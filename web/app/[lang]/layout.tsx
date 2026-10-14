@@ -1,28 +1,9 @@
 import type { Metadata } from "next";
-import { Instrument_Sans, Instrument_Serif, JetBrains_Mono } from "next/font/google";
 import { notFound } from "next/navigation";
 import Script from "next/script";
 import { getDictionary, hasLocale, localeInfo, locales } from "@/i18n/dictionaries";
+import { htmlClassName, themeScript } from "@/lib/document";
 import "../globals.css";
-
-// Sans for text, serif for headings, mono for identifiers.
-const instrumentSans = Instrument_Sans({
-  variable: "--font-instrument-sans",
-  subsets: ["latin"],
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains-mono",
-  subsets: ["latin"],
-});
-
-const instrumentSerif = Instrument_Serif({
-  variable: "--font-instrument-serif",
-  subsets: ["latin"],
-  weight: "400",
-});
-
-const themeScript = `(function(){try{var t=localStorage.getItem("theme");if(t!=="light"&&t!=="dark"){t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme="light"}})()`;
 
 // One static page per language; any other value in the URL is a 404.
 export const dynamicParams = false;
@@ -42,11 +23,7 @@ export default async function LangLayout({ children, params }: LayoutProps<"/[la
   if (!hasLocale(lang)) notFound();
 
   return (
-    <html
-      lang={localeInfo[lang].htmlLang}
-      suppressHydrationWarning
-      className={`${instrumentSans.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable} antialiased`}
-    >
+    <html lang={localeInfo[lang].htmlLang} suppressHydrationWarning className={htmlClassName}>
       <body className="font-sans">
         {/* Sets the theme before hydration: the saved choice or, if there is none, the system's. */}
         <Script id="theme" strategy="beforeInteractive">

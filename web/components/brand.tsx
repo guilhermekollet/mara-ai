@@ -5,8 +5,8 @@ import { Wordmark } from "@/components/mark";
 
 // The name in the header and footer. On hover, a shimmer wave runs across the dots, just like
 // the app's menu bar icon: it builds up on enter and, on leave, fades out until the dots are
-// back to normal, without a hard cut.
-export function Brand() {
+// back to normal, without a hard cut. It links to the top of the page unless given another `href`.
+export function Brand({ href = "#topo" }: { href?: string }) {
   const link = useRef<HTMLAnchorElement>(null);
   const active = useRef(false);
   const frame = useRef(0);
@@ -50,7 +50,7 @@ export function Brand() {
   return (
     <a
       ref={link}
-      href="#topo"
+      href={href}
       aria-label="Mara AI"
       className="inline-flex items-center py-2"
       onMouseEnter={() => {
