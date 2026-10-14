@@ -2,7 +2,7 @@
 
 // Toggles between light and dark and remembers the choice. The initial theme is set by a script
 // in <head> (see layout.tsx), before the first paint, so the page doesn't flash.
-export function ThemeToggle() {
+export function ThemeToggle({ label, title }: { label: string; title: string }) {
   const toggle = () => {
     const root = document.documentElement;
     const next = root.dataset.theme === "dark" ? "light" : "dark";
@@ -18,8 +18,8 @@ export function ThemeToggle() {
     <button
       type="button"
       onClick={toggle}
-      aria-label="Alternar entre tema claro e escuro"
-      title="Alternar tema"
+      aria-label={label}
+      title={title}
       className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-full bg-fog text-fg transition-opacity hover:opacity-85"
     >
       <svg viewBox="0 0 24 24" aria-hidden="true" className="only-light size-4 fill-current">
