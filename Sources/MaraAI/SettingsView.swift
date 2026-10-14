@@ -1,0 +1,624 @@
+import SwiftUI
+
+let settingsWindowID = "settings"
+
+/// Suggested models for refining the translation, with the price in dollars per million tokens.
+struct GPTModel: Identifiable {
+    let id: String
+    let name: String
+    let note: String
+    let inputPrice: Double
+    let outputPrice: Double
+
+    static let catalog = [
+        GPTModel(id: "gpt-6-luna", name: "GPT-6 Luna", note: "Recomendado: rápido e natural", inputPrice: 0.10, outputPrice: 0.50),
+        GPTModel(id: "gpt-5-nano", name: "GPT-5 nano", note: "O mais barato; pode demorar um pouco mais", inputPrice: 0.05, outputPrice: 0.40),
+        GPTModel(id: "gpt-4.1-mini", name: "GPT-4.1 mini", note: "Equilibrado, para termos técnicos", inputPrice: 0.40, outputPrice: 1.60),
+        GPTModel(id: "gpt-4o-mini", name: "GPT-4o mini", note: "Clássico e estável", inputPrice: 0.15, outputPrice: 0.60),
+    ]
+    static let customID = "custom"
+}
+
+struct SettingsView: View {
+    @EnvironmentObject private var model: CaptionModel
+    @State private var tab = Tab.translation
+
+    private enum Tab: String, CaseIterable, Identifiable {
+        case translation = "Tradução"
+        case appearance = "Aparência"
+        case usage = "Consumo"
+        case glossary = "Glossário"
+        case linear = "Linear"
+        case shortcuts = "Atalhos"
+        var id: String { rawValue }
+
+        var symbol: String {
+            switch self {
+            case .translation: return "globe"
+            case .appearance: return "paintbrush"
+            case .usage: return "chart.bar"
+            case .glossary: return "text.book.closed"
+            case .linear: return "linear"
+            case .shortcuts: return "keyboard"
+            }
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Ajustes")
+                    .font(Theme.display(26))
+                Spacer()
+                // Icon tabs: only the active one shows its name, in lavender with dark text.
+                HStack(spacing: 2) {
+                    ForEach(Tab.allCases) { item in
+                        let active = tab == item
+                        Button {
+                            tab = item
+                        } label: {
+                            HStack(spacing: 5) {
+                                Group {
+                                    if item == .linear {
+                                        LinearLogo(size: 12)
+                                    } else {
+                                        Image(systemName: item.symbol)
+                                            .font(.system(size: 12, weight: .medium))
+                                    }
+                                }
+                                .frame(width: 16, height: 16)
+                                if active {
+                                    Text(item.rawValue)
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .fixedSize()
+                                }
+                            }
+                            .foregroundStyle(active ? Theme.ink : Theme.paper.opacity(0.75))
+                            .padding(.horizontal, active ? 11 : 8)
+                            .padding(.vertical, 5)
+                            .background(active ? Theme.accent : .clear, in: Capsule())
+                            .contentShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .help(item.rawValue)
+                    }
+                }
+                .padding(3)
+                .background(Theme.paper.opacity(0.07), in: Capsule())
+            }
+
+            // The window has a fixed size and the content scrolls: resizing the window on every tab
+            // switch crashed the app on macOS 26 (an AppKit exception during layout).
+            ScrollView {
+                tabContent
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            .scrollIndicators(.hidden)
+        }
+        .padding(22)
+        .frame(width: 460, height: 600, alignment: .topLeading)
+        .background(Theme.ink)
+        .foregroundStyle(Theme.paper)
+        .tint(Theme.accent)
+        .preferredColorScheme(.dark)
+        .task { await model.loadLocales() }
+    }
+
+    @ViewBuilder
+    private var tabContent: some View {
+        switch tab {
+            case .translation: TranslationSettings()
+            case .appearance: AppearanceSettings()
+            case .usage: UsageSettings(ledger: model.usage)
+            case .glossary: GlossarySettings()
+            case .linear: LinearSettings()
+            case .shortcuts: ShortcutSettings()
+        }
+    }
+}
+
+// MARK: Translation
+
+private struct TranslationSettings: View {
+    @EnvironmentObject private var model: CaptionModel
+    @State private var keyDraft = ""
+    @State private var customSelected = false
+
+    private var selection: Binding<String> {
+        Binding(
+            get: {
+                customSelected || !GPTModel.catalog.contains { $0.id == model.model } ? GPTModel.customID : model.model
+            },
+            set: { id in
+                guard let choice = GPTModel.catalog.first(where: { $0.id == id }) else {
+                    customSelected = true
+                    return
+                }
+                customSelected = false
+                model.model = choice.id
+                model.inputPrice = choice.inputPrice
+                model.outputPrice = choice.outputPrice
+            }
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SettingsCard("Idioma da reunião", hint: "O idioma que as pessoas vão falar. A legenda sai sempre em português.") {
+                Picker("Idioma", selection: $model.localeID) {
+                    ForEach(model.locales, id: \.identifier) { locale in
+                        Text(model.displayName(locale)).tag(locale.identifier)
+                    }
+                }
+                .labelsHidden()
+                .disabled(model.isRunning)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Como traduzir")
+                    .font(.system(size: 13, weight: .semibold))
+                HStack(spacing: 10) {
+                    OptionCard(
+                        symbol: "laptopcomputer",
+                        title: "Só no Mac",
+                        text: "Grátis e privado. A Apple traduz no aparelho, sem internet.",
+                        selected: !model.useGPT
+                    ) { model.useGPT = false }
+                    OptionCard(
+                        symbol: "sparkles",
+                        title: "Mac + GPT",
+                        text: "Mais natural. A legenda aparece na hora e o GPT refina cada frase.",
+                        selected: model.useGPT
+                    ) { model.useGPT = true }
+                }
+            }
+
+            if model.useGPT {
+                SettingsCard("Modelo do GPT", hint: modelHint) {
+                    Picker("Modelo", selection: selection) {
+                        ForEach(GPTModel.catalog) { choice in
+                            Text("\(choice.name) — \(choice.note)").tag(choice.id)
+                        }
+                        Divider()
+                        Text("Outro modelo…").tag(GPTModel.customID)
+                    }
+                    .labelsHidden()
+
+                    if selection.wrappedValue == GPTModel.customID {
+                        TextField("Nome do modelo na OpenAI", text: $model.model)
+                            .textFieldStyle(.roundedBorder)
+                        HStack {
+                            priceField("Entrada", value: $model.inputPrice)
+                            priceField("Saída", value: $model.outputPrice)
+                        }
+                    }
+                }
+
+                SettingsCard("Chave da OpenAI", hint: "Fica guardada no Keychain do macOS. Só o texto transcrito é enviado; o áudio nunca sai do Mac.") {
+                    HStack(spacing: 8) {
+                        SecureField("sk-…", text: $keyDraft)
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit(saveKey)
+                        if keyDraft != model.apiKey {
+                            Button("Salvar", action: saveKey)
+                                .buttonStyle(PillButtonStyle())
+                        }
+                    }
+                    HStack(spacing: 6) {
+                        Image(systemName: model.apiKey.isEmpty ? "exclamationmark.circle" : "checkmark.circle.fill")
+                            .foregroundStyle(model.apiKey.isEmpty ? Theme.muted : Theme.accent)
+                        Text(model.apiKey.isEmpty ? "Sem chave, a tradução fica só no Mac." : "Chave salva.")
+                            .foregroundStyle(Theme.muted)
+                        Spacer()
+                        Link("Criar uma chave", destination: URL(string: "https://platform.openai.com/api-keys")!)
+                    }
+                    .font(.system(size: 11.5))
+                }
+            }
+        }
+        .onAppear { keyDraft = model.apiKey }
+    }
+
+    private var modelHint: String {
+        let price = "US$ \(format(model.inputPrice)) de entrada e US$ \(format(model.outputPrice)) de saída por milhão de tokens"
+        return "\(price). Uma hora de reunião costuma custar centavos."
+    }
+
+    private func format(_ value: Double) -> String {
+        value.formatted(.number.precision(.fractionLength(2)))
+    }
+
+    private func priceField(_ title: String, value: Binding<Double>) -> some View {
+        HStack(spacing: 6) {
+            Text(title)
+                .font(.system(size: 11.5))
+                .foregroundStyle(Theme.muted)
+            TextField("US$", value: value, format: .number)
+                .textFieldStyle(.roundedBorder)
+        }
+    }
+
+    private func saveKey() {
+        model.saveAPIKey(keyDraft)
+        keyDraft = model.apiKey
+    }
+}
+
+// MARK: Appearance
+
+private struct AppearanceSettings: View {
+    @EnvironmentObject private var model: CaptionModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            // Live preview: shows how the caption looks over a meeting.
+            ZStack {
+                LinearGradient(colors: [Color(red: 0.91, green: 0.89, blue: 0.99), Color(red: 0.72, green: 0.64, blue: 0.97)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                VStack(spacing: 3) {
+                    Text("Podemos revisar o contrato na quinta.")
+                        .foregroundStyle(Theme.paper)
+                    Text("E acho que o prazo de entrega")
+                        .foregroundStyle(Theme.accent)
+                }
+                .font(.system(size: model.fontSize, weight: .medium))
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Theme.ink.opacity(model.opacity), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .padding(14)
+            }
+            .frame(height: 150)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            SettingsCard("Tamanho da legenda") {
+                sliderRow(value: $model.fontSize, range: 12...40, step: 1, label: "\(Int(model.fontSize)) pt")
+            }
+            SettingsCard("Opacidade do fundo", hint: "Mais baixa deixa ver melhor o que está atrás da janela.") {
+                sliderRow(value: $model.opacity, range: 0.2...1, step: 0.05, label: "\(Int(model.opacity * 100))%")
+            }
+            SettingsCard(
+                "Quando não há áudio",
+                hint: "Em espera, a Mara para de transcrever e confere a cada 2 segundos se o som voltou. Desligar encerra a sessão e salva a transcrição."
+            ) {
+                durationPicker("Entrar em espera após", selection: $model.idleAfter, options: [
+                    (15, "15 segundos"), (30, "30 segundos"), (60, "1 minuto"), (120, "2 minutos"), (0, "Nunca"),
+                ])
+                durationPicker("Desligar após", selection: $model.autoStopAfter, options: [
+                    (60, "1 minuto"), (300, "5 minutos"), (600, "10 minutos"), (1800, "30 minutos"), (0, "Nunca"),
+                ])
+            }
+        }
+    }
+
+    private func durationPicker(_ title: String, selection: Binding<Double>, options: [(Double, String)]) -> some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 12.5))
+            Spacer()
+            Picker(title, selection: selection) {
+                ForEach(options, id: \.0) { option in
+                    Text(option.1).tag(option.0)
+                }
+            }
+            .labelsHidden()
+            .fixedSize()
+        }
+    }
+
+    private func sliderRow(value: Binding<Double>, range: ClosedRange<Double>, step: Double, label: String) -> some View {
+        HStack(spacing: 10) {
+            Slider(value: value, in: range, step: step)
+            Text(label)
+                .font(.system(size: 12).monospacedDigit())
+                .foregroundStyle(Theme.muted)
+                .frame(width: 44, alignment: .trailing)
+        }
+    }
+}
+
+// MARK: Usage
+
+private struct UsageSettings: View {
+    @EnvironmentObject private var model: CaptionModel
+    @ObservedObject var ledger: UsageLedger
+
+    var body: some View {
+        let calendar = Calendar.current
+        let now = Date()
+        VStack(alignment: .leading, spacing: 14) {
+            SettingsCard("Uso do GPT", hint: "Os tokens são os informados pela OpenAI. O custo é uma estimativa com o preço do modelo no momento de cada chamada; a fatura da OpenAI é a referência final.") {
+                VStack(spacing: 0) {
+                    if model.isRunning, let start = model.sessionStart {
+                        row("Sessão atual", ledger.totals(since: start))
+                    }
+                    row("Hoje", ledger.totals(since: calendar.startOfDay(for: now)))
+                    row("Este mês", ledger.totals(since: calendar.dateInterval(of: .month, for: now)?.start))
+                    row("Total", ledger.totals(since: nil), last: true)
+                }
+            }
+            if let error = ledger.writeError {
+                Label("O registro em disco falhou (\(error)); o histórico pode estar incompleto.", systemImage: "exclamationmark.triangle")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.red)
+            }
+            if ledger.entries.isEmpty {
+                Text("Nenhuma chamada ao GPT até agora. A tradução feita no Mac não tem custo.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.muted)
+            } else {
+                Button("Mostrar o registro no Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting([UsageLedger.url])
+                }
+                .buttonStyle(PillButtonStyle(prominent: false))
+            }
+        }
+    }
+
+    private func row(_ title: String, _ totals: UsageTotals, last: Bool = false) -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(.system(size: 13, weight: .medium))
+                    Text("\(totals.calls) chamadas · \((totals.inputTokens + totals.outputTokens).formatted()) tokens")
+                        .font(.system(size: 11.5).monospacedDigit())
+                        .foregroundStyle(Theme.muted)
+                }
+                Spacer()
+                Text("US$ \(String(format: "%.4f", totals.costUSD))")
+                    .font(.system(size: 13, weight: .medium).monospacedDigit())
+            }
+            .padding(.vertical, 8)
+            if !last {
+                Divider().overlay(Theme.paper.opacity(0.1))
+            }
+        }
+    }
+}
+
+// MARK: Glossary
+
+private struct GlossarySettings: View {
+    @EnvironmentObject private var model: CaptionModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SettingsCard(
+                "Termos da sua equipe",
+                hint: "Nomes de pessoas, empresas e produtos. Deixe o segundo campo vazio para manter o termo como está, ou diga como ele deve aparecer na legenda."
+            ) {
+                if model.glossary.isEmpty {
+                    Text("Nenhum termo ainda.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.muted)
+                }
+                ScrollView {
+                    VStack(spacing: 6) {
+                        ForEach($model.glossary) { $entry in
+                            HStack(spacing: 6) {
+                                TextField("Termo (ex.: Kubernetes)", text: $entry.term)
+                                    .textFieldStyle(.roundedBorder)
+                                Image(systemName: "arrow.right")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(Theme.muted)
+                                TextField("Como aparece (opcional)", text: $entry.rendering)
+                                    .textFieldStyle(.roundedBorder)
+                                IconButton(symbol: "minus.circle", help: "Remover o termo") {
+                                    model.glossary.removeAll { $0.id == entry.id }
+                                }
+                            }
+                        }
+                    }
+                }
+                .frame(maxHeight: 220)
+                Button {
+                    model.glossary.append(GlossaryEntry())
+                } label: {
+                    Label("Adicionar termo", systemImage: "plus")
+                }
+                .buttonStyle(PillButtonStyle(prominent: false))
+            }
+            SettingsCard("Onde o glossário é usado") {
+                VStack(alignment: .leading, spacing: 6) {
+                    usage("waveform", "No reconhecimento de fala, para acertar os nomes.")
+                    usage("sparkles", "Na tradução refinada pelo GPT e no resumo da reunião.")
+                    usage("laptopcomputer", "A tradução feita só no Mac não segue o glossário.")
+                }
+            }
+            if model.isRunning {
+                Text("Mudanças no reconhecimento de fala valem a partir da próxima sessão.")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Theme.muted)
+            }
+        }
+    }
+
+    private func usage(_ symbol: String, _ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: symbol)
+                .font(.system(size: 11))
+                .foregroundStyle(Theme.accent)
+                .frame(width: 16)
+            Text(text)
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.muted)
+        }
+    }
+}
+
+// MARK: Linear
+
+private struct LinearSettings: View {
+    @EnvironmentObject private var model: CaptionModel
+    @State private var keyDraft = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SettingsCard(
+                "O Linear é onde as demandas moram",
+                hint: "Conectado, o painel mostra sua cycle, a issue em foco e as entregas do time, e as pendências de cada reunião podem virar issues. Nada é criado sozinho: você confere e envia uma a uma."
+            ) {
+                EmptyView()
+            }
+            SettingsCard("Chave pessoal do Linear", hint: "Fica guardada no Keychain do macOS. Crie uma em Linear › Settings › Security & access › Personal API keys.") {
+                HStack(spacing: 8) {
+                    SecureField("lin_api_…", text: $keyDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit(connect)
+                    Button(keyDraft == model.linearKey ? "Reconectar" : "Conectar", action: connect)
+                        .buttonStyle(PillButtonStyle())
+                        .disabled(keyDraft.trimmingCharacters(in: .whitespaces).isEmpty && model.linearKey.isEmpty)
+                }
+                if !model.linearStatus.isEmpty {
+                    Text(model.linearStatus)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(model.linearTeams.isEmpty ? Theme.muted : Theme.accent)
+                }
+            }
+            if !model.linearTeams.isEmpty {
+                SettingsCard("Time de destino", hint: "As pendências enviadas viram issues neste time, e é dele a cycle e as entregas mostradas no painel.") {
+                    Picker("Time", selection: $model.linearTeamID) {
+                        Text("Escolha um time").tag("")
+                        ForEach(model.linearTeams) { team in
+                            Text("\(team.name) (\(team.key))").tag(team.id)
+                        }
+                    }
+                    .labelsHidden()
+                }
+            }
+            if model.linearReady {
+                SettingsCard("Painel da barra de menus", hint: "O painel mostra a issue em progresso de maior prioridade e a contagem por situação na cycle atual.") {
+                    Toggle("Contar só as issues atribuídas a mim", isOn: $model.linearOnlyMine)
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+            }
+            if model.linearTeams.isEmpty && model.linearReady {
+                Text("Time de destino já configurado. Clique em Reconectar para trocar.")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Theme.muted)
+            }
+        }
+        .onAppear { keyDraft = model.linearKey }
+    }
+
+    private func connect() {
+        model.saveLinearKey(keyDraft)
+        keyDraft = model.linearKey
+        Task { await model.loadLinearTeams() }
+    }
+}
+
+// MARK: Shortcuts
+
+private struct ShortcutSettings: View {
+    @EnvironmentObject private var model: CaptionModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SettingsCard("Atalhos globais", hint: "Funcionam com qualquer aplicativo em primeiro plano, sem tirar o foco da reunião.") {
+                Toggle("Ativar os atalhos de teclado", isOn: $model.hotKeysEnabled)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+            }
+            SettingsCard("Teclas") {
+                VStack(spacing: 0) {
+                    ForEach(HotKeys.all, id: \.id) { shortcut in
+                        HStack {
+                            Text(shortcut.title)
+                                .font(.system(size: 13))
+                            Spacer()
+                            Text(shortcut.keys)
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Theme.paper.opacity(0.1), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        }
+                        .padding(.vertical, 7)
+                        .opacity(model.hotKeysEnabled ? 1 : 0.4)
+                    }
+                }
+            }
+            if !model.unavailableHotKeys.isEmpty {
+                Label(
+                    "O macOS recusou \(model.unavailableHotKeys.joined(separator: ", ")): outro aplicativo já usa essa combinação.",
+                    systemImage: "exclamationmark.triangle"
+                )
+                .font(.system(size: 11.5))
+                .foregroundStyle(.orange)
+            }
+        }
+    }
+}
+
+// MARK: Components
+
+/// Block with a title, content and a short explanation underneath.
+private struct SettingsCard<Content: View>: View {
+    let title: String
+    let hint: String?
+    @ViewBuilder let content: Content
+
+    init(_ title: String, hint: String? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.hint = hint
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+            content
+            if let hint {
+                Text(hint)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Theme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.paper.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+/// Large clickable option, for choosing between two alternatives.
+private struct OptionCard: View {
+    let symbol: String
+    let title: String
+    let text: String
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Image(systemName: symbol)
+                        .font(.system(size: 15))
+                        .foregroundStyle(selected ? Theme.accent : Theme.muted)
+                        .frame(height: 18)
+                    Spacer()
+                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(selected ? Theme.accent : Theme.paper.opacity(0.25))
+                }
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(text)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Theme.muted)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(Theme.paper.opacity(selected ? 0.08 : 0.04), in: shape)
+            .overlay(shape.strokeBorder(selected ? Theme.accent : Theme.paper.opacity(0.08), lineWidth: selected ? 1.5 : 1))
+            .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+    }
+}

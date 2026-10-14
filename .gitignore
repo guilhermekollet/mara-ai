@@ -1,0 +1,16 @@
+# Swift
+.build/
+build/
+*.xcodeproj/
+.swiftpm/
+xcuserdata/
+
+# Website
+web/node_modules/
+web/.next/
+web/.env*.local
+web/next-env.d.ts
+
+# Local tooling
+.claude/
+.DS_Store

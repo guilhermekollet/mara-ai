@@ -1,0 +1,173 @@
+<div align="center">
+  <img src="Resources/icon-1024.png" alt="Mara AI" width="96" height="96">
+
+  <h1>Mara AI</h1>
+
+  <p>Live, translated captions for your meetings, right in the macOS menu bar.<br>
+  Built for developers who work with teams in other languages.</p>
+
+  <p>
+    <a href="https://github.com/guilhermekollet/mara-ai/actions/workflows/ci.yml"><img src="https://github.com/guilhermekollet/mara-ai/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-b8a4f8" alt="MIT license"></a>
+    <img src="https://img.shields.io/badge/macOS-26%2B-0d0d0d" alt="macOS 26+">
+    <img src="https://img.shields.io/badge/Swift-6.2-F05138" alt="Swift 6.2">
+  </p>
+</div>
+
+Mara listens to the audio your Mac is already playing — Zoom, Google Meet, Teams, a video in the
+browser — transcribes it on-device with Apple's speech recognition and shows a Portuguese caption
+that forms word by word while people are still talking. No bot joins the call. When the meeting
+ends, it summarizes the conversation and turns the action items into Linear issues.
+
+> **Language note:** the app's interface is in Brazilian Portuguese. Code, comments and docs are in
+> English.
+
+## Contents
+
+- [Features](#features)
+- [Requirements](#requirements)
+- [Getting started](#getting-started)
+- [Configuration](#configuration)
+- [Privacy](#privacy)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
+- [Project layout](#project-layout)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Features
+
+**Meetings in other languages**
+- Live captions in a small floating window; scroll back freely, it follows the conversation again
+  when you return to the bottom.
+- On-device transcription and translation (Apple Speech and Translation): free, private, offline.
+  Meetings in English (US), Spanish or Portuguese (Brazil).
+- Optional GPT refinement of each finished sentence, with your own OpenAI key.
+- A glossary of names and terms, used by speech recognition and by GPT.
+- Standby after a stretch without audio, and automatic stop after a longer one.
+
+**Linear**
+- A meeting summary with key points, decisions and action items.
+- Action items become Linear issues — you review title, assignee, due date and priority first.
+- In the menu bar: your current cycle, the in-progress issue with the highest priority, counts per
+  status and a chart of the team's daily deliveries.
+
+**Everyday details**
+- Global shortcuts: <kbd>⌃⌥S</kbd> start/stop, <kbd>⌃⌥L</kbd> show/hide captions.
+- A usage ledger with every GPT call and its estimated cost.
+- Transcripts and summaries saved as plain text in `~/Documents/Mara AI`.
+
+## Requirements
+
+- macOS 26 (Tahoe) or later.
+- Swift 6.2 or later — Xcode 26, or the matching Command Line Tools.
+- Optional: an [OpenAI API key](https://platform.openai.com/api-keys) and a Linear personal API key.
+
+## Getting started
+
+There are no prebuilt releases yet, so build it from source:
+
+```bash
+git clone https://github.com/guilhermekollet/mara-ai.git
+cd mara-ai
+scripts/create-signing-cert.sh   # recommended, see "Signing" below
+./build.sh
+open "build/Mara AI.app"
+```
+
+1. Mara lives in the menu bar (the dotted "M"). Click it and press **Iniciar**.
+2. Allow **Screen & System Audio Recording** when macOS asks, then quit and reopen Mara once.
+3. Pick the meeting language with the globe icon and start a call.
+
+### Signing
+
+macOS ties the screen-recording permission to the app's signature. An ad hoc signature changes on
+every build, so macOS would ask again each time. `scripts/create-signing-cert.sh` creates a
+self-signed certificate in your login keychain, which `build.sh` uses automatically. To use another
+identity, set `MARA_SIGNING_IDENTITY`.
+
+## Configuration
+
+Everything lives in **Ajustes** (Settings), opened from the menu bar panel:
+
+| Tab | What you set |
+| --- | --- |
+| Tradução | Meeting language, on-device only or Mac + GPT, GPT model, OpenAI key |
+| Aparência | Caption size and background opacity, standby and auto-stop timers |
+| Consumo | GPT usage per session, day, month and in total |
+| Glossário | Names and terms the team uses |
+| Linear | Personal API key, destination team, count only your issues or the team's |
+| Atalhos | Turn the global shortcuts on or off |
+
+API keys are stored in the macOS Keychain, never in files.
+
+## Privacy
+
+| Data | Where it goes |
+| --- | --- |
+| Meeting audio | Stays on your Mac. It is never sent anywhere. |
+| Transcript text | Sent to OpenAI only when GPT refinement is on, or when you ask for a summary. |
+| Linear data | Read from and written to Linear with your key; issues are only created after you confirm. |
+| API keys | macOS Keychain. |
+| Transcripts and summaries | Text files in `~/Documents/Mara AI`. |
+
+Mara has no server of its own: every request goes straight from your Mac to OpenAI or Linear.
+
+## Troubleshooting
+
+**macOS keeps asking for the recording permission, or refuses it.** Reset it and grant it again:
+
+```bash
+tccutil reset ScreenCapture com.guilhermekollet.mara-ai
+```
+
+**The menu bar icon doesn't show up.** On MacBooks with a notch, icons that don't fit are hidden
+behind it. Remove a few menu bar items (hold <kbd>⌘</kbd> and drag them out) and Mara appears.
+
+**Something went wrong during a meeting.** The current session is logged, with millisecond timings,
+in `~/Library/Logs/MaraAI/sessao.log`.
+
+## Development
+
+```bash
+swift build                   # debug build
+scripts/test.sh               # tests (works with Xcode or with only the Command Line Tools)
+./build.sh                    # release build and app bundle
+.build/release/MaraAI --render-deliveries /tmp/chart.png   # render the chart with sample data
+```
+
+Useful runtime files:
+
+- `~/Library/Logs/MaraAI/sessao.log` — the current session, step by step.
+- `~/Library/Application Support/MaraAI/consumo.jsonl` — every GPT call, one JSON object per line.
+
+The website lives in [`web/`](web/README.md) (Next.js, Tailwind CSS).
+
+## Project layout
+
+```
+Sources/MaraAI/
+  MaraAIApp.swift            App entry point, captions window, menu bar item
+  CaptionModel.swift         Session state: capture, transcription, translation, summary, Linear
+  TranscriptionSession.swift Apple SpeechAnalyzer pipeline and the standby gate
+  SystemAudioCapture.swift   System audio through ScreenCaptureKit (restarts if macOS stops it)
+  Translator.swift           OpenAI calls (refinement, summary) and Keychain helpers
+  LinearClient.swift         Linear GraphQL client
+  LinearModel.swift          Linear-style status and priority, summary parsing
+  MenuBarPanel.swift         Menu bar panel
+  SettingsView.swift         Settings window
+  Deliveries.swift           Deliveries chart (window and menu bar mini chart)
+  …                          Theme, icons, animated captions, sound bars, hot keys, usage ledger
+Tests/MaraAITests/           Swift Testing suite
+scripts/                     Icon generation, signing certificate, test runner
+web/                         Website
+```
+
+## Contributing
+
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) to get set up, and the
+[Code of Conduct](CODE_OF_CONDUCT.md). Found a security issue? See [SECURITY.md](SECURITY.md).
+
+## License
+
+[MIT](LICENSE) © Guilherme Kollet
