@@ -20,11 +20,10 @@ final class CaptionModel: ObservableObject {
     @Published var translationDownload: TranslationSession.Configuration?
     @Published var isRunning = false
     @Published var isStarting = false
-    @Published private(set) var summary: String?
+    /// The latest meeting summary: what kind of meeting it was and what was talked about.
+    @Published private(set) var summary: MeetingSummary?
     @Published private(set) var isSummarizing = false
     @Published private(set) var summaryError: String?
-    /// Action items from the latest summary.
-    @Published private(set) var meetingActions: [MeetingAction] = []
 
     @Published var status = ""
     @Published var locales: [Locale] = []
@@ -33,6 +32,10 @@ final class CaptionModel: ObservableObject {
     }
     @Published var model: String {
         didSet { UserDefaults.standard.set(model, forKey: "openaiModel") }
+    }
+    /// The model that writes summaries, chosen apart from the translation one.
+    @Published var summaryModel: String {
+        didSet { UserDefaults.standard.set(summaryModel, forKey: "summaryModel") }
     }
     @Published var apiKey: String
     /// Off, the app uses only Apple's local translation and sends nothing to OpenAI.
@@ -72,6 +75,8 @@ final class CaptionModel: ObservableObject {
     @Published private(set) var unavailableHotKeys: [String] = []
     /// Opens the captions window; set by the UI, which is what can open windows.
     var openCaptions: (() -> Void)?
+    /// Opens the summary window; set by the views, which own the window environment.
+    var openSummary: (() -> Void)?
 
     /// Team names and terms, used in speech recognition, GPT translation and the summary.
     @Published var glossary: [GlossaryEntry] {
@@ -114,6 +119,7 @@ final class CaptionModel: ObservableObject {
     init() {
         localeID = UserDefaults.standard.string(forKey: "localeID") ?? "en_US"
         model = UserDefaults.standard.string(forKey: "openaiModel") ?? "gpt-4o-mini"
+        summaryModel = UserDefaults.standard.string(forKey: "summaryModel") ?? GPTModel.catalog[0].id
         apiKey = Keychain.loadAPIKey()
         useGPT = UserDefaults.standard.object(forKey: "useGPT") as? Bool ?? true
         inputPrice = UserDefaults.standard.object(forKey: "inputPrice") as? Double ?? 0.10
@@ -403,6 +409,8 @@ final class CaptionModel: ObservableObject {
     @discardableResult
     private func recordUsage(_ result: Translator.Result, model: String, since start: Date) -> Int {
         let elapsed = Int(Date().timeIntervalSince(start) * 1000)
+        // Catalog models have known prices; any other model uses the prices set in Settings.
+        let prices = GPTModel.catalog.first { $0.id == model }.map { ($0.inputPrice, $0.outputPrice) } ?? (inputPrice, outputPrice)
         usage.record(UsageEntry(
             date: Date(),
             model: model,
@@ -411,7 +419,7 @@ final class CaptionModel: ObservableObject {
             outputTokens: result.outputTokens,
             reasoningTokens: result.reasoningTokens,
             milliseconds: elapsed,
-            costUSD: (Double(result.inputTokens) * inputPrice + Double(result.outputTokens) * outputPrice) / 1_000_000
+            costUSD: (Double(result.inputTokens) * prices.0 + Double(result.outputTokens) * prices.1) / 1_000_000
         ))
         return elapsed
     }
@@ -423,8 +431,20 @@ final class CaptionModel: ObservableObject {
     var canSummarize: Bool { !isRunning && !segments.isEmpty && !apiKey.isEmpty && !isSummarizing }
 
     var summaryURL: URL? {
-        transcriptURL.map { $0.deletingPathExtension().appendingPathExtension("resumo.txt") }
+        transcriptURL.map { $0.deletingPathExtension().appendingPathExtension("resumo.md") }
     }
+
+    /// The meeting's date and length, from its first and last utterance.
+    var summaryDetails: String? {
+        guard let first = segments.first?.date, let last = segments.last?.date else { return nil }
+        let minutes = max(1, Int((last.timeIntervalSince(first) / 60).rounded()))
+        return "\(first.formatted(date: .abbreviated, time: .shortened)) · \(minutes) min"
+    }
+
+    var summaryMarkdown: String? { summary?.markdown(details: summaryDetails) }
+
+    /// Used only by the development tool that draws the summary window with a sample summary.
+    func setSampleSummary(_ sample: MeetingSummary) { summary = sample }
 
     func summarize() {
         guard canSummarize else { return }
@@ -436,32 +456,41 @@ final class CaptionModel: ObservableObject {
                 "[\(segment.date.formatted(date: .omitted, time: .shortened))] \(segment.original)"
             }
             .joined(separator: "\n")
-        let translator = Translator(apiKey: apiKey, model: model, glossary: glossary)
-        let title = transcriptTitle
+        let translator = Translator(apiKey: apiKey, model: summaryModel, glossary: glossary)
         let destination = summaryURL
         Task {
             defer { isSummarizing = false }
             let startedAt = Date()
             do {
-                let today = Date().formatted(.iso8601.year().month().day().dateSeparator(.dash))
-                    + " (" + Date().formatted(.dateTime.weekday(.wide).locale(Locale(identifier: "pt_BR"))) + ")"
-                let result = try await translator.summarize(transcript, today: today)
-                recordUsage(result, model: translator.model, since: startedAt)
-                let parsed = MeetingSummary.parse(result.text)
-                summary = parsed.text
+                let (text, calls) = try await translator.summarize(transcript, language: "Brazilian Portuguese")
+                for call in calls { recordUsage(call, model: translator.model, since: startedAt) }
+                summary = MeetingSummary.parse(text)
                 soundCues.play(.summaryReady)
-                // Action items stay at hand, as a list to go through after the meeting.
-                meetingActions = parsed.actions.map {
-                    MeetingAction(title: $0.title, owner: $0.owner, due: $0.due, dueDate: $0.dueDate)
+                if let destination, let markdown = summaryMarkdown {
+                    try? markdown.write(to: destination, atomically: true, encoding: .utf8)
                 }
-                if let destination {
-                    try? "Resumo — \(title)\n\n\(parsed.text)\n".write(to: destination, atomically: true, encoding: .utf8)
-                }
+                openSummary?()
             } catch {
                 summaryError = error.localizedDescription
                 soundCues.play(.failure)
             }
         }
+    }
+
+    /// Saves the summary as Markdown wherever the user picks.
+    func saveSummaryAs() {
+        guard let markdown = summaryMarkdown, let summary else { return }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "\(summary.title).md"
+        panel.allowedContentTypes = [.init(filenameExtension: "md") ?? .plainText]
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        try? markdown.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    func revealSummaryFile() {
+        guard let url = summaryURL, FileManager.default.fileExists(atPath: url.path) else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
     func copy(_ text: String) {
@@ -470,9 +499,9 @@ final class CaptionModel: ObservableObject {
     }
 
     func copySummary() {
-        guard let summary else { return }
+        guard let summaryMarkdown else { return }
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(summary, forType: .string)
+        NSPasteboard.general.setString(summaryMarkdown, forType: .string)
     }
 
     /// Puts late-arriving punctuation at the end of the last utterance, if it doesn't already end in punctuation.
@@ -581,7 +610,6 @@ final class CaptionModel: ObservableObject {
         segments = []
         summary = nil
         summaryError = nil
-        meetingActions = []
         let language = displayName(Locale(identifier: localeID))
         let now = Date()
         let fileStamp = now.formatted(.iso8601.year().month().day().dateSeparator(.dash))

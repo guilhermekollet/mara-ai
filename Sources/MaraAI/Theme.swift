@@ -71,8 +71,27 @@ struct LanguageMenu: View {
     /// Just the globe, for tight spots like the captions window's control bar; the language is
     /// still in the tooltip and the menu.
     var iconOnly = false
+    @State private var anchor = MenuAnchor()
 
     var body: some View {
+        if iconOnly {
+            // A SwiftUI button like its neighbors, so it animates with them (a native Menu ignores
+            // the hover entrance's offset and pops in on its own), opening the native menu below it.
+            IconButton(symbol: "globe", help: "Idioma da reunião: \(model.languageCode)") {
+                anchor.show(
+                    title: "Idioma da reunião",
+                    items: model.locales.map { (model.displayName($0), $0.identifier) },
+                    selected: model.localeID
+                ) { model.localeID = $0 }
+            }
+            .background(MenuAnchorView(anchor: anchor))
+            .disabled(model.isRunning || model.isStarting)
+        } else {
+            menu
+        }
+    }
+
+    private var menu: some View {
         Menu {
             Picker("Idioma da reunião", selection: $model.localeID) {
                 ForEach(model.locales, id: \.identifier) { locale in
@@ -81,19 +100,55 @@ struct LanguageMenu: View {
             }
             .pickerStyle(.inline)
         } label: {
-            if iconOnly {
-                Image(systemName: "globe")
-                    .font(.system(size: 11.5, weight: .medium))
-            } else {
-                Label(model.languageCode, systemImage: "globe")
-                    .labelStyle(.titleAndIcon)
-                    .font(.system(size: 11.5, weight: .medium))
-            }
+            Label(model.languageCode, systemImage: "globe")
+                .labelStyle(.titleAndIcon)
+                .font(.system(size: 11.5, weight: .medium))
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
         .help("Idioma da reunião: \(model.languageCode)")
         .disabled(model.isRunning || model.isStarting)
+    }
+}
+
+/// Pops up a native menu right below the view it is attached to (see `MenuAnchorView`).
+@MainActor
+final class MenuAnchor {
+    fileprivate weak var view: NSView?
+    private var pick: ((String) -> Void)?
+
+    func show(title: String, items: [(title: String, id: String)], selected: String, pick: @escaping (String) -> Void) {
+        guard let view else { return }
+        self.pick = pick
+        let menu = NSMenu()
+        menu.addItem(.sectionHeader(title: title))
+        for item in items {
+            let entry = NSMenuItem(title: item.title, action: #selector(choose(_:)), keyEquivalent: "")
+            entry.target = self
+            entry.representedObject = item.id
+            entry.state = item.id == selected ? .on : .off
+            menu.addItem(entry)
+        }
+        // The view isn't flipped: y = 0 is its bottom edge, and the menu hangs from that point.
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: -4), in: view)
+    }
+
+    @objc private func choose(_ item: NSMenuItem) {
+        if let id = item.representedObject as? String { pick?(id) }
+    }
+}
+
+struct MenuAnchorView: NSViewRepresentable {
+    let anchor: MenuAnchor
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        anchor.view = view
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        anchor.view = view
     }
 }
 

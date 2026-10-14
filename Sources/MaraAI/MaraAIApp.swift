@@ -5,6 +5,15 @@ import Translation
 struct MaraAIApp: App {
     @StateObject private var model = CaptionModel()
 
+    init() {
+        // Development tool: `MaraAI --render-summary file.png` draws the summary window with a
+        // sample summary and exits, so it can be checked without an OpenAI key or a meeting.
+        if let flag = CommandLine.arguments.firstIndex(of: "--render-summary"), CommandLine.arguments.count > flag + 1 {
+            SummaryView.renderSample(to: URL(fileURLWithPath: CommandLine.arguments[flag + 1]))
+            exit(0)
+        }
+    }
+
     var body: some Scene {
         Window("Mara AI", id: captionsWindowID) {
             ContentView()
@@ -14,6 +23,11 @@ struct MaraAIApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 520, height: 150)
+
+        Window("Resumo da Mara", id: summaryWindowID) {
+            SummaryView().environmentObject(model)
+        }
+        .windowResizability(.contentSize)
 
         Window("Ajustes da Mara", id: settingsWindowID) {
             SettingsView().environmentObject(model)
@@ -30,6 +44,28 @@ struct MaraAIApp: App {
 }
 
 let captionsWindowID = "captions"
+
+/// Opens one of the app's windows in front of everything, on the screen the pointer is on.
+/// SwiftUI puts a window back where it was last closed, which can be another monitor the person
+/// isn't looking at, and activating the app alone doesn't raise it on recent macOS versions.
+@MainActor
+func present(_ id: String, using openWindow: OpenWindowAction) {
+    openWindow(id: id)
+    NSApp.activate()
+    // SwiftUI creates the window in this pass of the run loop; it exists by the next one.
+    DispatchQueue.main.async {
+        guard let window = NSApp.windows.first(where: { $0.identifier?.rawValue == id }) else { return }
+        let pointer = NSEvent.mouseLocation
+        if let screen = NSScreen.screens.first(where: { NSMouseInRect(pointer, $0.frame, false) }),
+           window.screen?.frame != screen.frame {
+            // Moves without resizing: resizing windows during layout has crashed AppKit on macOS 26.
+            let area = screen.visibleFrame
+            window.setFrameOrigin(NSPoint(x: area.midX - window.frame.width / 2, y: area.midY - window.frame.height / 2))
+        }
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+    }
+}
 
 /// Menu bar icon. Since it is always alive, it is the one that hands the model the action that
 /// opens the captions window, used by the global shortcuts.
@@ -117,10 +153,7 @@ struct ContentView: View {
             IconButton(symbol: "doc.on.doc", help: "Copiar a transcrição") { model.copyTranscript() }
                 .disabled(model.segments.isEmpty)
                 .modifier(HoverReveal(shown: hovering, order: 3))
-            IconButton(symbol: "gearshape", help: "Ajustes") {
-                openWindow(id: settingsWindowID)
-                NSApp.activate(ignoringOtherApps: true)
-            }
+            IconButton(symbol: "gearshape", help: "Ajustes") { present(settingsWindowID, using: openWindow) }
             .modifier(HoverReveal(shown: hovering, order: 4))
             IconButton(symbol: "xmark", help: "Fechar a janela de legendas") { dismissWindow(id: captionsWindowID) }
                 .modifier(HoverReveal(shown: hovering, order: 5))
@@ -318,6 +351,7 @@ extension ContentView {
 
 /// Hover entrance for the captions window's controls: they come in one by one, left to right,
 /// fading in and settling from slightly above; when the pointer leaves they go out together.
+/// No scaling: it makes the SF Symbols look like they jump and blurs them mid-animation.
 private struct HoverReveal: ViewModifier {
     let shown: Bool
     let order: Int
@@ -325,10 +359,11 @@ private struct HoverReveal: ViewModifier {
     func body(content: Content) -> some View {
         content
             .opacity(shown ? 1 : 0)
-            .offset(y: shown ? 0 : -4)
-            .scaleEffect(shown ? 1 : 0.85)
+            .offset(y: shown ? 0 : -3)
             .animation(
-                shown ? .easeOut(duration: 0.25).delay(Double(order) * 0.045) : .easeIn(duration: 0.15),
+                shown
+                    ? .spring(response: 0.34, dampingFraction: 0.9).delay(Double(order) * 0.035)
+                    : .easeOut(duration: 0.12),
                 value: shown
             )
     }

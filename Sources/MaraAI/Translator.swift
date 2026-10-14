@@ -49,24 +49,104 @@ struct Translator {
         return try await complete(system: system, user: user, timeout: 20)
     }
 
-    func summarize(_ transcript: String, today: String) async throws -> Result {
-        let system = """
-        Você resume reuniões de trabalho a partir da transcrição. Responda em português do Brasil, \
-        somente com um objeto JSON neste formato:
-        {"pontos": ["..."], "decisoes": ["..."], "pendencias": [{"titulo": "...", "responsavel": "...", "prazo": "...", "prazo_data": "AAAA-MM-DD"}]}
-        "pontos" são os assuntos principais e "decisoes" o que foi decidido, em frases curtas. Cada \
-        item de "pendencias" é uma ação a fazer: "titulo" começa com um verbo e é entendido sozinho; \
-        "responsavel" e "prazo" ficam como texto vazio quando não foram mencionados. "prazo" repete \
-        o que foi dito ("quinta-feira"); "prazo_data" é essa data no formato AAAA-MM-DD, calculada a \
-        partir de hoje (\(today)), ou texto vazio se não der para determinar. Baseie-se apenas \
-        no que está na transcrição, sem inventar; use listas vazias quando não houver conteúdo. A \
-        transcrição vem de reconhecimento de fala e pode conter erros de palavras.
+    /// Summarizes a meeting from its transcript, in `language`. Long meetings are first taken down
+    /// as notes, part by part, and the summary is written from the notes. Returns the JSON text of
+    /// the summary and every call made, so each one is logged with its cost.
+    func summarize(_ transcript: String, language: String) async throws -> (text: String, calls: [Result]) {
+        var calls: [Result] = []
+        var source = transcript
+        let parts = Self.split(transcript, limit: Self.partLength)
+        if parts.count > 1 {
+            var notes: [String] = []
+            for (index, part) in parts.enumerated() {
+                let result = try await complete(system: notesPrompt(language: language), user: part, timeout: 180)
+                calls.append(result)
+                notes.append("Part \(index + 1) of \(parts.count):\n\(result.text)")
+            }
+            source = "Notes taken from consecutive parts of the same meeting, in order:\n\n" + notes.joined(separator: "\n\n")
+        }
+        let system = summaryPrompt(language: language)
+        let result: Result
+        do {
+            result = try await complete(system: system, user: source, timeout: 180, format: .schema(MeetingSummary.schema))
+        } catch AppError.message(let message) where message.localizedCaseInsensitiveContains("response_format")
+            || message.localizedCaseInsensitiveContains("json_schema") {
+            // Models without Structured Outputs: ask for the same JSON in the prompt instead.
+            result = try await complete(system: system + Self.schemaInstructions, user: source, timeout: 180, format: .json)
+        }
+        calls.append(result)
+        return (result.text, calls)
+    }
+
+    /// About 12,000 tokens of transcript per call; longer meetings are taken down in parts.
+    private static let partLength = 48_000
+
+    /// Splits the transcript on line breaks into parts of at most `limit` characters.
+    static func split(_ text: String, limit: Int) -> [String] {
+        guard text.count > limit else { return [text] }
+        var parts: [String] = []
+        var current = ""
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            if !current.isEmpty, current.count + line.count + 1 > limit {
+                parts.append(current)
+                current = ""
+            }
+            current += current.isEmpty ? String(line) : "\n" + line
+        }
+        if !current.isEmpty { parts.append(current) }
+        return parts
+    }
+
+    private func summaryPrompt(language: String) -> String {
+        """
+        You summarize a meeting for someone who was in it, from the transcript of its audio. Write \
+        in \(language). The transcript comes from speech recognition and does not say who is \
+        speaking; it may contain recognition errors, so fix obvious ones from context.
+
+        First decide what kind of meeting it was. "conversation": several people talking with each \
+        other, with turns, questions and answers, people addressing one another. "presentation": \
+        mostly one person speaking to an audience, like a class, a talk, a demo or a video.
+
+        Then tell what was talked about, using only what is in the transcript:
+        - title: 3 to 7 words naming the subject.
+        - overview: 2 to 4 sentences on what the meeting was about and where it ended up.
+        - topics: the subjects in the order they came up; for each, a short title and 1 to 3 \
+        sentences on what was said. In a conversation, show the different views when there were \
+        any. Use people's names only when they were said.
+        - decisions: what was agreed, for conversations; empty for presentations or when nothing \
+        was decided.
+        - key_points: the main ideas, for presentations; empty for conversations.
+        - open_questions: questions left unanswered or things left to be defined; empty if none.
+        Do not invent anything and do not turn the summary into a task list.
         """ + glossaryPrompt
-        return try await complete(system: system, user: transcript, timeout: 180, json: true)
+    }
+
+    private func notesPrompt(language: String) -> String {
+        """
+        You take notes on one part of a longer meeting, from the transcript of its audio, so the \
+        whole meeting can be summarized later. Write in \(language), as short bullet points in \
+        order: the subjects discussed and what was said about each, any decision, any open \
+        question, and the times they happened. Only what is in the transcript; it comes from speech \
+        recognition and may contain errors.
+        """ + glossaryPrompt
+    }
+
+    /// The schema spelled out, for models that only support plain JSON mode.
+    private static let schemaInstructions = """
+
+
+    Reply with only a JSON object in this format: {"kind": "conversation" or "presentation", \
+    "title": "...", "overview": "...", "topics": [{"title": "...", "summary": "..."}], \
+    "decisions": ["..."], "key_points": ["..."], "open_questions": ["..."]}
+    """
+
+    private enum Format {
+        case text, json
+        case schema([String: Any])
     }
 
     private func complete(
-        system: String, user: String, timeout: TimeInterval, json wantsJSON: Bool = false
+        system: String, user: String, timeout: TimeInterval, format: Format = .text
     ) async throws -> Result {
         var request = URLRequest(url: URL(string: "https://api.openai.com/v1/chat/completions")!)
         request.httpMethod = "POST"
@@ -80,7 +160,17 @@ struct Translator {
                 ["role": "user", "content": user],
             ],
         ]
-        if wantsJSON { payload["response_format"] = ["type": "json_object"] }
+        switch format {
+        case .text:
+            break
+        case .json:
+            payload["response_format"] = ["type": "json_object"]
+        case .schema(let schema):
+            payload["response_format"] = [
+                "type": "json_schema",
+                "json_schema": ["name": "meeting_summary", "strict": true, "schema": schema] as [String: Any],
+            ]
+        }
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
         let (data, response) = try await URLSession.shared.data(for: request)

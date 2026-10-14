@@ -5,6 +5,11 @@ import SwiftUI
 struct MenuBarPanel: View {
     @EnvironmentObject private var model: CaptionModel
     @Environment(\.openWindow) private var openWindow
+    /// The summary's details take part in the layout…
+    @State private var summaryExpanded = false
+    /// …and fade in and out on their own, so the menu bar window never resizes during an animation
+    /// (animated window resizing has crashed AppKit on macOS 26; see SettingsView).
+    @State private var detailsShown = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -91,28 +96,49 @@ struct MenuBarPanel: View {
         .background(Theme.paper.opacity(0.05), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
+    /// After a session: the button to summarize it, and then the summary at a glance, with the
+    /// full version in its own window.
     private var summarySection: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let summary = model.summary {
-                Text("Resumo da reunião")
-                    .font(.callout.weight(.semibold))
-                ScrollView {
-                    Text(summary)
-                        .font(.callout)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(summary.title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(2)
+                    Spacer(minLength: 4)
                 }
-                .frame(maxHeight: 220)
-                if !model.meetingActions.isEmpty {
-                    MeetingActionsList()
+                KindBadge(kind: summary.kind, label: summary.kindLabel)
+                Text(summary.overview)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.paper.opacity(0.8))
+                    .lineLimit(summaryExpanded ? nil : 4)
+                    .fixedSize(horizontal: false, vertical: true)
+                if summaryExpanded {
+                    SummaryDetails(summary: summary)
+                        .opacity(detailsShown ? 1 : 0)
+                        .offset(y: detailsShown ? 0 : -6)
                 }
                 HStack(spacing: 8) {
-                    Button("Copiar") { model.copySummary() }
+                    Button("Abrir resumo") { open(summaryWindowID) }
                         .buttonStyle(PillButtonStyle())
-                    if let url = model.summaryURL {
-                        Button("Abrir arquivo") { NSWorkspace.shared.open(url) }
-                            .buttonStyle(PillButtonStyle(prominent: false))
+                    Button("Copiar") { model.copySummary() }
+                        .buttonStyle(PillButtonStyle(prominent: false))
+                    Spacer(minLength: 0)
+                    Button {
+                        setSummaryExpanded(!summaryExpanded)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(summaryExpanded ? "Mostrar menos" : "Mostrar mais")
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 9, weight: .semibold))
+                                .rotationEffect(.degrees(detailsShown ? 180 : 0))
+                        }
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(Theme.muted)
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
+                    .help(summaryExpanded ? "Ocultar os detalhes do resumo" : "Mostrar os assuntos, as decisões e as perguntas em aberto")
                 }
             } else if model.isSummarizing {
                 HStack(spacing: 8) {
@@ -122,9 +148,12 @@ struct MenuBarPanel: View {
                         .foregroundStyle(Theme.muted)
                 }
             } else {
-                Button("Resumir reunião") { model.summarize() }
-                    .buttonStyle(PillButtonStyle())
-                    .disabled(!model.canSummarize)
+                Button("Resumir reunião") {
+                    model.openSummary = { present(summaryWindowID, using: openWindow) }
+                    model.summarize()
+                }
+                .buttonStyle(PillButtonStyle())
+                .disabled(!model.canSummarize)
                 Text(model.apiKey.isEmpty
                     ? "O resumo usa o GPT: adicione sua chave da OpenAI em Ajustes."
                     : "Envia a transcrição desta sessão à OpenAI.")
@@ -140,6 +169,23 @@ struct MenuBarPanel: View {
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.paper.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    /// Expanding makes room for the details in one step and then fades them in, sliding down a
+    /// little; collapsing fades them out first and only then gives the room back.
+    private func setSummaryExpanded(_ expand: Bool) {
+        if expand {
+            summaryExpanded = true
+            DispatchQueue.main.async {
+                withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { detailsShown = true }
+            }
+        } else {
+            withAnimation(.easeIn(duration: 0.16)) {
+                detailsShown = false
+            } completion: {
+                summaryExpanded = false
+            }
+        }
     }
 
     private var footer: some View {
@@ -163,8 +209,7 @@ struct MenuBarPanel: View {
     }
 
     private func open(_ window: String) {
-        openWindow(id: window)
-        NSApp.activate(ignoringOtherApps: true)
+        present(window, using: openWindow)
     }
 
     private func showCaptions() {
@@ -196,29 +241,66 @@ private struct ChipToggle: View {
     }
 }
 
-/// The summary's action items: what to do, and who and when, when the meeting said so.
-private struct MeetingActionsList: View {
-    @EnvironmentObject private var model: CaptionModel
+/// The summary's details inside the menu bar panel: the topics, then decisions, key points and open
+/// questions when there are any. The summary window has the full version.
+private struct SummaryDetails: View {
+    let summary: MeetingSummary
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Pendências")
-                .font(.system(size: 12, weight: .semibold))
-            ForEach(model.meetingActions) { action in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(action.title)
-                        .font(.system(size: 12, weight: .medium))
-                        .fixedSize(horizontal: false, vertical: true)
-                    let details = [action.owner, action.due].filter { !$0.isEmpty }.joined(separator: " · ")
-                    if !details.isEmpty {
-                        Text(details)
-                            .font(.system(size: 10.5))
-                            .foregroundStyle(Theme.muted)
+        VStack(alignment: .leading, spacing: 10) {
+            if !summary.topics.isEmpty {
+                group("Assuntos", symbol: "text.bubble") {
+                    ForEach(Array(summary.topics.enumerated()), id: \.offset) { _, topic in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(topic.title)
+                                .font(.system(size: 12, weight: .semibold))
+                            Text(topic.summary)
+                                .font(.system(size: 11.5))
+                                .foregroundStyle(Theme.paper.opacity(0.7))
+                                .lineLimit(3)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Theme.paper.opacity(0.05), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
                 }
-                .padding(8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Theme.paper.opacity(0.05), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            bullets("Decisões", symbol: "checkmark.seal", items: summary.decisions)
+            bullets("Ideias principais", symbol: "lightbulb", items: summary.keyPoints)
+            bullets("Perguntas em aberto", symbol: "questionmark.circle", items: summary.openQuestions)
+        }
+    }
+
+    private func group<Content: View>(_ title: String, symbol: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 5) {
+                Image(systemName: symbol)
+                    .foregroundStyle(Theme.accent)
+                Text(title)
+                    .foregroundStyle(Theme.muted)
+            }
+            .font(.system(size: 11, weight: .semibold))
+            content()
+        }
+    }
+
+    @ViewBuilder
+    private func bullets(_ title: String, symbol: String, items: [String]) -> some View {
+        if !items.isEmpty {
+            group(title, symbol: symbol) {
+                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                    HStack(alignment: .top, spacing: 6) {
+                        Circle()
+                            .fill(Theme.accent)
+                            .frame(width: 4, height: 4)
+                            .padding(.top, 5)
+                        Text(item)
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(Theme.paper.opacity(0.8))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
         }
     }
