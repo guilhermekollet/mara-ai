@@ -4,7 +4,8 @@
 //
 // The caption demos (`demo`) are captioned in the page's language: English speech becomes
 // Portuguese captions on /pt, Portuguese speech becomes English on /en, and English speech becomes
-// Spanish on /es.
+// Spanish on /es. The app itself captions in Brazilian Portuguese for now, which the FAQ answer
+// about languages states in every language; keep it in step with CaptionModel.swift.
 
 export const locales = ["en", "pt", "es"] as const;
 export type Locale = (typeof locales)[number];
@@ -23,7 +24,7 @@ const en = {
   meta: {
     title: "Mara AI — Meetings in any language",
     description:
-      "Mara AI captions and translates your meetings into Portuguese in real time, right on your Mac, summarizes the conversation and turns action items into Linear issues.",
+      "Mara AI captions and translates your meetings in real time, right on your Mac, summarizes the conversation and turns action items into Linear issues.",
   },
   a11y: {
     sections: "Sections",
@@ -182,7 +183,7 @@ const en = {
       {
         question: "Which languages are supported?",
         answer:
-          "The meeting can be in any language that Apple's speech recognition and translator offer on your Mac, such as English, Spanish, German, French, Chinese and Japanese. Captions are shown in Brazilian Portuguese. You pick the meeting language before you start.",
+          "Meetings can be in English or Spanish, and for now the captions are shown in Brazilian Portuguese. Meetings in Portuguese work too: Mara transcribes and summarizes them, without translating. You pick the meeting language before you start.",
       },
       {
         question: "How do action items become issues?",
@@ -393,7 +394,7 @@ const pt: Dictionary = {
       {
         question: "Quais idiomas são suportados?",
         answer:
-          "Os idiomas que o reconhecimento de fala e o tradutor da Apple oferecem no seu Mac, como inglês, espanhol, alemão, francês, chinês e japonês. Você escolhe o idioma da reunião antes de iniciar.",
+          "Reuniões em inglês ou espanhol, com a legenda em português. Reuniões em português também funcionam: a Mara transcreve e resume, sem traduzir. Você escolhe o idioma da reunião antes de iniciar.",
       },
       {
         question: "Como as pendências viram issues?",
@@ -445,7 +446,7 @@ const es: Dictionary = {
   meta: {
     title: "Mara AI — Reuniones en cualquier idioma",
     description:
-      "Mara AI subtitula y traduce tus reuniones al portugués en tiempo real, directamente en tu Mac, resume la conversación y convierte los pendientes en issues de Linear.",
+      "Mara AI subtitula y traduce tus reuniones en tiempo real, directamente en tu Mac, resume la conversación y convierte los pendientes en issues de Linear.",
   },
   a11y: {
     sections: "Secciones",
@@ -602,7 +603,7 @@ const es: Dictionary = {
       {
         question: "¿Qué idiomas son compatibles?",
         answer:
-          "La reunión puede estar en cualquier idioma que el reconocimiento de voz y el traductor de Apple ofrezcan en tu Mac, como inglés, español, alemán, francés, chino y japonés. Los subtítulos se muestran en portugués de Brasil. Eliges el idioma de la reunión antes de empezar.",
+          "Las reuniones pueden ser en inglés o en español y, por ahora, los subtítulos se muestran en portugués de Brasil. Las reuniones en portugués también funcionan: Mara las transcribe y resume, sin traducir. Eliges el idioma de la reunión antes de empezar.",
       },
       {
         question: "¿Cómo se convierten los pendientes en issues?",
