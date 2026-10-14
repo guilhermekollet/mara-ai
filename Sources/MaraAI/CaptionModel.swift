@@ -97,9 +97,6 @@ final class CaptionModel: ObservableObject {
         didSet {
             UserDefaults.standard.set(hotKeysEnabled, forKey: "hotKeysEnabled")
             applyHotKeys()
-        restoreOverviewCache()
-        restoreDeliveryCache()
-        startOverviewRefresh()
         }
     }
     /// Shortcuts the system rejected, usually because another app already uses them.
@@ -162,6 +159,10 @@ final class CaptionModel: ObservableObject {
         fontSize = UserDefaults.standard.object(forKey: "fontSize") as? Double ?? 17
         opacity = UserDefaults.standard.object(forKey: "opacity") as? Double ?? 0.55
         applyHotKeys()
+        // Linear: show the last saved numbers and chart right away, then keep them fresh.
+        restoreOverviewCache()
+        restoreDeliveryCache()
+        startOverviewRefresh()
     }
 
     /// Languages offered, in menu order. For Spanish, the first variant the Mac supports.
