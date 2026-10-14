@@ -33,8 +33,21 @@ need a Linear personal API key. Use your own keys, and never commit them.
 
 ## Commit messages
 
-Use the [Conventional Commits](https://www.conventionalcommits.org) style, for example
-`feat: add Spanish (Mexico) to the language menu` or `fix: keep punctuation on the right line`.
+Use the [Conventional Commits](https://www.conventionalcommits.org) style, in English, for example
+`feat: add Spanish (Mexico) to the language menu` or `fix(linear): read every page of the cycle`.
+No co-author or "generated with" trailers.
+
+`scripts/ship.sh` does the whole round and checks the convention at each step:
+
+```bash
+scripts/ship.sh setup                                   # once: check every commit message
+scripts/ship.sh branch fix/caption-punctuation
+git add -p
+scripts/ship.sh commit "fix: keep punctuation on the right line" body.txt
+scripts/ship.sh push
+scripts/ship.sh pr                                      # title and description from the commit
+scripts/ship.sh merge 42                                # maintainers: squash once checks pass
+```
 
 ## Website
 
