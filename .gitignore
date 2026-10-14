@@ -1,5 +1,6 @@
 # Swift
 .build/
+dist/
 build/
 *.xcodeproj/
 .swiftpm/
