@@ -12,6 +12,9 @@ web/.next/
 web/.env*.local
 web/next-env.d.ts
 
+# Promo video project (Remotion), kept local
+promo/
+
 # Local tooling
 .claude/
 .DS_Store
