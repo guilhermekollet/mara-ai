@@ -2,38 +2,22 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
+import type { Dictionary } from "@/i18n/dictionaries";
 
-type Phrase = { speaker: number; source: string; target: string };
+type Copy = Dictionary["demo"];
+type Phrase = Copy["phrases"][number];
 
-const PHRASES: Phrase[] = [
-  {
-    speaker: 0,
-    source: "And I think the delivery timeline is realistic for our team.",
-    target: "E acho que o prazo de entrega é realista para o nosso time.",
-  },
-  {
-    speaker: 1,
-    source: "Could you walk us through the pricing for the enterprise plan?",
-    target: "Você pode nos explicar os preços do plano empresarial?",
-  },
-  {
-    speaker: 3,
-    source: "Let's schedule a follow-up for next Tuesday morning.",
-    target: "Vamos marcar uma continuação para terça-feira de manhã.",
-  },
-  {
-    speaker: 0,
-    source: "We need to close the quarter with twenty percent growth.",
-    target: "Precisamos fechar o trimestre com vinte por cento de crescimento.",
-  },
-];
+// Who says each phrase, by tile: 0 and 1 are the top row, 2 is the visitor, 3 is bottom right.
+const PHRASE_SPEAKERS = [0, 1, 3, 0];
+const TONES = ["bg-[#3a3550]", "bg-[#2d3a3a]", "bg-[#3a302d]", "bg-[#2d3340]"];
 
-const SPEAKERS = [
-  { initials: "SK", name: "Sarah Kim", tone: "bg-[#3a3550]" },
-  { initials: "JM", name: "James Miller", tone: "bg-[#2d3a3a]" },
-  { initials: "VOCÊ", name: "Você", tone: "bg-[#3a302d]" },
-  { initials: "AL", name: "Anna Lindqvist", tone: "bg-[#2d3340]" },
-];
+const initialsOf = (name: string) =>
+  name
+    .split(" ")
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
 
 type Line = { id: number; phrase: number; shown: number; done: boolean };
 
@@ -43,22 +27,32 @@ const WORD_SHOWN = { opacity: 1, y: 0, filter: "blur(0px)" };
 const WORD_HIDDEN = { opacity: 0, y: 4, filter: "blur(5px)" };
 
 // Initial state, and also what's shown to people who asked for reduced motion.
-const RESTING: Line[] = [
-  { id: -2, phrase: 3, shown: wordsOf(PHRASES[3].target).length, done: true },
-  { id: -1, phrase: 0, shown: wordsOf(PHRASES[0].target).length, done: false },
+const resting = (phrases: Phrase[]): Line[] => [
+  { id: -2, phrase: 3, shown: wordsOf(phrases[3].target).length, done: true },
+  { id: -1, phrase: 0, shown: wordsOf(phrases[0].target).length, done: false },
 ];
 
-export function CaptionDemo() {
+// The meeting window with captions forming under it. The phrases are spoken in one language and
+// captioned in the page's language (see `demo` in the dictionaries).
+export function CaptionDemo({ copy }: { copy: Copy }) {
+  const { phrases } = copy;
+  const [first, second, third] = copy.people;
+  const speakers = [
+    { initials: initialsOf(first), name: first },
+    { initials: initialsOf(second), name: second },
+    { initials: copy.youInitials, name: copy.you },
+    { initials: initialsOf(third), name: third },
+  ].map((person, index) => ({ ...person, tone: TONES[index] }));
   const reduced = useReducedMotion();
   const nextId = useRef(1);
-  const [lines, setLines] = useState<Line[]>(RESTING.slice(0, 1));
+  const [lines, setLines] = useState<Line[]>(() => resting(phrases).slice(0, 1));
   const [speaker, setSpeaker] = useState(-1);
   const [source, setSource] = useState({ phrase: 0, shown: 0 });
 
   useEffect(() => {
     if (reduced) {
-      setLines(RESTING);
-      setSource({ phrase: 0, shown: wordsOf(PHRASES[0].source).length });
+      setLines(resting(phrases));
+      setSource({ phrase: 0, shown: wordsOf(phrases[0].source).length });
       return;
     }
 
@@ -69,13 +63,13 @@ export function CaptionDemo() {
 
     (async () => {
       await wait(600);
-      for (let index = 0; !cancelled; index = (index + 1) % PHRASES.length) {
-        const phrase = PHRASES[index];
+      for (let index = 0; !cancelled; index = (index + 1) % phrases.length) {
+        const phrase = phrases[index];
         const spokenWords = wordsOf(phrase.source);
         const total = wordsOf(phrase.target).length;
         const id = nextId.current++;
 
-        setSpeaker(phrase.speaker);
+        setSpeaker(PHRASE_SPEAKERS[index]);
         setSource({ phrase: index, shown: 0 });
         setLines((current) => [
           ...current.filter((line) => line.done).slice(-1),
@@ -119,9 +113,9 @@ export function CaptionDemo() {
     return () => {
       cancelled = true;
     };
-  }, [reduced]);
+  }, [reduced, phrases]);
 
-  const sourceWords = wordsOf(PHRASES[source.phrase].source);
+  const sourceWords = wordsOf(phrases[source.phrase].source);
 
   return (
     <div className="relative mx-auto mt-16 max-w-[1440px] rounded-3xl bg-linear-160 from-stage-from to-stage-to px-3 pt-6 pb-52 sm:rounded-[32px] sm:px-6 sm:pt-14 sm:pb-24">
@@ -130,10 +124,10 @@ export function CaptionDemo() {
           <i className="size-[11px] rounded-full bg-white/20" />
           <i className="size-[11px] rounded-full bg-white/20" />
           <i className="size-[11px] rounded-full bg-white/20" />
-          <span className="ml-2.5">Quarterly review — Acme Corp</span>
+          <span className="ml-2.5">{copy.meeting}</span>
         </div>
         <div className="grid grid-cols-2 gap-2 px-2 pb-2">
-          {SPEAKERS.map((person, index) => {
+          {speakers.map((person, index) => {
             const speaking = index === speaker;
             return (
               <div
@@ -157,12 +151,12 @@ export function CaptionDemo() {
 
       <div
         role="img"
-        aria-label="Janela da Mara AI mostrando legendas traduzidas para português"
+        aria-label={copy.label}
         className="absolute bottom-5 left-1/2 flex h-[196px] w-[calc(100%-24px)] max-w-[720px] -translate-x-1/2 flex-col justify-end overflow-hidden rounded-2xl bg-ink/90 px-4 py-4 text-center shadow-[0_20px_50px_rgba(0,0,0,0.35)] backdrop-blur-md sm:bottom-10 sm:h-[156px] sm:w-[calc(100%-48px)] sm:px-6"
       >
         <AnimatePresence initial={false} mode="popLayout">
           {lines.map((line) => {
-            const words = wordsOf(PHRASES[line.phrase].target);
+            const words = wordsOf(phrases[line.phrase].target);
             return (
               <motion.p
                 key={line.id}

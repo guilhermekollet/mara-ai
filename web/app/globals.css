@@ -85,6 +85,12 @@ body {
 :root[data-theme="dark"] .only-dark { display: block; }
 :root[data-theme="dark"] .only-light { display: none; }
 
+/* The 404 page carries its copy in every language and shows only the visitor's; the script in
+   app/global-not-found.tsx sets the lang attribute before the first paint. English by default. */
+:root:not(:lang(pt)) [data-copy="pt"],
+:root:not(:lang(es)) [data-copy="es"],
+:root:is(:lang(pt), :lang(es)) [data-copy="en"] { display: none; }
+
 /* Dot texture on the sides of the hero */
 .dither {
   background-image: radial-gradient(circle, var(--color-accent) 1.6px, transparent 1.8px);
