@@ -120,6 +120,7 @@ API keys are stored in the macOS Keychain, never in files.
 | Meeting audio | Stays on your Mac. It is never sent anywhere. |
 | Transcript text | Sent to OpenAI only when GPT refinement is on, or when you ask for a summary. |
 | Linear data | Read from and written to Linear with your key; issues are only created after you confirm. |
+| Deliveries chart cache | Completion dates and assignees of the team's issues from the last 9 weeks, in `~/Library/Application Support/MaraAI/entregas-linear.json`. Deleted when you remove the Linear key. |
 | API keys | macOS Keychain. |
 | Transcripts and summaries | Text files in `~/Documents/Mara AI`. |
 

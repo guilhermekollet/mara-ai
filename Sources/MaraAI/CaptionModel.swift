@@ -63,6 +63,7 @@ final class CaptionModel: ObservableObject {
     @Published private(set) var sendingActions: Set<UUID> = []
     @Published private(set) var actionErrors: [UUID: String] = [:]
     private var deliveriesFetchedAt: Date?
+    private var deliveryCache: DeliveryCache?
 
     var linearReady: Bool { !linearKey.isEmpty && !linearTeamID.isEmpty }
     @Published var status = ""
@@ -97,6 +98,7 @@ final class CaptionModel: ObservableObject {
             UserDefaults.standard.set(hotKeysEnabled, forKey: "hotKeysEnabled")
             applyHotKeys()
         restoreOverviewCache()
+        restoreDeliveryCache()
         startOverviewRefresh()
         }
     }
@@ -490,7 +492,9 @@ final class CaptionModel: ObservableObject {
     /// Used only by the development tool that draws the chart with sample data.
     func setSampleDeliveries(_ sample: [Delivery]) { deliveries = sample }
 
-    /// Loads from Linear the issues completed in the last 9 weeks. Queries at most every 5 minutes.
+    /// Brings the deliveries chart up to date: a full read of the last 9 weeks the first time and
+    /// once a day, and in between only the issues that changed since the last read. Queries at most
+    /// every 5 minutes unless forced.
     func loadDeliveries(force: Bool = false) async {
         guard linearReady else {
             deliveries = []
@@ -500,14 +504,38 @@ final class CaptionModel: ObservableObject {
         if !force, let last = deliveriesFetchedAt, Date().timeIntervalSince(last) < 300 { return }
         isLoadingDeliveries = true
         defer { isLoadingDeliveries = false }
-        let since = Calendar.current.date(byAdding: .day, value: -63, to: Date()) ?? Date()
+        let client = LinearClient(apiKey: linearKey)
+        let teamID = linearTeamID
+        // The read starts now: whatever changes while it runs is picked up by the next one.
+        let started = Date()
         do {
-            deliveries = try await LinearClient(apiKey: linearKey).completions(teamID: linearTeamID, since: since)
+            var cache: DeliveryCache
+            if let cached = deliveryCache, cached.teamID == teamID, !cached.needsFullSync(at: started) {
+                cache = cached
+                cache.apply(try await client.completions(teamID: teamID, since: cached.changesSince, changedOnly: true), at: started)
+            } else {
+                let since = started.addingTimeInterval(-DeliveryCache.window)
+                cache = DeliveryCache(
+                    teamID: teamID, fullRead: try await client.completions(teamID: teamID, since: since, changedOnly: false), at: started
+                )
+            }
+            // The team changed while the read ran: the result belongs to the old one.
+            guard teamID == linearTeamID else { return }
+            deliveryCache = cache
+            deliveries = cache.deliveries
             deliveriesError = nil
             deliveriesFetchedAt = Date()
+            cache.save()
         } catch {
             deliveriesError = error.localizedDescription
         }
+    }
+
+    /// Shows the deliveries saved by the last read right away, while the new one is pending.
+    private func restoreDeliveryCache() {
+        guard linearReady, let cache = DeliveryCache.load(teamID: linearTeamID) else { return }
+        deliveryCache = cache
+        deliveries = cache.deliveries
     }
 
     // MARK: Linear
@@ -517,7 +545,14 @@ final class CaptionModel: ObservableObject {
         Keychain.saveSecret(linearKey, account: "linear-api-key")
         linearTeams = []
         linearStatus = ""
-        if linearKey.isEmpty { linearTeamID = "" }
+        if linearKey.isEmpty {
+            linearTeamID = ""
+            // Without a key, nothing read from Linear stays on the Mac.
+            deliveryCache = nil
+            DeliveryCache.delete()
+            UserDefaults.standard.removeObject(forKey: "linearOverviewCache")
+            UserDefaults.standard.removeObject(forKey: "linearOverviewScope")
+        }
     }
 
     func loadLinearTeams() async {

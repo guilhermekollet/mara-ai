@@ -11,6 +11,20 @@ enum Fixtures {
         let date = Calendar.current.date(byAdding: .day, value: -daysAgo, to: Date())!
         return Delivery(date: date, memberID: name, memberName: name)
     }
+
+    /// A fixed "now" for the delivery cache tests, and moments relative to it.
+    static let now = Date(timeIntervalSince1970: 1_800_000_000)
+    static func hoursLater(_ hours: Double) -> Date { now.addingTimeInterval(hours * 3_600) }
+
+    /// A Linear issue completed `daysAgo` days before `now` by `member`, or reopened when `daysAgo` is nil.
+    static func completion(_ id: String, daysAgo: Double?, member: String = "Ana") -> LinearClient.Completion {
+        LinearClient.Completion(
+            id: id, completedAt: daysAgo.map { now.addingTimeInterval(-$0 * 86_400) }, memberID: member, memberName: member
+        )
+    }
+
+    /// Seconds between the last read and where the next changed-since read starts.
+    static func overlapSeconds(_ cache: DeliveryCache) -> Double { cache.syncedAt.timeIntervalSince(cache.changesSince) }
 }
 
 /// Drives an `ActivityGate` with synthetic 100 ms buffers at 16 kHz.
