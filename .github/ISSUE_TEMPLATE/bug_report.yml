@@ -1,0 +1,29 @@
+name: Bug report
+description: Something isn't working as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Start a session with English selected\n2. ..."
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "26.0.1"
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Session log
+      description: Relevant lines from ~/Library/Logs/MaraAI/sessao.log. Remove meeting content you don't want to share.
+      render: text
