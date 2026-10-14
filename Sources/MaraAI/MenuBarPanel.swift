@@ -149,7 +149,7 @@ struct MenuBarPanel: View {
                 }
             } else {
                 Button("Resumir reunião") {
-                    model.openSummary = { openWindow(id: summaryWindowID); NSApp.activate(ignoringOtherApps: true) }
+                    model.openSummary = { present(summaryWindowID, using: openWindow) }
                     model.summarize()
                 }
                 .buttonStyle(PillButtonStyle())
@@ -209,8 +209,7 @@ struct MenuBarPanel: View {
     }
 
     private func open(_ window: String) {
-        openWindow(id: window)
-        NSApp.activate(ignoringOtherApps: true)
+        present(window, using: openWindow)
     }
 
     private func showCaptions() {

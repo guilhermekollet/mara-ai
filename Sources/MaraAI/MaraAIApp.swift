@@ -45,6 +45,28 @@ struct MaraAIApp: App {
 
 let captionsWindowID = "captions"
 
+/// Opens one of the app's windows in front of everything, on the screen the pointer is on.
+/// SwiftUI puts a window back where it was last closed, which can be another monitor the person
+/// isn't looking at, and activating the app alone doesn't raise it on recent macOS versions.
+@MainActor
+func present(_ id: String, using openWindow: OpenWindowAction) {
+    openWindow(id: id)
+    NSApp.activate()
+    // SwiftUI creates the window in this pass of the run loop; it exists by the next one.
+    DispatchQueue.main.async {
+        guard let window = NSApp.windows.first(where: { $0.identifier?.rawValue == id }) else { return }
+        let pointer = NSEvent.mouseLocation
+        if let screen = NSScreen.screens.first(where: { NSMouseInRect(pointer, $0.frame, false) }),
+           window.screen?.frame != screen.frame {
+            // Moves without resizing: resizing windows during layout has crashed AppKit on macOS 26.
+            let area = screen.visibleFrame
+            window.setFrameOrigin(NSPoint(x: area.midX - window.frame.width / 2, y: area.midY - window.frame.height / 2))
+        }
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+    }
+}
+
 /// Menu bar icon. Since it is always alive, it is the one that hands the model the action that
 /// opens the captions window, used by the global shortcuts.
 struct MenuBarLabel: View {
@@ -131,10 +153,7 @@ struct ContentView: View {
             IconButton(symbol: "doc.on.doc", help: "Copiar a transcrição") { model.copyTranscript() }
                 .disabled(model.segments.isEmpty)
                 .modifier(HoverReveal(shown: hovering, order: 3))
-            IconButton(symbol: "gearshape", help: "Ajustes") {
-                openWindow(id: settingsWindowID)
-                NSApp.activate(ignoringOtherApps: true)
-            }
+            IconButton(symbol: "gearshape", help: "Ajustes") { present(settingsWindowID, using: openWindow) }
             .modifier(HoverReveal(shown: hovering, order: 4))
             IconButton(symbol: "xmark", help: "Fechar a janela de legendas") { dismissWindow(id: captionsWindowID) }
                 .modifier(HoverReveal(shown: hovering, order: 5))
