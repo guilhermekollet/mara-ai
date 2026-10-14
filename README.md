@@ -143,6 +143,9 @@ again.
 **The menu bar icon doesn't show up.** On MacBooks with a notch, icons that don't fit are hidden
 behind it. Remove a few menu bar items (hold <kbd>⌘</kbd> and drag them out) and Mara appears.
 
+**The Linear panel or the deliveries chart is empty.** Each read from Linear is logged, with counts,
+timings and errors (no keys or issue titles), in `~/Library/Logs/MaraAI/linear.log`.
+
 **Something went wrong during a meeting.** The current session is logged, with millisecond timings,
 in `~/Library/Logs/MaraAI/sessao.log`.
 

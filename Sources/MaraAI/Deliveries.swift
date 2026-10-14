@@ -139,7 +139,20 @@ struct DeliveriesMiniChart: View {
                         .font(.system(size: 11).monospacedDigit())
                         .foregroundStyle(Theme.muted)
                 }
-                if cells.isEmpty {
+                if cells.isEmpty, let error = model.deliveriesError, !model.isLoadingDeliveries {
+                    // A failed read must not look like a team that delivered nothing.
+                    VStack(spacing: 4) {
+                        Text(error)
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(3)
+                        Text("Clique para abrir e tentar de novo")
+                            .font(.system(size: 10))
+                            .foregroundStyle(Theme.muted)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 58, alignment: .center)
+                } else if cells.isEmpty {
                     Text(model.isLoadingDeliveries ? "Carregando as entregas…" : "Nenhuma entrega nos últimos 14 dias.")
                         .font(.system(size: 11))
                         .foregroundStyle(Theme.paper.opacity(0.4))

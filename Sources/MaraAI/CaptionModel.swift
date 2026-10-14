@@ -512,12 +512,14 @@ final class CaptionModel: ObservableObject {
             var cache: DeliveryCache
             if let cached = deliveryCache, cached.teamID == teamID, !cached.needsFullSync(at: started) {
                 cache = cached
-                cache.apply(try await client.completions(teamID: teamID, since: cached.changesSince, changedOnly: true), at: started)
+                let changes = try await client.completions(teamID: teamID, since: cached.changesSince, changedOnly: true)
+                cache.apply(changes, at: started)
+                LinearLog.write("deliveries: \(changes.count) changed issues, \(cache.deliveries.count) in the chart (\(LinearLog.seconds(since: started)))")
             } else {
                 let since = started.addingTimeInterval(-DeliveryCache.window)
-                cache = DeliveryCache(
-                    teamID: teamID, fullRead: try await client.completions(teamID: teamID, since: since, changedOnly: false), at: started
-                )
+                let completed = try await client.completions(teamID: teamID, since: since, changedOnly: false)
+                cache = DeliveryCache(teamID: teamID, fullRead: completed, at: started)
+                LinearLog.write("deliveries: full read, \(completed.count) issues completed in 9 weeks (\(LinearLog.seconds(since: started)))")
             }
             // The team changed while the read ran: the result belongs to the old one.
             guard teamID == linearTeamID else { return }
@@ -528,6 +530,7 @@ final class CaptionModel: ObservableObject {
             cache.save()
         } catch {
             deliveriesError = error.localizedDescription
+            LinearLog.write("deliveries failed: \(error.localizedDescription)")
         }
     }
 
@@ -642,8 +645,14 @@ final class CaptionModel: ObservableObject {
         isLoadingOverview = true
         defer { isLoadingOverview = false }
         let scope = overviewScope
+        let started = Date()
         do {
             let fresh = try await LinearClient(apiKey: linearKey).overview(teamID: linearTeamID, onlyMine: linearOnlyMine)
+            LinearLog.write(
+                "overview: \(fresh.cycle == nil ? "no active cycle" : "active cycle"), \(linearOnlyMine ? "my issues" : "team"): "
+                    + "open \(fresh.open), in progress \(fresh.inProgress), in review \(fresh.inReview), done \(fresh.done) "
+                    + "(\(LinearLog.seconds(since: started)))"
+            )
             // If the team or the filter changed while the query ran, the result is no longer valid.
             guard scope == overviewScope else { return }
             linearOverview = fresh
@@ -655,6 +664,7 @@ final class CaptionModel: ObservableObject {
             }
         } catch {
             linearOverviewError = error.localizedDescription
+            LinearLog.write("overview failed: \(error.localizedDescription)")
         }
     }
 
@@ -817,6 +827,32 @@ final class CaptionModel: ObservableObject {
         } catch {
             status = "Não foi possível salvar a transcrição: \(error.localizedDescription)"
         }
+    }
+}
+
+/// What each read from Linear brought back (counts, durations and errors; never keys or issue
+/// titles), to tell why the panel or the chart shows nothing. Starts over once it passes 256 KB.
+@MainActor
+enum LinearLog {
+    static let url = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("Logs/MaraAI/linear.log")
+
+    static func write(_ message: String) {
+        let files = FileManager.default
+        try? files.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if let size = (try? files.attributesOfItem(atPath: url.path))?[.size] as? Int, size > 256_000 {
+            try? files.removeItem(at: url)
+        }
+        if !files.fileExists(atPath: url.path) { files.createFile(atPath: url.path, contents: nil) }
+        guard let handle = try? FileHandle(forWritingTo: url) else { return }
+        defer { try? handle.close() }
+        _ = try? handle.seekToEnd()
+        let stamp = Date().formatted(.iso8601.year().month().day().time(includingFractionalSeconds: false))
+        try? handle.write(contentsOf: Data("\(stamp) \(message)\n".utf8))
+    }
+
+    static func seconds(since start: Date) -> String {
+        String(format: "%.1fs", Date().timeIntervalSince(start))
     }
 }
 
