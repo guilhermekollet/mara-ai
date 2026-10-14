@@ -351,6 +351,7 @@ extension ContentView {
 
 /// Hover entrance for the captions window's controls: they come in one by one, left to right,
 /// fading in and settling from slightly above; when the pointer leaves they go out together.
+/// No scaling: it makes the SF Symbols look like they jump and blurs them mid-animation.
 private struct HoverReveal: ViewModifier {
     let shown: Bool
     let order: Int
@@ -358,10 +359,11 @@ private struct HoverReveal: ViewModifier {
     func body(content: Content) -> some View {
         content
             .opacity(shown ? 1 : 0)
-            .offset(y: shown ? 0 : -4)
-            .scaleEffect(shown ? 1 : 0.85)
+            .offset(y: shown ? 0 : -3)
             .animation(
-                shown ? .easeOut(duration: 0.25).delay(Double(order) * 0.045) : .easeIn(duration: 0.15),
+                shown
+                    ? .spring(response: 0.34, dampingFraction: 0.9).delay(Double(order) * 0.035)
+                    : .easeOut(duration: 0.12),
                 value: shown
             )
     }
