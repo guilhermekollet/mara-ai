@@ -68,7 +68,6 @@ struct ContentView: View {
             captions
             // The controls only appear on hover, so the window is nothing but captions.
             controlBar
-                .opacity(hovering ? 1 : 0)
         }
         .overlay { listeningIndicator }
         .animation(.spring(response: 0.6, dampingFraction: 0.86), value: indicatorInHeader)
@@ -94,8 +93,9 @@ struct ContentView: View {
 
     private var controlBar: some View {
         HStack(spacing: 2) {
-            LanguageMenu()
+            LanguageMenu(iconOnly: true)
                 .padding(.leading, 4)
+                .modifier(HoverReveal(shown: hovering, order: 0))
             IconButton(
                 symbol: model.isRunning ? "stop.fill" : "play.fill",
                 help: model.isRunning ? "Parar" : "Iniciar",
@@ -103,6 +103,7 @@ struct ContentView: View {
             ) { model.toggle() }
                 .keyboardShortcut(.return, modifiers: .command)
                 .disabled(model.isStarting)
+                .modifier(HoverReveal(shown: hovering, order: 1))
             if !model.status.isEmpty {
                 Text(model.status)
                     .font(.system(size: 10))
@@ -110,20 +111,25 @@ struct ContentView: View {
                     .lineLimit(1)
                     .padding(.horizontal, 6)
                     .help(model.status)
+                    .modifier(HoverReveal(shown: hovering, order: 2))
             }
             Spacer(minLength: 0)
             IconButton(symbol: "doc.on.doc", help: "Copiar a transcrição") { model.copyTranscript() }
                 .disabled(model.segments.isEmpty)
+                .modifier(HoverReveal(shown: hovering, order: 3))
             IconButton(symbol: "gearshape", help: "Ajustes") {
                 openWindow(id: settingsWindowID)
                 NSApp.activate(ignoringOtherApps: true)
             }
+            .modifier(HoverReveal(shown: hovering, order: 4))
             IconButton(symbol: "xmark", help: "Fechar a janela de legendas") { dismissWindow(id: captionsWindowID) }
+                .modifier(HoverReveal(shown: hovering, order: 5))
         }
         .padding(.horizontal, 6)
         .frame(height: 32)
         .background(
             LinearGradient(colors: [Theme.ink.opacity(0.92), Theme.ink.opacity(0)], startPoint: .top, endPoint: .bottom)
+                .opacity(hovering ? 1 : 0)
         )
     }
 
@@ -307,6 +313,24 @@ extension ContentView {
         jumpLabelTimer?.cancel()
         jumpLabelTimer = nil
         showsJumpLabel = false
+    }
+}
+
+/// Hover entrance for the captions window's controls: they come in one by one, left to right,
+/// fading in and settling from slightly above; when the pointer leaves they go out together.
+private struct HoverReveal: ViewModifier {
+    let shown: Bool
+    let order: Int
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown ? 0 : -4)
+            .scaleEffect(shown ? 1 : 0.85)
+            .animation(
+                shown ? .easeOut(duration: 0.25).delay(Double(order) * 0.045) : .easeIn(duration: 0.15),
+                value: shown
+            )
     }
 }
 
