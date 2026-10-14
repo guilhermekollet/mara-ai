@@ -3,7 +3,7 @@
 // their browser, falling back to English.
 //
 // The caption demos (`demo`) are captioned in the page's language: English speech becomes
-// Portuguese captions on /pt, Portuguese speech becomes English on /en, and English speech becomes
+// Portuguese captions on /pt, Spanish speech becomes English on /en, and English speech becomes
 // Spanish on /es. The app itself captions in Brazilian Portuguese for now, which the FAQ answer
 // about languages states in every language; keep it in step with CaptionModel.swift.
 
@@ -49,28 +49,19 @@ const en = {
     seeHow: "See how it works",
   },
   demo: {
-    label: "Mara AI window showing a meeting in Portuguese with captions translated into English",
-    meeting: "Revisão trimestral — Acme Corp",
-    people: ["Ana Souza", "Rafael Lima", "Beatriz Costa"],
+    label: "Mara's captions window: a meeting in Spanish, captioned in English word by word",
     you: "You",
-    youInitials: "YOU",
+    // The jump-to-latest button's label in the captions window.
+    jump: "New captions",
+    // What the hero demo hears and captions, in order.
     phrases: [
-      {
-        source: "E acho que o prazo de entrega é realista para o nosso time.",
-        target: "And I think the delivery timeline is realistic for our team.",
-      },
-      {
-        source: "Você pode nos explicar os preços do plano empresarial?",
-        target: "Could you walk us through the pricing for the enterprise plan?",
-      },
-      {
-        source: "Vamos marcar uma continuação para terça-feira de manhã.",
-        target: "Let's schedule a follow-up for next Tuesday morning.",
-      },
-      {
-        source: "Precisamos fechar o trimestre com vinte por cento de crescimento.",
-        target: "We need to close the quarter with twenty percent growth.",
-      },
+      { source: "Creo que el plazo de entrega es realista para nuestro equipo.", target: "I think the delivery timeline is realistic for our team." },
+      { source: "¿Puedes enviar la propuesta revisada antes del jueves?", target: "Can you send the revised proposal by Thursday?" },
+      { source: "Agendemos una reunión de seguimiento el próximo martes.", target: "Let's schedule a follow-up meeting next Tuesday." },
+      { source: "Perfecto, yo preparo la demo para el cliente.", target: "Perfect, I'll prepare the demo for the client." },
+      { source: "Y revisamos los números del trimestre al final.", target: "And we'll go over the quarter's numbers at the end." },
+      { source: "Lucía, ¿puedes compartir la presentación en el chat?", target: "Lucía, can you share the slides in the chat?" },
+      { source: "Claro, la comparto ahora mismo.", target: "Sure, I'll share it right now." },
     ],
     // The still caption in the "incremental translation" band: a confirmed line, a line still
     // forming word by word, and the speech it comes from.
@@ -262,28 +253,19 @@ const pt: Dictionary = {
     seeHow: "Ver como funciona",
   },
   demo: {
-    label: "Janela da Mara AI mostrando uma reunião em inglês com legendas traduzidas para português",
-    meeting: "Quarterly review — Acme Corp",
-    people: ["Sarah Kim", "James Miller", "Anna Lindqvist"],
+    label: "Janela de legendas da Mara: uma reunião em inglês legendada em português, palavra a palavra",
     you: "Você",
-    youInitials: "VOCÊ",
+    // The jump-to-latest button's label in the captions window.
+    jump: "Falas novas",
+    // What the hero demo hears and captions, in order.
     phrases: [
-      {
-        source: "And I think the delivery timeline is realistic for our team.",
-        target: "E acho que o prazo de entrega é realista para o nosso time.",
-      },
-      {
-        source: "Could you walk us through the pricing for the enterprise plan?",
-        target: "Você pode nos explicar os preços do plano empresarial?",
-      },
-      {
-        source: "Let's schedule a follow-up for next Tuesday morning.",
-        target: "Vamos marcar uma continuação para terça-feira de manhã.",
-      },
-      {
-        source: "We need to close the quarter with twenty percent growth.",
-        target: "Precisamos fechar o trimestre com vinte por cento de crescimento.",
-      },
+      { source: "I think the delivery timeline is realistic for our team.", target: "Acho que o prazo de entrega é realista para o nosso time." },
+      { source: "Can you send the revised proposal by Thursday?", target: "Você pode enviar a proposta revisada até quinta-feira?" },
+      { source: "Let's schedule a follow-up meeting next Tuesday.", target: "Vamos marcar uma reunião de acompanhamento na próxima terça." },
+      { source: "Perfect, I'll prepare the demo for the client.", target: "Perfeito, eu preparo a demo para o cliente." },
+      { source: "And we'll go over the quarter's numbers at the end.", target: "E no final revisamos os números do trimestre." },
+      { source: "Lucía, can you share the slides in the chat?", target: "Lucía, você pode compartilhar os slides no chat?" },
+      { source: "Sure, I'll share it right now.", target: "Claro, vou compartilhar agora mesmo." },
     ],
     band: {
       final: "Podemos revisar o contrato na quinta-feira.",
@@ -471,28 +453,19 @@ const es: Dictionary = {
     seeHow: "Ver cómo funciona",
   },
   demo: {
-    label: "Ventana de Mara AI mostrando una reunión en inglés con subtítulos traducidos al español",
-    meeting: "Quarterly review — Acme Corp",
-    people: ["Sarah Kim", "James Miller", "Anna Lindqvist"],
+    label: "Ventana de subtítulos de Mara: una reunión en inglés subtitulada en español, palabra por palabra",
     you: "Tú",
-    youInitials: "TÚ",
+    // The jump-to-latest button's label in the captions window.
+    jump: "Nuevas frases",
+    // What the hero demo hears and captions, in order.
     phrases: [
-      {
-        source: "And I think the delivery timeline is realistic for our team.",
-        target: "Y creo que el plazo de entrega es realista para nuestro equipo.",
-      },
-      {
-        source: "Could you walk us through the pricing for the enterprise plan?",
-        target: "¿Podrían explicarnos los precios del plan empresarial?",
-      },
-      {
-        source: "Let's schedule a follow-up for next Tuesday morning.",
-        target: "Agendemos un seguimiento para el próximo martes por la mañana.",
-      },
-      {
-        source: "We need to close the quarter with twenty percent growth.",
-        target: "Necesitamos cerrar el trimestre con un veinte por ciento de crecimiento.",
-      },
+      { source: "I think the delivery timeline is realistic for our team.", target: "Creo que el plazo de entrega es realista para nuestro equipo." },
+      { source: "Can you send the revised proposal by Thursday?", target: "¿Puedes enviar la propuesta revisada antes del jueves?" },
+      { source: "Let's schedule a follow-up meeting next Tuesday.", target: "Agendemos una reunión de seguimiento el próximo martes." },
+      { source: "Perfect, I'll prepare the demo for the client.", target: "Perfecto, yo preparo la demo para el cliente." },
+      { source: "And we'll go over the quarter's numbers at the end.", target: "Y al final revisamos los números del trimestre." },
+      { source: "Lucía, can you share the slides in the chat?", target: "Lucía, ¿puedes compartir las diapositivas en el chat?" },
+      { source: "Sure, I'll share it right now.", target: "Claro, las comparto ahora mismo." },
     ],
     band: {
       final: "Podemos revisar el contrato el jueves.",

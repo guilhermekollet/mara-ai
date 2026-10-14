@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { CaptionDemo } from "@/components/caption-demo";
+import { CaptionWindowDemo } from "@/components/caption-window-demo";
 import { PrivacyArt, type PrivacyArtName } from "@/components/privacy-art";
 import { CountUp, RevealObserver } from "@/components/motion-bits";
 import { HeroWaves } from "@/components/hero-waves";
@@ -234,7 +234,7 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
             </a>
           </div>
           <div className="rise relative" style={after(780)}>
-            <CaptionDemo key={lang} copy={t.demo} />
+            <CaptionWindowDemo key={lang} copy={t.demo} />
           </div>
         </section>
 
