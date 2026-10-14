@@ -91,28 +91,28 @@ struct MenuBarPanel: View {
         .background(Theme.paper.opacity(0.05), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
+    /// After a session: the button to summarize it, and then the summary at a glance, with the
+    /// full version in its own window.
     private var summarySection: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let summary = model.summary {
-                Text("Resumo da reunião")
-                    .font(.callout.weight(.semibold))
-                ScrollView {
-                    Text(summary)
-                        .font(.callout)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(summary.title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(2)
+                    Spacer(minLength: 4)
                 }
-                .frame(maxHeight: 220)
-                if !model.meetingActions.isEmpty {
-                    MeetingActionsList()
-                }
+                KindBadge(kind: summary.kind, label: summary.kindLabel)
+                Text(summary.overview)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.paper.opacity(0.8))
+                    .lineLimit(4)
+                    .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 8) {
-                    Button("Copiar") { model.copySummary() }
+                    Button("Abrir resumo") { open(summaryWindowID) }
                         .buttonStyle(PillButtonStyle())
-                    if let url = model.summaryURL {
-                        Button("Abrir arquivo") { NSWorkspace.shared.open(url) }
-                            .buttonStyle(PillButtonStyle(prominent: false))
-                    }
+                    Button("Copiar") { model.copySummary() }
+                        .buttonStyle(PillButtonStyle(prominent: false))
                 }
             } else if model.isSummarizing {
                 HStack(spacing: 8) {
@@ -122,9 +122,12 @@ struct MenuBarPanel: View {
                         .foregroundStyle(Theme.muted)
                 }
             } else {
-                Button("Resumir reunião") { model.summarize() }
-                    .buttonStyle(PillButtonStyle())
-                    .disabled(!model.canSummarize)
+                Button("Resumir reunião") {
+                    model.openSummary = { openWindow(id: summaryWindowID); NSApp.activate(ignoringOtherApps: true) }
+                    model.summarize()
+                }
+                .buttonStyle(PillButtonStyle())
+                .disabled(!model.canSummarize)
                 Text(model.apiKey.isEmpty
                     ? "O resumo usa o GPT: adicione sua chave da OpenAI em Ajustes."
                     : "Envia a transcrição desta sessão à OpenAI.")
@@ -193,34 +196,6 @@ private struct ChipToggle: View {
         }
         .buttonStyle(.plain)
         .help(help + (isOn ? " (ligado)" : " (desligado)"))
-    }
-}
-
-/// The summary's action items: what to do, and who and when, when the meeting said so.
-private struct MeetingActionsList: View {
-    @EnvironmentObject private var model: CaptionModel
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Pendências")
-                .font(.system(size: 12, weight: .semibold))
-            ForEach(model.meetingActions) { action in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(action.title)
-                        .font(.system(size: 12, weight: .medium))
-                        .fixedSize(horizontal: false, vertical: true)
-                    let details = [action.owner, action.due].filter { !$0.isEmpty }.joined(separator: " · ")
-                    if !details.isEmpty {
-                        Text(details)
-                            .font(.system(size: 10.5))
-                            .foregroundStyle(Theme.muted)
-                    }
-                }
-                .padding(8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Theme.paper.opacity(0.05), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
-        }
     }
 }
 

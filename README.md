@@ -47,14 +47,17 @@ ends, it summarizes the conversation with AI, using your own OpenAI key.
 - Standby after a stretch without audio, and automatic stop after a longer one.
 
 **AI summary**
-- When the meeting ends, a summary with key points, decisions and action items, written by GPT
-  with your own OpenAI key. Nothing is sent until you ask for it.
-- Saved next to the transcript, and copied in one click.
+- When the meeting ends, GPT tells what was talked about, with your own OpenAI key: whether it was
+  a conversation between several people or a presentation, an overview, the topics in order and,
+  depending on the kind, the decisions or the key points, plus open questions. Nothing is sent
+  until you ask for it.
+- Its own window, with copy, save as Markdown and share; also saved next to the transcript.
+- Its own model setting (GPT-6 Luna by default). Long meetings are summarized in parts.
 
 **Everyday details**
 - Global shortcuts: <kbd>⌃⌥S</kbd> start/stop, <kbd>⌃⌥L</kbd> show/hide captions.
 - A usage ledger with every GPT call and its estimated cost.
-- Transcripts and summaries saved as plain text in `~/Documents/Mara AI`.
+- Transcripts (plain text) and summaries (Markdown) saved in `~/Documents/Mara AI`.
 
 ## Requirements
 
@@ -103,7 +106,7 @@ Everything lives in **Ajustes** (Settings), opened from the menu bar panel:
 
 | Tab | What you set |
 | --- | --- |
-| Tradução | Meeting language, on-device only or Mac + GPT, GPT model, OpenAI key |
+| Tradução | Meeting language, on-device only or Mac + GPT, GPT model, summary model, OpenAI key |
 | Aparência | Caption size and background opacity, standby and auto-stop timers |
 | Consumo | GPT usage per session, day, month and in total |
 | Glossário | Names and terms the team uses |
@@ -118,7 +121,7 @@ API keys are stored in the macOS Keychain, never in files.
 | Meeting audio | Stays on your Mac. It is never sent anywhere. |
 | Transcript text | Sent to OpenAI only when GPT refinement is on, or when you ask for a summary. |
 | API keys | macOS Keychain. |
-| Transcripts and summaries | Text files in `~/Documents/Mara AI`. |
+| Transcripts and summaries | Text and Markdown files in `~/Documents/Mara AI`. |
 
 Mara has no server of its own: every request goes straight from your Mac to OpenAI.
 
@@ -148,6 +151,7 @@ in `~/Library/Logs/MaraAI/sessao.log`.
 swift build                   # debug build
 scripts/test.sh               # tests (works with Xcode or with only the Command Line Tools)
 ./build.sh                    # release build and app bundle
+.build/debug/MaraAI --render-summary /tmp/summary.png   # draw the summary window with a sample
 ```
 
 Useful runtime files:
@@ -178,7 +182,8 @@ Sources/MaraAI/
   TranscriptionSession.swift Apple SpeechAnalyzer pipeline and the standby gate
   SystemAudioCapture.swift   System audio through ScreenCaptureKit (restarts if macOS stops it)
   Translator.swift           OpenAI calls (refinement, summary) and Keychain helpers
-  MeetingSummary.swift       Summary parsing and action items
+  MeetingSummary.swift       The summary's structure, its JSON schema and Markdown
+  SummaryView.swift          Summary window
   MenuBarPanel.swift         Menu bar panel
   SettingsView.swift         Settings window
   …                          Theme, icons, animated captions, sound bars, hot keys, usage ledger

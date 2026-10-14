@@ -5,6 +5,15 @@ import Translation
 struct MaraAIApp: App {
     @StateObject private var model = CaptionModel()
 
+    init() {
+        // Development tool: `MaraAI --render-summary file.png` draws the summary window with a
+        // sample summary and exits, so it can be checked without an OpenAI key or a meeting.
+        if let flag = CommandLine.arguments.firstIndex(of: "--render-summary"), CommandLine.arguments.count > flag + 1 {
+            SummaryView.renderSample(to: URL(fileURLWithPath: CommandLine.arguments[flag + 1]))
+            exit(0)
+        }
+    }
+
     var body: some Scene {
         Window("Mara AI", id: captionsWindowID) {
             ContentView()
@@ -14,6 +23,11 @@ struct MaraAIApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 520, height: 150)
+
+        Window("Resumo da Mara", id: summaryWindowID) {
+            SummaryView().environmentObject(model)
+        }
+        .windowResizability(.contentSize)
 
         Window("Ajustes da Mara", id: settingsWindowID) {
             SettingsView().environmentObject(model)

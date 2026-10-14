@@ -184,27 +184,36 @@ private struct TranslationSettings: View {
                         }
                     }
                 }
+            }
 
-                SettingsCard("Chave da OpenAI", hint: "Fica guardada no Keychain do macOS. Só o texto transcrito é enviado; o áudio nunca sai do Mac.") {
-                    HStack(spacing: 8) {
-                        SecureField("sk-…", text: $keyDraft)
-                            .textFieldStyle(.roundedBorder)
-                            .onSubmit(saveKey)
-                        if keyDraft != model.apiKey {
-                            Button("Salvar", action: saveKey)
-                                .buttonStyle(PillButtonStyle())
-                        }
+            // The summary needs the key even when the captions stay on the Mac, so both are always here.
+            SettingsCard("Resumo", hint: "Feito pelo GPT com a sua chave, só quando você pede ao fim da sessão. A transcrição vai para a OpenAI; o áudio, nunca.") {
+                Picker("Modelo do resumo", selection: $model.summaryModel) {
+                    ForEach(GPTModel.catalog) { choice in
+                        Text("\(choice.name) — \(choice.note)").tag(choice.id)
                     }
-                    HStack(spacing: 6) {
-                        Image(systemName: model.apiKey.isEmpty ? "exclamationmark.circle" : "checkmark.circle.fill")
-                            .foregroundStyle(model.apiKey.isEmpty ? Theme.muted : Theme.accent)
-                        Text(model.apiKey.isEmpty ? "Sem chave, a tradução fica só no Mac." : "Chave salva.")
-                            .foregroundStyle(Theme.muted)
-                        Spacer()
-                        Link("Criar uma chave", destination: URL(string: "https://platform.openai.com/api-keys")!)
-                    }
-                    .font(.system(size: 11.5))
                 }
+            }
+
+            SettingsCard("Chave da OpenAI", hint: "Fica guardada no Keychain do macOS. Só o texto transcrito é enviado; o áudio nunca sai do Mac.") {
+                HStack(spacing: 8) {
+                    SecureField("sk-…", text: $keyDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit(saveKey)
+                    if keyDraft != model.apiKey {
+                        Button("Salvar", action: saveKey)
+                            .buttonStyle(PillButtonStyle())
+                    }
+                }
+                HStack(spacing: 6) {
+                    Image(systemName: model.apiKey.isEmpty ? "exclamationmark.circle" : "checkmark.circle.fill")
+                        .foregroundStyle(model.apiKey.isEmpty ? Theme.muted : Theme.accent)
+                    Text(model.apiKey.isEmpty ? "Sem chave, a tradução fica só no Mac e não há resumo." : "Chave salva.")
+                        .foregroundStyle(Theme.muted)
+                    Spacer()
+                    Link("Criar uma chave", destination: URL(string: "https://platform.openai.com/api-keys")!)
+                }
+                .font(.system(size: 11.5))
             }
         }
         .onAppear { keyDraft = model.apiKey }
