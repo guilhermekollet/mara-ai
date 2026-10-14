@@ -60,12 +60,22 @@ ends, it summarizes the conversation and turns the action items into Linear issu
 ## Requirements
 
 - macOS 26 (Tahoe) or later.
-- Swift 6.2 or later — Xcode 26, or the matching Command Line Tools.
+- To build from source: Swift 6.2 or later — Xcode 26, or the matching Command Line Tools.
 - Optional: an [OpenAI API key](https://platform.openai.com/api-keys) and a Linear personal API key.
 
 ## Getting started
 
-There are no prebuilt releases yet, so build it from source:
+### Download
+
+Get the latest `.zip` from [Releases](https://github.com/guilhermekollet/mara-ai/releases/latest)
+(macOS 26 on Apple silicon), unzip it and move **Mara AI** to Applications.
+
+Mara is signed but not notarized: the project has no paid Apple Developer account. The first time
+you open it, macOS says it can't verify the developer. Open **System Settings → Privacy &
+Security**, scroll down and click **Open Anyway** next to Mara AI. You only do this once per
+version.
+
+### Build from source
 
 ```bash
 git clone https://github.com/guilhermekollet/mara-ai.git
@@ -74,6 +84,8 @@ scripts/create-signing-cert.sh   # recommended, see "Signing" below
 ./build.sh
 open "build/Mara AI.app"
 ```
+
+### First run
 
 1. Mara lives in the menu bar (the dotted "M"). Click it and press **Iniciar**.
 2. Allow **Screen & System Audio Recording** when macOS asks, then quit and reopen Mara once.
@@ -115,11 +127,17 @@ Mara has no server of its own: every request goes straight from your Mac to Open
 
 ## Troubleshooting
 
+**macOS says Mara AI can't be opened.** Downloads that aren't notarized are blocked the first time.
+Click **Open Anyway** in **System Settings → Privacy & Security**, as in [Download](#download).
+
 **macOS keeps asking for the recording permission, or refuses it.** Reset it and grant it again:
 
 ```bash
 tccutil reset ScreenCapture com.guilhermekollet.mara-ai
 ```
+
+Releases are signed ad hoc, so after updating to a new version macOS may ask for the permission
+again.
 
 **The menu bar icon doesn't show up.** On MacBooks with a notch, icons that don't fit are hidden
 behind it. Remove a few menu bar items (hold <kbd>⌘</kbd> and drag them out) and Mara appears.
@@ -143,6 +161,18 @@ Useful runtime files:
 
 The website lives in [`web/`](web/README.md) (Next.js, Tailwind CSS).
 
+### Releasing
+
+Push a version tag and `.github/workflows/release.yml` does the rest: it runs the tests, builds the
+app with that version and publishes a GitHub release with the zip and its SHA-256 checksum.
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+`scripts/package-release.sh 0.2.0` builds the same zip locally, in `dist/`.
+
 ## Project layout
 
 ```
@@ -159,7 +189,7 @@ Sources/MaraAI/
   Deliveries.swift           Deliveries chart (window and menu bar mini chart)
   …                          Theme, icons, animated captions, sound bars, hot keys, usage ledger
 Tests/MaraAITests/           Swift Testing suite
-scripts/                     Icon generation, signing certificate, test runner
+scripts/                     Icon generation, signing certificate, test runner, release packaging
 web/                         Website
 ```
 
