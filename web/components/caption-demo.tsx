@@ -31,7 +31,7 @@ const PHRASES: Phrase[] = [
 const SPEAKERS = [
   { initials: "SK", name: "Sarah Kim", tone: "bg-[#3a3550]" },
   { initials: "JM", name: "James Miller", tone: "bg-[#2d3a3a]" },
-  { initials: "VOCÊ", name: "Você", tone: "bg-[#3a302d]" },
+  { initials: "", name: "", tone: "bg-[#3a302d]" }, // The visitor: filled in from the labels.
   { initials: "AL", name: "Anna Lindqvist", tone: "bg-[#2d3340]" },
 ];
 
@@ -48,7 +48,12 @@ const RESTING: Line[] = [
   { id: -1, phrase: 0, shown: wordsOf(PHRASES[0].target).length, done: false },
 ];
 
-export function CaptionDemo() {
+type Labels = { label: string; you: string; youInitials: string };
+
+export function CaptionDemo({ labels }: { labels: Labels }) {
+  const speakers = SPEAKERS.map((person, index) =>
+    index === 2 ? { ...person, initials: labels.youInitials, name: labels.you } : person,
+  );
   const reduced = useReducedMotion();
   const nextId = useRef(1);
   const [lines, setLines] = useState<Line[]>(RESTING.slice(0, 1));
@@ -133,7 +138,7 @@ export function CaptionDemo() {
           <span className="ml-2.5">Quarterly review — Acme Corp</span>
         </div>
         <div className="grid grid-cols-2 gap-2 px-2 pb-2">
-          {SPEAKERS.map((person, index) => {
+          {speakers.map((person, index) => {
             const speaking = index === speaker;
             return (
               <div
@@ -157,7 +162,7 @@ export function CaptionDemo() {
 
       <div
         role="img"
-        aria-label="Janela da Mara AI mostrando legendas traduzidas para português"
+        aria-label={labels.label}
         className="absolute bottom-5 left-1/2 flex h-[196px] w-[calc(100%-24px)] max-w-[720px] -translate-x-1/2 flex-col justify-end overflow-hidden rounded-2xl bg-ink/90 px-4 py-4 text-center shadow-[0_20px_50px_rgba(0,0,0,0.35)] backdrop-blur-md sm:bottom-10 sm:h-[156px] sm:w-[calc(100%-48px)] sm:px-6"
       >
         <AnimatePresence initial={false} mode="popLayout">
