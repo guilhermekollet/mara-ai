@@ -70,6 +70,10 @@ struct ContentView: View {
     @State private var followsLatest = true
     /// True while the user is scrolling (dragging or coasting on momentum).
     @State private var userScrolling = false
+    /// The jump-to-latest button shows only its arrow; its label slides in once the list has been
+    /// left still for a while, so it doesn't cover captions while someone is rereading.
+    @State private var showsJumpLabel = false
+    @State private var jumpLabelTimer: Task<Void, Never>?
     private let bottomID = "bottom"
     private let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
 
@@ -238,9 +242,11 @@ struct ContentView: View {
                 case .interacting, .decelerating:
                     userScrolling = true
                     if fromBottom > 28 { followsLatest = false }
+                    hideJumpLabel()
                 case .idle:
                     if userScrolling { followsLatest = fromBottom < 28 }
                     userScrolling = false
+                    if !followsLatest { scheduleJumpLabel() }
                 default:
                     break
                 }
@@ -256,30 +262,65 @@ struct ContentView: View {
                     proxy.scrollTo(bottomID, anchor: .bottom)
                 }
             }
-            .overlay(alignment: .bottom) {
+            // Back to the latest captions: just the arrow in the bottom right corner; after 5 s
+            // without scrolling, "Falas novas" slides in beside it.
+            .overlay(alignment: .bottomTrailing) {
                 if !followsLatest {
                     Button {
                         followsLatest = true
+                        hideJumpLabel()
                         withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(bottomID, anchor: .bottom) }
                     } label: {
-                        Label("Falas novas", systemImage: "arrow.down")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(Theme.ink)
-                            .padding(.horizontal, 10)
-                            .frame(height: 24)
-                            .background(Theme.accent, in: Capsule())
+                        HStack(spacing: 5) {
+                            if showsJumpLabel {
+                                Text("Falas novas")
+                                    .fixedSize()
+                                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                            }
+                            Image(systemName: "arrow.down")
+                                .font(.system(size: 10.5, weight: .semibold))
+                        }
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Theme.ink)
+                        .padding(.horizontal, showsJumpLabel ? 10 : 0)
+                        .frame(minWidth: 24, minHeight: 24)
+                        .background(Theme.accent, in: Capsule())
+                        .clipShape(Capsule())
+                        .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
-                    .padding(.bottom, 8)
-                    .transition(.opacity.combined(with: .offset(y: 6)))
+                    .help("Ir para as falas novas")
+                    .padding([.bottom, .trailing], 8)
+                    .transition(.opacity.combined(with: .scale(scale: 0.7, anchor: .bottomTrailing)))
                 }
             }
             .animation(.easeOut(duration: 0.2), value: followsLatest)
+            .animation(.spring(response: 0.45, dampingFraction: 0.82), value: showsJumpLabel)
+            // Back at the bottom, the next time the button appears it starts as just the arrow.
+            .onChange(of: followsLatest) { if followsLatest { hideJumpLabel() } }
             .onChange(of: model.segments.count) { follow() }
             .onChange(of: model.volatile) { follow() }
             .onChange(of: model.volatileTranslation) { follow() }
             .onChange(of: model.segments.last?.translation) { follow() }
         }
+    }
+}
+
+extension ContentView {
+    /// Shows the jump button's label after 5 s with the list still; any scroll starts the wait over.
+    fileprivate func scheduleJumpLabel() {
+        jumpLabelTimer?.cancel()
+        jumpLabelTimer = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled, !followsLatest, !userScrolling else { return }
+            showsJumpLabel = true
+        }
+    }
+
+    fileprivate func hideJumpLabel() {
+        jumpLabelTimer?.cancel()
+        jumpLabelTimer = nil
+        showsJumpLabel = false
     }
 }
 
