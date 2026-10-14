@@ -317,16 +317,7 @@ private struct WorkBlock: View {
     private var content: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                if model.linearReady {
-                    // The logo spins while the numbers are refreshed; clicking forces a new fetch.
-                    Button {
-                        Task { await model.refreshLinearOverview(force: true) }
-                    } label: {
-                        SpinningLogo(spinning: model.isLoadingOverview)
-                    }
-                    .buttonStyle(.plain)
-                    .help(model.isLoadingOverview ? "Atualizando do Linear…" : "Atualizar do Linear")
-                }
+                LinearLogo(size: 11)
                 Button(action: openDeliveries) {
                     HStack(spacing: 6) {
                         Text(title)
@@ -343,6 +334,13 @@ private struct WorkBlock: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                RefreshControl(loading: model.isLoadingOverview || model.isLoadingDeliveries) {
+                    Task {
+                        async let overview: Void = model.refreshLinearOverview(force: true)
+                        async let deliveries: Void = model.loadDeliveries(force: true)
+                        _ = await (overview, deliveries)
+                    }
+                }
             }
 
             focusCard
@@ -479,18 +477,33 @@ private struct WorkBlock: View {
 }
 
 /// Linear logo that spins continuously while a fetch is in progress.
-private struct SpinningLogo: View {
-    let spinning: Bool
-    @State private var turning = false
+/// Refresh button that turns into the system's small spinner while Linear is being read, as in
+/// Apple's own apps. Clicking it reads everything again.
+private struct RefreshControl: View {
+    let loading: Bool
+    let action: () -> Void
 
     var body: some View {
-        LinearLogo(size: 11)
-            .rotationEffect(.degrees(turning ? 360 : 0))
-            .opacity(spinning ? 0.7 : 1)
-            .animation(turning ? .linear(duration: 0.9).repeatForever(autoreverses: false) : .easeOut(duration: 0.3), value: turning)
-            .onChange(of: spinning, initial: true) { _, isSpinning in turning = isSpinning }
-            .frame(width: 14, height: 14)
-            .contentShape(Rectangle())
+        ZStack {
+            if loading {
+                ProgressView()
+                    .controlSize(.mini)
+                    .transition(.opacity)
+            } else {
+                Button(action: action) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundStyle(Theme.paper.opacity(0.45))
+                        .frame(width: 16, height: 16)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Atualizar do Linear")
+                .transition(.opacity)
+            }
+        }
+        .frame(width: 16, height: 16)
+        .animation(.easeOut(duration: 0.2), value: loading)
     }
 }
 
