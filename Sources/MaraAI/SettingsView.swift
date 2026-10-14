@@ -22,9 +22,14 @@ struct GPTModel: Identifiable {
 struct SettingsView: View {
     @EnvironmentObject private var model: CaptionModel
     @State private var tab = Tab.translation
+    /// The content has slid under the header: a hairline separates them, as under a macOS toolbar.
+    @State private var scrolled = false
+    /// There is more below: the bottom edge fades out.
+    @State private var moreBelow = false
 
     private enum Tab: String, CaseIterable, Identifiable {
         case translation = "Tradução"
+        case summary = "Resumo"
         case appearance = "Aparência"
         case usage = "Consumo"
         case glossary = "Glossário"
@@ -34,6 +39,7 @@ struct SettingsView: View {
         var symbol: String {
             switch self {
             case .translation: return "globe"
+            case .summary: return "text.document"
             case .appearance: return "paintbrush"
             case .usage: return "chart.bar"
             case .glossary: return "text.book.closed"
@@ -43,51 +49,48 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Ajustes")
-                    .font(Theme.display(26))
-                Spacer()
-                // Icon tabs: only the active one shows its name, in lavender with dark text.
-                HStack(spacing: 2) {
-                    ForEach(Tab.allCases) { item in
-                        let active = tab == item
-                        Button {
-                            tab = item
-                        } label: {
-                            HStack(spacing: 5) {
-                                Image(systemName: item.symbol)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .frame(width: 16, height: 16)
-                                if active {
-                                    Text(item.rawValue)
-                                        .font(.system(size: 12, weight: .semibold))
-                                        .fixedSize()
-                                }
-                            }
-                            .foregroundStyle(active ? Theme.ink : Theme.paper.opacity(0.75))
-                            .padding(.horizontal, active ? 11 : 8)
-                            .padding(.vertical, 5)
-                            .background(active ? Theme.accent : .clear, in: Capsule())
-                            .contentShape(Capsule())
-                        }
-                        .buttonStyle(.plain)
-                        .help(item.rawValue)
-                    }
+        VStack(alignment: .leading, spacing: 0) {
+            header
+                .padding([.horizontal, .top], 22)
+                .padding(.bottom, 14)
+                .overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(Theme.paper.opacity(0.1))
+                        .frame(height: 1)
+                        .opacity(scrolled ? 1 : 0)
                 }
-                .padding(3)
-                .background(Theme.paper.opacity(0.07), in: Capsule())
-            }
 
             // The window has a fixed size and the content scrolls: resizing the window on every tab
-            // switch crashed the app on macOS 26 (an AppKit exception during layout).
+            // switch crashed the app on macOS 26 (an AppKit exception during layout). The scroll view
+            // spans the whole width, so its scroller sits at the window's edge.
             ScrollView {
                 tabContent
                     .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .padding(.horizontal, 22)
+                    .padding(.top, 4)
+                    .padding(.bottom, 22)
             }
-            .scrollIndicators(.hidden)
+            .scrollBounceBehavior(.basedOnSize)
+            .onScrollGeometryChange(for: [Bool].self) { geometry in
+                let top = geometry.contentOffset.y + geometry.contentInsets.top
+                let bottom = geometry.contentSize.height - top - geometry.containerSize.height
+                return [top > 1, bottom > 1]
+            } action: { _, edges in
+                withAnimation(.easeOut(duration: 0.15)) {
+                    scrolled = edges[0]
+                    moreBelow = edges[1]
+                }
+            }
+            .mask {
+                VStack(spacing: 0) {
+                    Rectangle()
+                    LinearGradient(colors: [.black, .black.opacity(moreBelow ? 0 : 1)], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 28)
+                }
+            }
+            // Each tab starts at the top.
+            .id(tab)
         }
-        .padding(22)
         .frame(width: 460, height: 600, alignment: .topLeading)
         .background(Theme.ink)
         .foregroundStyle(Theme.paper)
@@ -96,10 +99,48 @@ struct SettingsView: View {
         .task { await model.loadLocales() }
     }
 
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("Ajustes")
+                .font(Theme.display(26))
+            Spacer()
+            // Icon tabs: only the active one shows its name, in lavender with dark text.
+            HStack(spacing: 2) {
+                ForEach(Tab.allCases) { item in
+                    let active = tab == item
+                    Button {
+                        tab = item
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: item.symbol)
+                                .font(.system(size: 12, weight: .medium))
+                                .frame(width: 16, height: 16)
+                            if active {
+                                Text(item.rawValue)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .fixedSize()
+                            }
+                        }
+                        .foregroundStyle(active ? Theme.ink : Theme.paper.opacity(0.75))
+                        .padding(.horizontal, active ? 11 : 8)
+                        .padding(.vertical, 5)
+                        .background(active ? Theme.accent : .clear, in: Capsule())
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .help(item.rawValue)
+                }
+            }
+            .padding(3)
+            .background(Theme.paper.opacity(0.07), in: Capsule())
+        }
+    }
+
     @ViewBuilder
     private var tabContent: some View {
         switch tab {
             case .translation: TranslationSettings()
+            case .summary: SummarySettings()
             case .appearance: AppearanceSettings()
             case .usage: UsageSettings(ledger: model.usage)
             case .glossary: GlossarySettings()
@@ -112,7 +153,6 @@ struct SettingsView: View {
 
 private struct TranslationSettings: View {
     @EnvironmentObject private var model: CaptionModel
-    @State private var keyDraft = ""
     @State private var customSelected = false
 
     private var selection: Binding<String> {
@@ -175,6 +215,12 @@ private struct TranslationSettings: View {
                     }
                     .labelsHidden()
 
+                    if model.apiKey.isEmpty {
+                        Label("O GPT usa a sua chave da OpenAI: adicione em Resumo.", systemImage: "exclamationmark.circle")
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(Theme.accent)
+                    }
+
                     if selection.wrappedValue == GPTModel.customID {
                         TextField("Nome do modelo na OpenAI", text: $model.model)
                             .textFieldStyle(.roundedBorder)
@@ -185,14 +231,45 @@ private struct TranslationSettings: View {
                     }
                 }
             }
+        }
+    }
 
-            // The summary needs the key even when the captions stay on the Mac, so both are always here.
+    private var modelHint: String {
+        let price = "US$ \(format(model.inputPrice)) de entrada e US$ \(format(model.outputPrice)) de saída por milhão de tokens"
+        return "\(price). Uma hora de reunião costuma custar centavos."
+    }
+
+    private func format(_ value: Double) -> String {
+        value.formatted(.number.precision(.fractionLength(2)))
+    }
+
+    private func priceField(_ title: String, value: Binding<Double>) -> some View {
+        HStack(spacing: 6) {
+            Text(title)
+                .font(.system(size: 11.5))
+                .foregroundStyle(Theme.muted)
+            TextField("US$", value: value, format: .number)
+                .textFieldStyle(.roundedBorder)
+        }
+    }
+}
+
+// MARK: Summary
+
+private struct SummarySettings: View {
+    @EnvironmentObject private var model: CaptionModel
+    @State private var keyDraft = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            // The key is here because the summary always needs it; the GPT translation uses it too.
             SettingsCard("Resumo", hint: "Feito pelo GPT com a sua chave, só quando você pede ao fim da sessão. A transcrição vai para a OpenAI; o áudio, nunca.") {
                 Picker("Modelo do resumo", selection: $model.summaryModel) {
                     ForEach(GPTModel.catalog) { choice in
                         Text("\(choice.name) — \(choice.note)").tag(choice.id)
                     }
                 }
+                .labelsHidden()
             }
 
             SettingsCard("Chave da OpenAI", hint: "Fica guardada no Keychain do macOS. Só o texto transcrito é enviado; o áudio nunca sai do Mac.") {
@@ -217,25 +294,6 @@ private struct TranslationSettings: View {
             }
         }
         .onAppear { keyDraft = model.apiKey }
-    }
-
-    private var modelHint: String {
-        let price = "US$ \(format(model.inputPrice)) de entrada e US$ \(format(model.outputPrice)) de saída por milhão de tokens"
-        return "\(price). Uma hora de reunião costuma custar centavos."
-    }
-
-    private func format(_ value: Double) -> String {
-        value.formatted(.number.precision(.fractionLength(2)))
-    }
-
-    private func priceField(_ title: String, value: Binding<Double>) -> some View {
-        HStack(spacing: 6) {
-            Text(title)
-                .font(.system(size: 11.5))
-                .foregroundStyle(Theme.muted)
-            TextField("US$", value: value, format: .number)
-                .textFieldStyle(.roundedBorder)
-        }
     }
 
     private func saveKey() {
@@ -405,8 +463,7 @@ private struct GlossarySettings: View {
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.muted)
                 }
-                ScrollView {
-                    VStack(spacing: 6) {
+                VStack(spacing: 6) {
                         ForEach($model.glossary) { $entry in
                             HStack(spacing: 6) {
                                 TextField("Termo (ex.: Kubernetes)", text: $entry.term)
@@ -421,9 +478,7 @@ private struct GlossarySettings: View {
                                 }
                             }
                         }
-                    }
                 }
-                .frame(maxHeight: 220)
                 Button {
                     model.glossary.append(GlossaryEntry())
                 } label: {
