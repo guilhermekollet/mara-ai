@@ -279,6 +279,18 @@ private struct AppearanceSettings: View {
                     (60, "1 minuto"), (300, "5 minutos"), (600, "10 minutos"), (1800, "30 minutos"), (0, "Nunca"),
                 ])
             }
+            SettingsCard(
+                "Sons",
+                hint: "Tons curtos e suaves ao iniciar, parar, entrar em espera, voltar e quando o resumo fica pronto. A Mara não capta os próprios sons."
+            ) {
+                HStack {
+                    Toggle("Tocar avisos sonoros", isOn: $model.soundCuesEnabled)
+                        .font(.system(size: 12.5))
+                    Spacer()
+                    Button("Ouvir") { model.soundCues.play(.start, evenIfDisabled: true) }
+                        .buttonStyle(PillButtonStyle(prominent: false))
+                }
+            }
         }
     }
 

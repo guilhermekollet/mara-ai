@@ -50,6 +50,15 @@ final class CaptionModel: ObservableObject {
     let usage = UsageLedger()
     let menuBarAnimator = MenuBarAnimator()
     let audioMeter = AudioMeter()
+    let soundCues = SoundCues()
+    /// Short sounds when a session starts, stops, goes on hold and comes back, and when the summary
+    /// is ready. On by default; turned off in Settings › Appearance.
+    @Published var soundCuesEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(soundCuesEnabled, forKey: "soundCues")
+            soundCues.enabled = soundCuesEnabled
+        }
+    }
 
     var gptEnabled: Bool { useGPT && !apiKey.isEmpty }
 
@@ -113,9 +122,11 @@ final class CaptionModel: ObservableObject {
         glossary = GlossaryEntry.load()
         idleAfter = UserDefaults.standard.object(forKey: "idleAfter") as? Double ?? 30
         autoStopAfter = UserDefaults.standard.object(forKey: "autoStopAfter") as? Double ?? 300
+        soundCuesEnabled = UserDefaults.standard.object(forKey: "soundCues") as? Bool ?? true
         fontSize = UserDefaults.standard.object(forKey: "fontSize") as? Double ?? 17
         opacity = UserDefaults.standard.object(forKey: "opacity") as? Double ?? 0.55
         applyHotKeys()
+        soundCues.enabled = soundCuesEnabled
         Self.forgetLinear()
     }
 
@@ -236,11 +247,12 @@ final class CaptionModel: ObservableObject {
                 onError: { [weak self] error in
                     SessionLog.write("ERRO \(error.localizedDescription)")
                     self?.status = "Erro: \(error.localizedDescription)"
-                    Task { await self?.stop(keepStatus: true) }
+                    Task { await self?.stop(keepStatus: true, cue: .failure) }
                 }
             )
             self.session = session
             isRunning = true
+            soundCues.play(.start)
             menuBarAnimator.setActive(true)
             audioMeter.setActive(true)
             beginTranscript()
@@ -256,16 +268,18 @@ final class CaptionModel: ObservableObject {
             startIdleWatch()
         } catch {
             await session.stop()
+            soundCues.play(.failure)
             SessionLog.write("ERRO ao iniciar: \(error.localizedDescription)")
             status = "Não foi possível iniciar: \(error.localizedDescription). "
                 + "Confira a permissão em Ajustes do Sistema > Privacidade e Segurança > Gravação de Tela e Áudio do Sistema."
         }
     }
 
-    private func stop(keepStatus: Bool = false) async {
+    private func stop(keepStatus: Bool = false, cue: SoundCues.Cue = .stop) async {
         guard let session else { return }
         self.session = nil
         isRunning = false
+        soundCues.play(cue)
         isIdle = false
         idleTask?.cancel()
         idleTask = nil
@@ -297,6 +311,7 @@ final class CaptionModel: ObservableObject {
                     // On hold: checks every 2 seconds whether sound has come back.
                     if quiet < 2.5 {
                         self.isIdle = false
+                        self.soundCues.play(.resume)
                         gate.setPaused(false)
                         self.menuBarAnimator.setActive(true)
                         SessionLog.write("VOLTOU da espera")
@@ -305,6 +320,7 @@ final class CaptionModel: ObservableObject {
                 } else {
                     if self.idleAfter > 0, quiet >= self.idleAfter {
                         self.isIdle = true
+                        self.soundCues.play(.standby)
                         gate.setPaused(true)
                         self.menuBarAnimator.setActive(false)
                         self.clearVolatile()
@@ -433,6 +449,7 @@ final class CaptionModel: ObservableObject {
                 recordUsage(result, model: translator.model, since: startedAt)
                 let parsed = MeetingSummary.parse(result.text)
                 summary = parsed.text
+                soundCues.play(.summaryReady)
                 // Action items stay at hand, as a list to go through after the meeting.
                 meetingActions = parsed.actions.map {
                     MeetingAction(title: $0.title, owner: $0.owner, due: $0.due, dueDate: $0.dueDate)
@@ -442,6 +459,7 @@ final class CaptionModel: ObservableObject {
                 }
             } catch {
                 summaryError = error.localizedDescription
+                soundCues.play(.failure)
             }
         }
     }
