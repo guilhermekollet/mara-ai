@@ -201,7 +201,7 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
         <div className="ml-auto flex gap-1.5 sm:gap-2">
           <LanguageSwitcher current={lang} label={t.a11y.language} />
           <ThemeToggle label={t.a11y.toggleTheme} title={t.a11y.toggleThemeShort} />
-          <a href={`${REPO_URL}/releases`} className={`${pill} bg-pill text-pill-fg max-sm:hidden`}>
+          <a href={`${REPO_URL}/releases/latest`} className={`${pill} bg-pill text-pill-fg max-sm:hidden`}>
             <AppleLogo />
             {t.download}
           </a>
@@ -225,7 +225,7 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
             {t.hero.text}
           </p>
           <div className="rise relative mt-9 flex flex-wrap justify-center gap-3" style={after(620)}>
-            <a href={`${REPO_URL}/releases`} className={`${pill} ${pillLarge} bg-pill text-pill-fg`}>
+            <a href={`${REPO_URL}/releases/latest`} className={`${pill} ${pillLarge} bg-pill text-pill-fg`}>
               <AppleLogo />
               {t.download}
             </a>
@@ -473,7 +473,7 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
           <h2 className="font-serif text-[clamp(40px,6vw,56px)] leading-[1.05] tracking-[-0.03em]">{t.final.title}</h2>
           <p className="mt-4 text-[19px] text-fg/70">{t.final.text}</p>
           <div className="mt-9 flex justify-center">
-            <a href={`${REPO_URL}/releases`} className={`${pill} ${pillLarge} bg-pill text-pill-fg`}>
+            <a href={`${REPO_URL}/releases/latest`} className={`${pill} ${pillLarge} bg-pill text-pill-fg`}>
               <AppleLogo />
               {t.download}
             </a>
