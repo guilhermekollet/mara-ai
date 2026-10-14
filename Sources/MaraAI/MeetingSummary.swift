@@ -1,69 +1,7 @@
 import Foundation
 
-/// Status of a Linear issue, with the Portuguese names used in Mara.
-enum DemandStatus: String, Codable, CaseIterable, Identifiable {
-    case backlog, todo, inProgress, inReview, done, canceled
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .backlog: return "Backlog"
-        case .todo: return "A fazer"
-        case .inProgress: return "Em progresso"
-        case .inReview: return "Em review"
-        case .done: return "Concluída"
-        case .canceled: return "Cancelada"
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .backlog: return "circle.dotted"
-        case .todo: return "circle"
-        case .inProgress: return "circle.lefthalf.filled"
-        case .inReview: return "circle.inset.filled"
-        case .done: return "checkmark.circle.fill"
-        case .canceled: return "xmark.circle.fill"
-        }
-    }
-
-    var isOpen: Bool { self != .done && self != .canceled }
-
-    /// Maps a Linear issue state. "In Review" is a "started"-type state,
-    /// so it can only be told apart by its name.
-    static func fromLinear(type: String, name: String) -> DemandStatus {
-        switch type {
-        case "backlog", "triage": return .backlog
-        case "unstarted": return .todo
-        case "started": return name.lowercased().contains("review") ? .inReview : .inProgress
-        case "completed": return .done
-        case "canceled": return .canceled
-        default: return .todo
-        }
-    }
-}
-
-/// Priority following Linear's convention: 0 no priority, 1 urgent, 2 high, 3 medium, 4 low.
-enum DemandPriority {
-    static let all = [1, 2, 3, 4, 0]
-
-    static func title(_ value: Int) -> String {
-        switch value {
-        case 1: return "Urgente"
-        case 2: return "Alta"
-        case 3: return "Média"
-        case 4: return "Baixa"
-        default: return "Sem prioridade"
-        }
-    }
-
-    /// Order of importance: urgent first, no priority last.
-    static func rank(_ value: Int) -> Int { value == 0 ? 5 : value }
-}
-
-/// An action item taken from the meeting summary. Mara does not store it: it lives for the session
-/// until you decide to send it to Linear, which is where tasks live from then on.
+/// An action item taken from the meeting summary. Mara does not store it apart from the summary
+/// file: it lives for the session, to be read and copied.
 struct MeetingAction: Identifiable, Equatable {
     let id = UUID()
     var title: String
@@ -71,9 +9,6 @@ struct MeetingAction: Identifiable, Equatable {
     var due: String
     /// Due date as a date (YYYY-MM-DD), when the model was able to determine it.
     var dueDate: String?
-    var priority = 0
-    var linearIdentifier: String?
-    var linearURL: String?
 }
 
 /// Structured summary the GPT returns as JSON: it becomes text to read and tasks to track.

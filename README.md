@@ -17,7 +17,7 @@
 Mara listens to the audio your Mac is already playing — Zoom, Google Meet, Teams, a video in the
 browser — transcribes it on-device with Apple's speech recognition and shows a Portuguese caption
 that forms word by word while people are still talking. No bot joins the call. When the meeting
-ends, it summarizes the conversation and turns the action items into Linear issues.
+ends, it summarizes the conversation with AI, using your own OpenAI key.
 
 > **Language note:** the app's interface is in Brazilian Portuguese. Code, comments and docs are in
 > English.
@@ -46,11 +46,10 @@ ends, it summarizes the conversation and turns the action items into Linear issu
 - A glossary of names and terms, used by speech recognition and by GPT.
 - Standby after a stretch without audio, and automatic stop after a longer one.
 
-**Linear**
-- A meeting summary with key points, decisions and action items.
-- Action items become Linear issues — you review title, assignee, due date and priority first.
-- In the menu bar: your current cycle, the in-progress issue with the highest priority, counts per
-  status and a chart of the team's daily deliveries.
+**AI summary**
+- When the meeting ends, a summary with key points, decisions and action items, written by GPT
+  with your own OpenAI key. Nothing is sent until you ask for it.
+- Saved next to the transcript, and copied in one click.
 
 **Everyday details**
 - Global shortcuts: <kbd>⌃⌥S</kbd> start/stop, <kbd>⌃⌥L</kbd> show/hide captions.
@@ -61,7 +60,7 @@ ends, it summarizes the conversation and turns the action items into Linear issu
 
 - macOS 26 (Tahoe) or later.
 - To build from source: Swift 6.2 or later — Xcode 26, or the matching Command Line Tools.
-- Optional: an [OpenAI API key](https://platform.openai.com/api-keys) and a Linear personal API key.
+- Optional: an [OpenAI API key](https://platform.openai.com/api-keys), for summaries and GPT refinement.
 
 ## Getting started
 
@@ -108,7 +107,6 @@ Everything lives in **Ajustes** (Settings), opened from the menu bar panel:
 | Aparência | Caption size and background opacity, standby and auto-stop timers |
 | Consumo | GPT usage per session, day, month and in total |
 | Glossário | Names and terms the team uses |
-| Linear | Personal API key, destination team, count only your issues or the team's |
 | Atalhos | Turn the global shortcuts on or off |
 
 API keys are stored in the macOS Keychain, never in files.
@@ -119,11 +117,10 @@ API keys are stored in the macOS Keychain, never in files.
 | --- | --- |
 | Meeting audio | Stays on your Mac. It is never sent anywhere. |
 | Transcript text | Sent to OpenAI only when GPT refinement is on, or when you ask for a summary. |
-| Linear data | Read from and written to Linear with your key; issues are only created after you confirm. |
 | API keys | macOS Keychain. |
 | Transcripts and summaries | Text files in `~/Documents/Mara AI`. |
 
-Mara has no server of its own: every request goes straight from your Mac to OpenAI or Linear.
+Mara has no server of its own: every request goes straight from your Mac to OpenAI.
 
 ## Troubleshooting
 
@@ -151,7 +148,6 @@ in `~/Library/Logs/MaraAI/sessao.log`.
 swift build                   # debug build
 scripts/test.sh               # tests (works with Xcode or with only the Command Line Tools)
 ./build.sh                    # release build and app bundle
-.build/release/MaraAI --render-deliveries /tmp/chart.png   # render the chart with sample data
 ```
 
 Useful runtime files:
@@ -178,15 +174,13 @@ git push origin v0.2.0
 ```
 Sources/MaraAI/
   MaraAIApp.swift            App entry point, captions window, menu bar item
-  CaptionModel.swift         Session state: capture, transcription, translation, summary, Linear
+  CaptionModel.swift         Session state: capture, transcription, translation, summary
   TranscriptionSession.swift Apple SpeechAnalyzer pipeline and the standby gate
   SystemAudioCapture.swift   System audio through ScreenCaptureKit (restarts if macOS stops it)
   Translator.swift           OpenAI calls (refinement, summary) and Keychain helpers
-  LinearClient.swift         Linear GraphQL client
-  LinearModel.swift          Linear-style status and priority, summary parsing
+  MeetingSummary.swift       Summary parsing and action items
   MenuBarPanel.swift         Menu bar panel
   SettingsView.swift         Settings window
-  Deliveries.swift           Deliveries chart (window and menu bar mini chart)
   …                          Theme, icons, animated captions, sound bars, hot keys, usage ledger
 Tests/MaraAITests/           Swift Testing suite
 scripts/                     Icon generation, signing certificate, test runner, release packaging
