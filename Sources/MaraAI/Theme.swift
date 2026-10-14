@@ -14,17 +14,6 @@ enum Theme {
         .system(size: size * 0.86, weight: .semibold)
     }
 
-    /// Linear logo (from the Simple Icons set), as a template image so it can be tinted.
-    static let linearIcon: NSImage = {
-        let svg = """
-        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M2.886 4.18A11.982 11.982 0 0 1 11.99 0C18.624 0 24 5.376 24 12.009c0 3.64-1.62 6.903-4.18 9.105L2.887 4.18ZM1.817 5.626l16.556 16.556c-.524.33-1.075.62-1.65.866L.951 7.277c.247-.575.537-1.126.866-1.65ZM.322 9.163l14.515 14.515c-.71.172-1.443.282-2.195.322L0 11.358a12 12 0 0 1 .322-2.195Zm-.17 4.862 9.823 9.824a12.02 12.02 0 0 1-9.824-9.824Z"/></svg>
-        """
-        let image = NSImage(data: Data(svg.utf8)) ?? NSImage(systemSymbolName: "paperplane", accessibilityDescription: "Linear") ?? NSImage()
-        image.size = NSSize(width: 14, height: 14)
-        image.isTemplate = true
-        return image
-    }()
-
     /// The icon's dot-matrix "M", as a template image for the menu bar.
     static let menuBarIcon = menuBarImage(phase: nil)
 
@@ -97,18 +86,6 @@ struct LanguageMenu: View {
         .fixedSize()
         .help("Idioma da reunião")
         .disabled(model.isRunning || model.isStarting)
-    }
-}
-
-/// Linear logo at the requested size and color.
-struct LinearLogo: View {
-    var size: CGFloat = 12
-
-    var body: some View {
-        Image(nsImage: Theme.linearIcon)
-            .renderingMode(.template)
-            .resizable()
-            .frame(width: size, height: size)
     }
 }
 

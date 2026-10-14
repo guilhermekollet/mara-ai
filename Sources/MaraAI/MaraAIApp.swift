@@ -5,15 +5,6 @@ import Translation
 struct MaraAIApp: App {
     @StateObject private var model = CaptionModel()
 
-    init() {
-        // Development tool: `MaraAI --render-deliveries file.png` draws the deliveries chart
-        // with sample data and exits, so the visuals can be checked without opening the app.
-        if let flag = CommandLine.arguments.firstIndex(of: "--render-deliveries"), CommandLine.arguments.count > flag + 1 {
-            DeliveriesView.renderSample(to: URL(fileURLWithPath: CommandLine.arguments[flag + 1]))
-            exit(0)
-        }
-    }
-
     var body: some Scene {
         Window("Mara AI", id: captionsWindowID) {
             ContentView()
@@ -23,11 +14,6 @@ struct MaraAIApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 520, height: 150)
-
-        Window("Entregas da Mara", id: deliveriesWindowID) {
-            DeliveriesView().environmentObject(model)
-        }
-        .windowResizability(.contentSize)
 
         Window("Ajustes da Mara", id: settingsWindowID) {
             SettingsView().environmentObject(model)

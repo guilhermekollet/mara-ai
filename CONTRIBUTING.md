@@ -12,8 +12,8 @@ how to get it merged.
 4. Run the tests: `scripts/test.sh`.
 
 You don't need API keys to work on most of the app: captions, on-device translation, standby and
-the UI all run without them. GPT refinement and summaries need an OpenAI key; the Linear features
-need a Linear personal API key. Use your own keys, and never commit them.
+the UI all run without them. GPT refinement and summaries need an OpenAI key. Use your own key,
+and never commit it.
 
 ## Making a change
 
