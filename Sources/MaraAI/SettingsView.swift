@@ -28,7 +28,6 @@ struct SettingsView: View {
         case appearance = "Aparência"
         case usage = "Consumo"
         case glossary = "Glossário"
-        case linear = "Linear"
         case shortcuts = "Atalhos"
         var id: String { rawValue }
 
@@ -38,7 +37,6 @@ struct SettingsView: View {
             case .appearance: return "paintbrush"
             case .usage: return "chart.bar"
             case .glossary: return "text.book.closed"
-            case .linear: return "linear"
             case .shortcuts: return "keyboard"
             }
         }
@@ -58,15 +56,9 @@ struct SettingsView: View {
                             tab = item
                         } label: {
                             HStack(spacing: 5) {
-                                Group {
-                                    if item == .linear {
-                                        LinearLogo(size: 12)
-                                    } else {
-                                        Image(systemName: item.symbol)
-                                            .font(.system(size: 12, weight: .medium))
-                                    }
-                                }
-                                .frame(width: 16, height: 16)
+                                Image(systemName: item.symbol)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .frame(width: 16, height: 16)
                                 if active {
                                     Text(item.rawValue)
                                         .font(.system(size: 12, weight: .semibold))
@@ -111,7 +103,6 @@ struct SettingsView: View {
             case .appearance: AppearanceSettings()
             case .usage: UsageSettings(ledger: model.usage)
             case .glossary: GlossarySettings()
-            case .linear: LinearSettings()
             case .shortcuts: ShortcutSettings()
         }
     }
@@ -444,69 +435,6 @@ private struct GlossarySettings: View {
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.muted)
         }
-    }
-}
-
-// MARK: Linear
-
-private struct LinearSettings: View {
-    @EnvironmentObject private var model: CaptionModel
-    @State private var keyDraft = ""
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            SettingsCard(
-                "O Linear é onde as demandas moram",
-                hint: "Conectado, o painel mostra sua cycle, a issue em foco e as entregas do time, e as pendências de cada reunião podem virar issues. Nada é criado sozinho: você confere e envia uma a uma."
-            ) {
-                EmptyView()
-            }
-            SettingsCard("Chave pessoal do Linear", hint: "Fica guardada no Keychain do macOS. Crie uma em Linear › Settings › Security & access › Personal API keys.") {
-                HStack(spacing: 8) {
-                    SecureField("lin_api_…", text: $keyDraft)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit(connect)
-                    Button(keyDraft == model.linearKey ? "Reconectar" : "Conectar", action: connect)
-                        .buttonStyle(PillButtonStyle())
-                        .disabled(keyDraft.trimmingCharacters(in: .whitespaces).isEmpty && model.linearKey.isEmpty)
-                }
-                if !model.linearStatus.isEmpty {
-                    Text(model.linearStatus)
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(model.linearTeams.isEmpty ? Theme.muted : Theme.accent)
-                }
-            }
-            if !model.linearTeams.isEmpty {
-                SettingsCard("Time de destino", hint: "As pendências enviadas viram issues neste time, e é dele a cycle e as entregas mostradas no painel.") {
-                    Picker("Time", selection: $model.linearTeamID) {
-                        Text("Escolha um time").tag("")
-                        ForEach(model.linearTeams) { team in
-                            Text("\(team.name) (\(team.key))").tag(team.id)
-                        }
-                    }
-                    .labelsHidden()
-                }
-            }
-            if model.linearReady {
-                SettingsCard("Painel da barra de menus", hint: "O painel mostra a issue em progresso de maior prioridade e a contagem por situação na cycle atual.") {
-                    Toggle("Contar só as issues atribuídas a mim", isOn: $model.linearOnlyMine)
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                }
-            }
-            if model.linearTeams.isEmpty && model.linearReady {
-                Text("Time de destino já configurado. Clique em Reconectar para trocar.")
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(Theme.muted)
-            }
-        }
-        .onAppear { keyDraft = model.linearKey }
-    }
-
-    private func connect() {
-        model.saveLinearKey(keyDraft)
-        keyDraft = model.linearKey
-        Task { await model.loadLinearTeams() }
     }
 }
 

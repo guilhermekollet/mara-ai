@@ -134,7 +134,7 @@ enum Keychain {
         return String(data: data, encoding: .utf8)
     }
 
-    /// Other app secrets (such as the Linear key), each in its own Keychain account.
+    /// Other app secrets, each in its own Keychain account.
     static func loadSecret(account: String) -> String {
         var item = base
         item[kSecAttrAccount as String] = account

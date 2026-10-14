@@ -6,13 +6,6 @@ import AVFoundation
 import Foundation
 @testable import MaraAI
 
-enum Fixtures {
-    static func delivery(_ name: String, daysAgo: Int = 0) -> Delivery {
-        let date = Calendar.current.date(byAdding: .day, value: -daysAgo, to: Date())!
-        return Delivery(date: date, memberID: name, memberName: name)
-    }
-}
-
 /// Drives an `ActivityGate` with synthetic 100 ms buffers at 16 kHz.
 final class GateHarness {
     let gate = ActivityGate()

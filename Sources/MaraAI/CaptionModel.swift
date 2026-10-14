@@ -23,48 +23,9 @@ final class CaptionModel: ObservableObject {
     @Published private(set) var summary: String?
     @Published private(set) var isSummarizing = false
     @Published private(set) var summaryError: String?
-    /// Action items from the latest summary, ready to become Linear issues.
+    /// Action items from the latest summary.
     @Published private(set) var meetingActions: [MeetingAction] = []
 
-    // Linear integration: that's where tasks live.
-    @Published private(set) var linearKey: String
-    @Published var linearTeamID: String {
-        didSet {
-            UserDefaults.standard.set(linearTeamID, forKey: "linearTeamID")
-            guard linearTeamID != oldValue else { return }
-            linearOverview = nil
-            deliveries = []
-            Task {
-                await loadLinearMembers()
-                await refreshLinearOverview(force: true)
-                await loadDeliveries(force: true)
-            }
-        }
-    }
-    @Published private(set) var linearTeams: [LinearClient.Team] = []
-    @Published private(set) var linearMembers: [LinearClient.Member] = []
-    @Published private(set) var deliveries: [Delivery] = []
-    @Published private(set) var isLoadingDeliveries = false
-    @Published private(set) var deliveriesError: String?
-    @Published private(set) var linearOverview: LinearClient.Overview?
-    @Published private(set) var linearOverviewError: String?
-    @Published private(set) var isLoadingOverview = false
-    private var overviewFetchedAt: Date?
-    /// On, the panel counts only issues assigned to you; off, the whole team's.
-    @Published var linearOnlyMine: Bool {
-        didSet {
-            UserDefaults.standard.set(linearOnlyMine, forKey: "linearOnlyMine")
-            guard linearOnlyMine != oldValue else { return }
-            linearOverview = nil
-            Task { await refreshLinearOverview(force: true) }
-        }
-    }
-    @Published private(set) var linearStatus = ""
-    @Published private(set) var sendingActions: Set<UUID> = []
-    @Published private(set) var actionErrors: [UUID: String] = [:]
-    private var deliveriesFetchedAt: Date?
-
-    var linearReady: Bool { !linearKey.isEmpty && !linearTeamID.isEmpty }
     @Published var status = ""
     @Published var locales: [Locale] = []
     @Published var localeID: String {
@@ -96,8 +57,6 @@ final class CaptionModel: ObservableObject {
         didSet {
             UserDefaults.standard.set(hotKeysEnabled, forKey: "hotKeysEnabled")
             applyHotKeys()
-        restoreOverviewCache()
-        startOverviewRefresh()
         }
     }
     /// Shortcuts the system rejected, usually because another app already uses them.
@@ -152,14 +111,21 @@ final class CaptionModel: ObservableObject {
         outputPrice = UserDefaults.standard.object(forKey: "outputPrice") as? Double ?? 0.50
         hotKeysEnabled = UserDefaults.standard.object(forKey: "hotKeysEnabled") as? Bool ?? true
         glossary = GlossaryEntry.load()
-        linearKey = Keychain.loadSecret(account: "linear-api-key")
-        linearTeamID = UserDefaults.standard.string(forKey: "linearTeamID") ?? ""
-        linearOnlyMine = UserDefaults.standard.object(forKey: "linearOnlyMine") as? Bool ?? true
         idleAfter = UserDefaults.standard.object(forKey: "idleAfter") as? Double ?? 30
         autoStopAfter = UserDefaults.standard.object(forKey: "autoStopAfter") as? Double ?? 300
         fontSize = UserDefaults.standard.object(forKey: "fontSize") as? Double ?? 17
         opacity = UserDefaults.standard.object(forKey: "opacity") as? Double ?? 0.55
         applyHotKeys()
+        Self.forgetLinear()
+    }
+
+    /// Earlier versions connected to Linear. The integration is gone, so whatever it left on the Mac
+    /// (the API key in the Keychain, the team and the cached numbers) is removed on launch.
+    private static func forgetLinear() {
+        Keychain.saveSecret("", account: "linear-api-key")
+        for key in ["linearTeamID", "linearOnlyMine", "linearOverviewCache", "linearOverviewScope"] {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
     }
 
     /// Languages offered, in menu order. For Spanish, the first variant the Mac supports.
@@ -467,7 +433,7 @@ final class CaptionModel: ObservableObject {
                 recordUsage(result, model: translator.model, since: startedAt)
                 let parsed = MeetingSummary.parse(result.text)
                 summary = parsed.text
-                // Action items stay at hand to become Linear issues, one by one, if you want.
+                // Action items stay at hand, as a list to go through after the meeting.
                 meetingActions = parsed.actions.map {
                     MeetingAction(title: $0.title, owner: $0.owner, due: $0.due, dueDate: $0.dueDate)
                 }
@@ -483,165 +449,6 @@ final class CaptionModel: ObservableObject {
     func copy(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
-    }
-
-    // MARK: Deliveries
-
-    /// Used only by the development tool that draws the chart with sample data.
-    func setSampleDeliveries(_ sample: [Delivery]) { deliveries = sample }
-
-    /// Loads from Linear the issues completed in the last 9 weeks. Queries at most every 5 minutes.
-    func loadDeliveries(force: Bool = false) async {
-        guard linearReady else {
-            deliveries = []
-            return
-        }
-        guard !isLoadingDeliveries else { return }
-        if !force, let last = deliveriesFetchedAt, Date().timeIntervalSince(last) < 300 { return }
-        isLoadingDeliveries = true
-        defer { isLoadingDeliveries = false }
-        let since = Calendar.current.date(byAdding: .day, value: -63, to: Date()) ?? Date()
-        do {
-            deliveries = try await LinearClient(apiKey: linearKey).completions(teamID: linearTeamID, since: since)
-            deliveriesError = nil
-            deliveriesFetchedAt = Date()
-        } catch {
-            deliveriesError = error.localizedDescription
-        }
-    }
-
-    // MARK: Linear
-
-    func saveLinearKey(_ key: String) {
-        linearKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        Keychain.saveSecret(linearKey, account: "linear-api-key")
-        linearTeams = []
-        linearStatus = ""
-        if linearKey.isEmpty { linearTeamID = "" }
-    }
-
-    func loadLinearTeams() async {
-        guard !linearKey.isEmpty else { return }
-        linearStatus = "Conectando ao Linear…"
-        do {
-            linearTeams = try await LinearClient(apiKey: linearKey).teams()
-            if !linearTeams.contains(where: { $0.id == linearTeamID }) {
-                linearTeamID = linearTeams.count == 1 ? linearTeams[0].id : ""
-            }
-            linearStatus = linearTeams.isEmpty ? "A chave funciona, mas não há times visíveis." : "Conectado."
-            await loadLinearMembers()
-        } catch {
-            linearStatus = error.localizedDescription
-        }
-    }
-
-    var linearTeamName: String {
-        linearTeams.first { $0.id == linearTeamID }?.name ?? "time configurado"
-    }
-
-    /// People on the target team, to assign the issue to an actual person.
-    func loadLinearMembers() async {
-        guard linearReady else {
-            linearMembers = []
-            return
-        }
-        linearMembers = (try? await LinearClient(apiKey: linearKey).members(teamID: linearTeamID)) ?? []
-    }
-
-    /// Suggests the Linear assignee from the name said in the meeting. Only suggests when the name
-    /// matches a single person on the team; when in doubt, it leaves it unassigned.
-    func suggestedAssignee(for owner: String) -> String? {
-        let wanted = owner.trimmingCharacters(in: .whitespaces).lowercased()
-        guard wanted.count >= 2 else { return nil }
-        let matches = linearMembers.filter { member in
-            let names = [member.name, member.displayName].map { $0.lowercased() }
-            return names.contains { $0 == wanted || $0.split(separator: " ").first.map(String.init) == wanted }
-        }
-        return matches.count == 1 ? matches[0].id : nil
-    }
-
-    /// Creates a Linear issue from a meeting action item. Only happens through direct user action,
-    /// after checking the title, assignee, due date and priority.
-    func sendToLinear(_ id: UUID, title: String, priority: Int, assigneeID: String?, dueDate: String?) {
-        guard linearReady, !sendingActions.contains(id), let action = meetingActions.first(where: { $0.id == id }),
-              action.linearIdentifier == nil, !title.isEmpty else { return }
-        sendingActions.insert(id)
-        actionErrors[id] = nil
-        // Whatever doesn't fit in Linear's fields goes in the description, so it isn't lost.
-        let details = [
-            assigneeID == nil && !action.owner.isEmpty ? "**Responsável citado:** \(action.owner)" : nil,
-            dueDate == nil && !action.due.isEmpty ? "**Prazo citado:** \(action.due)" : nil,
-            transcriptTitle.isEmpty ? nil : "**Origem:** \(transcriptTitle)",
-            "Criada pela Mara AI.",
-        ].compactMap { $0 }
-        let client = LinearClient(apiKey: linearKey)
-        let team = linearTeamID
-        Task {
-            defer { sendingActions.remove(id) }
-            do {
-                let issue = try await client.createIssue(
-                    teamID: team, title: title, description: details.joined(separator: "\n\n"),
-                    assigneeID: assigneeID, dueDate: dueDate, priority: priority
-                )
-                if let index = meetingActions.firstIndex(where: { $0.id == id }) {
-                    meetingActions[index].title = title
-                    meetingActions[index].priority = priority
-                    meetingActions[index].linearIdentifier = issue.identifier
-                    meetingActions[index].linearURL = issue.url
-                }
-                await refreshLinearOverview(force: true)
-            } catch {
-                actionErrors[id] = error.localizedDescription
-            }
-        }
-    }
-
-    /// Current cycle numbers and the issue in focus, for the panel. Queries at most once a minute.
-    func refreshLinearOverview(force: Bool = false) async {
-        guard linearReady else {
-            linearOverview = nil
-            return
-        }
-        if isLoadingOverview { return }
-        if !force, let last = overviewFetchedAt, Date().timeIntervalSince(last) < 60 { return }
-        isLoadingOverview = true
-        defer { isLoadingOverview = false }
-        let scope = overviewScope
-        do {
-            let fresh = try await LinearClient(apiKey: linearKey).overview(teamID: linearTeamID, onlyMine: linearOnlyMine)
-            // If the team or the filter changed while the query ran, the result is no longer valid.
-            guard scope == overviewScope else { return }
-            linearOverview = fresh
-            linearOverviewError = nil
-            overviewFetchedAt = Date()
-            if let data = try? JSONEncoder().encode(fresh) {
-                UserDefaults.standard.set(data, forKey: "linearOverviewCache")
-                UserDefaults.standard.set(scope, forKey: "linearOverviewScope")
-            }
-        } catch {
-            linearOverviewError = error.localizedDescription
-        }
-    }
-
-    /// Identifies which team and which filter the stored numbers belong to.
-    private var overviewScope: String { "\(linearTeamID)|\(linearOnlyMine)" }
-
-    /// Shows the numbers from the last query right away, while the new one is pending.
-    private func restoreOverviewCache() {
-        guard linearReady, UserDefaults.standard.string(forKey: "linearOverviewScope") == overviewScope,
-              let data = UserDefaults.standard.data(forKey: "linearOverviewCache") else { return }
-        linearOverview = try? JSONDecoder().decode(LinearClient.Overview.self, from: data)
-    }
-
-    /// Keeps the numbers updated in the background, so the panel opens with them already loaded.
-    private func startOverviewRefresh() {
-        Task { [weak self] in
-            while let self {
-                await self.refreshLinearOverview()
-                await self.loadDeliveries()
-                try? await Task.sleep(for: .seconds(120))
-            }
-        }
     }
 
     func copySummary() {
@@ -757,7 +564,6 @@ final class CaptionModel: ObservableObject {
         summary = nil
         summaryError = nil
         meetingActions = []
-        actionErrors = [:]
         let language = displayName(Locale(identifier: localeID))
         let now = Date()
         let fileStamp = now.formatted(.iso8601.year().month().day().dateSeparator(.dash))
