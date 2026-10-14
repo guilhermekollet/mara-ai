@@ -29,9 +29,7 @@ const en = {
   a11y: {
     sections: "Sections",
     footer: "Footer",
-    language: "Language",
-    toggleTheme: "Switch between light and dark theme",
-    toggleThemeShort: "Toggle theme",
+    menu: "Language and appearance",
   },
   nav: {
     howItWorks: "How it works",
@@ -41,7 +39,7 @@ const en = {
     faq: "FAQ",
   },
   download: "Download for macOS",
-  getStarted: "Get started free",
+  menu: { language: "Language", appearance: "Appearance", light: "Light", dark: "Dark" },
   hero: {
     eyebrow: "Mara AI for macOS",
     title: "Meetings, without barriers.",
@@ -224,9 +222,7 @@ const pt: Dictionary = {
   a11y: {
     sections: "Seções",
     footer: "Rodapé",
-    language: "Idioma",
-    toggleTheme: "Alternar entre tema claro e escuro",
-    toggleThemeShort: "Alternar tema",
+    menu: "Idioma e aparência",
   },
   nav: {
     howItWorks: "Como funciona",
@@ -236,7 +232,7 @@ const pt: Dictionary = {
     faq: "Perguntas",
   },
   download: "Baixar para macOS",
-  getStarted: "Começar grátis",
+  menu: { language: "Idioma", appearance: "Aparência", light: "Claro", dark: "Escuro" },
   hero: {
     eyebrow: "Mara AI para macOS",
     title: "Reuniões, sem barreira.",
@@ -415,9 +411,7 @@ const es: Dictionary = {
   a11y: {
     sections: "Secciones",
     footer: "Pie de página",
-    language: "Idioma",
-    toggleTheme: "Cambiar entre tema claro y oscuro",
-    toggleThemeShort: "Cambiar tema",
+    menu: "Idioma y apariencia",
   },
   nav: {
     howItWorks: "Cómo funciona",
@@ -427,7 +421,7 @@ const es: Dictionary = {
     faq: "Preguntas",
   },
   download: "Descargar para macOS",
-  getStarted: "Empezar gratis",
+  menu: { language: "Idioma", appearance: "Apariencia", light: "Claro", dark: "Oscuro" },
   hero: {
     eyebrow: "Mara AI para macOS",
     title: "Reuniones, sin barreras.",

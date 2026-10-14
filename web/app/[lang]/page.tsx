@@ -3,10 +3,9 @@ import { CaptionWindowDemo } from "@/components/caption-window-demo";
 import { PrivacyArt, type PrivacyArtName } from "@/components/privacy-art";
 import { RevealObserver } from "@/components/motion-bits";
 import { HeroWaves } from "@/components/hero-waves";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Brand } from "@/components/brand";
 import { AppleLogo, Mark } from "@/components/mark";
-import { LanguageSwitcher } from "@/components/language-switcher";
+import { HeaderMenu } from "@/components/header-menu";
 import { getDictionary, hasLocale, locales, type Dictionary } from "@/i18n/dictionaries";
 
 const pill =
@@ -117,16 +116,11 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
           ))}
         </nav>
         <div className="ml-auto flex gap-1.5 sm:gap-2">
-          <LanguageSwitcher current={lang} label={t.a11y.language} />
-          <ThemeToggle label={t.a11y.toggleTheme} title={t.a11y.toggleThemeShort} />
           <a href={`${REPO_URL}/releases/latest`} className={`${pill} bg-pill text-pill-fg max-sm:hidden`}>
             <AppleLogo />
             {t.download}
           </a>
-          {/* On the narrowest phones the header keeps only the language and theme controls. */}
-          <a href="#comecar" className={`${pill} bg-accent text-ink-soft max-sm:px-3 max-[359px]:hidden`}>
-            {t.getStarted}
-          </a>
+          <HeaderMenu current={lang} copy={t.menu} label={t.a11y.menu} />
         </div>
       </header>
 
