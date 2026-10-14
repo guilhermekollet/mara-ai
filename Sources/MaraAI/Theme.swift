@@ -68,6 +68,9 @@ struct PillButtonStyle: ButtonStyle {
 /// Language icon that opens the menu for changing the meeting language.
 struct LanguageMenu: View {
     @EnvironmentObject private var model: CaptionModel
+    /// Just the globe, for tight spots like the captions window's control bar; the language is
+    /// still in the tooltip and the menu.
+    var iconOnly = false
 
     var body: some View {
         Menu {
@@ -78,13 +81,18 @@ struct LanguageMenu: View {
             }
             .pickerStyle(.inline)
         } label: {
-            Label(model.languageCode, systemImage: "globe")
-                .labelStyle(.titleAndIcon)
-                .font(.system(size: 11.5, weight: .medium))
+            if iconOnly {
+                Image(systemName: "globe")
+                    .font(.system(size: 11.5, weight: .medium))
+            } else {
+                Label(model.languageCode, systemImage: "globe")
+                    .labelStyle(.titleAndIcon)
+                    .font(.system(size: 11.5, weight: .medium))
+            }
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
-        .help("Idioma da reunião")
+        .help("Idioma da reunião: \(model.languageCode)")
         .disabled(model.isRunning || model.isStarting)
     }
 }
