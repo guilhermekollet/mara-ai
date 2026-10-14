@@ -30,6 +30,7 @@ const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeIn = (t: number) => t * t * t;
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const easeOutBack = (t: number) => 1 + 2.70158 * Math.pow(t - 1, 3) + 1.70158 * Math.pow(t - 1, 2);
 const progress = (frame: number, start: number, length = 14, ease = easeOut) => ease(clamp01((frame - start) / length));
 
 // Interpolates through keyframes [frame, ...values], easing each leg.
@@ -76,11 +77,17 @@ const HEIGHT = [
 ];
 const heightAt = (frame: number) => track(frame, HEIGHT)[0];
 
+// The play button's center in window points (6 pt padding, the 24 pt globe, 2 pt gap).
+const PLAY = { x: 44, y: 16 };
+// A click as macOS draws it: the button darkens while the mouse is down, and the action happens on
+// release. The pointer itself never changes size.
+const pressedAt = (frame: number, at: number) => frame >= at - 3 && frame < at + 2;
+
 // The pointer's path in window points, for a window `w` points wide.
 const pointerPath = (w: number) => [
   [18, w + 80, 300],
-  [52, 64, 16],
-  [T.start + 8, 64, 16],
+  [52, PLAY.x, PLAY.y],
+  [T.start + 10, PLAY.x, PLAY.y],
   [T.start + 40, w + 60, 250],
   [T.scrollFrom - 12, w + 60, 250],
   [T.scrollFrom, w * 0.54, 118],
@@ -95,7 +102,6 @@ const pointerPath = (w: number) => [
   [662, w / 2, 264],
   [700, w + 80, 340],
 ];
-const CLICKS = [T.start, T.jump];
 const RESIZING = [570, 664];
 const pointerVisible = (frame: number) => frame >= 26 && frame < 694;
 
@@ -184,7 +190,7 @@ export function CaptionWindowDemo({ copy }: { copy: Copy }) {
             (resizing ? (
               <ResizePointer x={px} y={py} />
             ) : (
-              <Pointer x={px} y={py} opacity={pointer} clicking={CLICKS.some((at) => frame >= at && frame < at + 5)} />
+              <Pointer x={px} y={py} opacity={pointer} />
             ))}
         </div>
       </div>
@@ -348,7 +354,23 @@ function ControlBar({ frame, running, w }: { frame: number; running: boolean; w:
     return { opacity: p, transform: `translateY(${(1 - p) * -4}px) scale(${0.85 + 0.15 * p})` };
   };
   const shade = now ? progress(since, 0, 8) : 1 - progress(since, 0, 7);
-  const pressed = frame >= T.start - 2 && frame < T.start + 4 ? 0.12 : 0;
+  // The play button, as AppKit draws a borderless icon button: a soft circle while the pointer is
+  // over it, a darker one while pressed, and the symbol swapping play → stop like SF Symbols'
+  // "replace" effect (the old one shrinks away, the new one springs in).
+  const onPlay = (f: number) => {
+    const [x, y] = track(f, pointerPath(w));
+    return pointerVisible(f) && Math.abs(x - PLAY.x) <= 12 && y >= 4 && y <= 28;
+  };
+  let overSince = -1;
+  for (let back = 0; back <= 12 && onPlay(frame - back); back++) overSince = back;
+  let leftSince = -1;
+  if (overSince < 0) for (let back = 1; back <= 12; back++) if (onPlay(frame - back)) { leftSince = back - 1; break; }
+  const hover = overSince >= 0 ? progress(overSince, 0, 5) : leftSince >= 0 ? 1 - progress(leftSince, 0, 6) : 0;
+  const down = pressedAt(frame, T.start);
+  const playBackground = down ? 0.22 : 0.12 * hover;
+  const swap = T.start + 2;
+  const out = progress(frame, swap, 5, easeIn);
+  const into = progress(frame, swap + 2, 9, easeOutBack);
   const stroke = { fill: "none", stroke: "rgba(250,250,250,0.7)", strokeWidth: 1.3 };
   return (
     <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: 32, padding: "0 6px", display: "flex", alignItems: "center", gap: 2 }}>
@@ -359,8 +381,15 @@ function ControlBar({ frame, running, w }: { frame: number; running: boolean; w:
           <path d="M1.8 8h12.4M8 1.8c1.8 2 1.8 10.4 0 12.4M8 1.8c-1.8 2-1.8 10.4 0 12.4" />
         </g>
       </IconButton>
-      <IconButton style={{ ...item(1), background: `rgba(250,250,250,${pressed})` }}>
-        {running ? <rect x="4" y="4" width="8" height="8" rx="1.5" fill={ACCENT} /> : <path d="M5 3.5v9l7.5-4.5z" fill={ACCENT} />}
+      <IconButton style={{ ...item(1), background: `rgba(250,250,250,${playBackground})` }}>
+        <g style={{ transformOrigin: "8px 8px", opacity: down ? 0.75 : 1 }}>
+          {frame < swap + 5 && (
+            <path d="M5 3.5v9l7.5-4.5z" fill={ACCENT} style={{ transformOrigin: "8px 8px", transform: `scale(${1 - 0.45 * out})`, opacity: 1 - out }} />
+          )}
+          {running && frame >= swap + 2 && (
+            <rect x="4" y="4" width="8" height="8" rx="1.5" fill={ACCENT} style={{ transformOrigin: "8px 8px", transform: `scale(${0.55 + 0.45 * into})`, opacity: Math.min(1, into * 1.4) }} />
+          )}
+        </g>
       </IconButton>
       <span style={{ flex: 1 }} />
       <IconButton style={item(2)}>
@@ -415,6 +444,7 @@ function JumpButton({ frame, label }: { frame: number; label: string }) {
         color: "#0d0d0d",
         overflow: "hidden",
         opacity: shown,
+        filter: pressedAt(frame, T.jump) ? "brightness(0.86)" : undefined,
         transform: `scale(${0.7 + 0.3 * shown})`,
         transformOrigin: "100% 100%",
         boxShadow: "0 6px 18px rgba(0,0,0,0.35)",
@@ -441,11 +471,11 @@ function JumpButton({ frame, label }: { frame: number; label: string }) {
   );
 }
 
-function Pointer({ x, y, opacity, clicking }: { x: number; y: number; opacity: number; clicking: boolean }) {
+function Pointer({ x, y, opacity }: { x: number; y: number; opacity: number }) {
   return (
     <svg
       viewBox="0 0 20 26"
-      style={{ position: "absolute", left: x - 2, top: y - 1, width: 17, height: 22, opacity, transform: `scale(${clicking ? 0.86 : 1})`, transformOrigin: "2px 1px" }}
+      style={{ position: "absolute", left: x - 2, top: y - 1, width: 17, height: 22, opacity }}
     >
       <path d="M2 1.5v19.2l5-4.8 3.1 7.2 3.3-1.4-3.1-7.1h7z" fill="#000" stroke="#fff" strokeWidth="1.4" strokeLinejoin="round" />
     </svg>
