@@ -123,9 +123,21 @@ case "$command" in
     gh pr checks "$number" >/dev/null || fail "checks on #$number are failing or still running: gh pr checks $number"
     # The squash commit gets the PR title and the commits' messages, minus any co-author lines.
     body="$(gh pr view "$number" --json commits --jq '.commits[] | .messageHeadline + "\n\n" + .messageBody' | strip_trailers)"
-    gh pr merge "$number" --squash --admin --delete-branch --subject "$title (#$number)" --body "$body"
-    git switch main
-    git pull --ff-only
+    head="$(gh pr view "$number" --json headRefName --jq .headRefName)"
+    if ! gh pr merge "$number" --squash --admin --delete-branch --subject "$title (#$number)" --body "$body"; then
+      # gh also deletes the local branch; that fails when a worktree still uses it, after the merge.
+      [ "$(gh pr view "$number" --json state --jq .state)" = "MERGED" ] || fail "#$number was not merged"
+      echo "ship: #$number is merged; its local branch was kept (in use by a worktree?)" >&2
+    fi
+    # Leave whatever branch you're working on alone: only move to main if you were on the merged
+    # branch (or on main already); otherwise just bring the local main up to date.
+    if [ "$(current_branch)" = "$head" ] || [ "$(current_branch)" = "main" ]; then
+      git switch main
+      git pull --ff-only
+    else
+      git fetch -q origin main:main
+      echo "ship: main is up to date; you're still on $(current_branch)"
+    fi
     ;;
 
   check)
