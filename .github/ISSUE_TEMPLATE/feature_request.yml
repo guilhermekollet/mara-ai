@@ -1,0 +1,19 @@
+name: Feature request
+description: Suggest an idea for Mara
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like to happen?
+  - type: textarea
+    id: privacy
+    attributes:
+      label: Does it send any data outside the Mac?
+      description: If so, what and where. Mara keeps meeting audio on-device.
