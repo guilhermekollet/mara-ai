@@ -20,12 +20,23 @@ struct GPTModel: Identifiable {
 }
 
 struct SettingsView: View {
+    /// Set to a tab's name ("summary", for example) to open Settings on that tab.
+    static let requestedTabKey = "settingsTab"
+
     @EnvironmentObject private var model: CaptionModel
     @State private var tab = Tab.translation
+    @AppStorage(SettingsView.requestedTabKey) private var requestedTab = ""
     /// The content has slid under the header: a hairline separates them, as under a macOS toolbar.
     @State private var scrolled = false
     /// There is more below: the bottom edge fades out.
     @State private var moreBelow = false
+
+    /// Another part of the app asked for a tab: show it, then forget the request.
+    private func showRequestedTab() {
+        guard let match = Tab.allCases.first(where: { "\($0)" == requestedTab }) else { return }
+        tab = match
+        requestedTab = ""
+    }
 
     private enum Tab: CaseIterable, Identifiable {
         case translation, summary, appearance, usage, glossary, general
@@ -103,6 +114,8 @@ struct SettingsView: View {
         .tint(Theme.accent)
         .preferredColorScheme(.dark)
         .task { await model.loadLocales() }
+        .onAppear(perform: showRequestedTab)
+        .onChange(of: requestedTab) { showRequestedTab() }
     }
 
     private var header: some View {

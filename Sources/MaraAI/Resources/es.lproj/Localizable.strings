@@ -15,7 +15,6 @@
 "Mostrar os assuntos, as decisões e as perguntas em aberto" = "Mostrar los temas, las decisiones y las preguntas abiertas";
 "Resumindo a reunião…" = "Resumiendo la reunión…";
 "Resumir reunião" = "Resumir reunión";
-"O resumo usa o GPT: adicione sua chave da OpenAI em Ajustes." = "El resumen usa GPT: añade tu clave de OpenAI en Ajustes.";
 "Envia a transcrição desta sessão à OpenAI." = "Envía la transcripción de esta sesión a OpenAI.";
 "Não foi possível resumir: %@" = "No se pudo resumir: %@";
 "Legendas" = "Subtítulos";
@@ -242,3 +241,5 @@
 "Transcrever o meu microfone" = "Transcribir mi micrófono";
 "O macOS não deu acesso ao microfone." = "macOS no dio acceso al micrófono.";
 "O microfone parou de responder e foi desligado. As legendas continuam." = "El micrófono dejó de responder y se apagó. Los subtítulos siguen.";
+"O resumo usa o GPT, com a sua chave da OpenAI." = "El resumen usa GPT, con tu propia clave de OpenAI.";
+"Adicionar em Ajustes" = "Añadir en Ajustes";
