@@ -581,6 +581,13 @@ private struct MicrophoneCard: View {
                 }
             }
         }
+        // Granted in System Settings while this is open: the warning goes away on its own.
+        .task {
+            while !Task.isCancelled {
+                denied = MicrophonePermission.wasDenied
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
     }
 }
 

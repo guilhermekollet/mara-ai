@@ -13,6 +13,9 @@ final class TranscriptionSession {
     private var onResult: (@MainActor (_ text: String, _ isFinal: Bool, _ speaker: Speaker) -> Void)?
     private var onError: (@MainActor (Error) -> Void)?
 
+    /// Whether what is said into the microphone is being transcribed right now.
+    var microphoneActive: Bool { microphoneRecognizer != nil }
+
     static func supportedLocales() async -> [Locale] {
         await SpeechTranscriber.supportedLocales
     }
@@ -33,6 +36,7 @@ final class TranscriptionSession {
         onAudio: ((AVAudioPCMBuffer) -> Void)? = nil,
         onStatus: @escaping @MainActor (String) -> Void,
         onResult: @escaping @MainActor (_ text: String, _ isFinal: Bool, _ speaker: Speaker) -> Void,
+        onMicrophoneLost: @escaping @MainActor () -> Void,
         onError: @escaping @MainActor (Error) -> Void
     ) async throws {
         self.locale = locale
@@ -78,13 +82,21 @@ final class TranscriptionSession {
                 }
             },
             onMicrophone: { [microphone] buffer in microphone.push(buffer) },
+            onMicrophoneLost: { [weak self] in
+                Task { @MainActor in
+                    await self?.stopMicrophoneRecognizer()
+                    onMicrophoneLost()
+                }
+            },
             onStop: { [weak self] error in
                 Task { @MainActor in await self?.recover(from: error, onError: onError) }
             }
         )
     }
 
-    /// Turns the microphone's transcription on or off in the middle of a session.
+    /// Turns the microphone's transcription on or off in the middle of a session. On the main
+    /// actor, like `recover`, so the two never change the stream at the same time.
+    @MainActor
     func setMicrophone(_ on: Bool) async throws {
         if on {
             try await startMicrophoneRecognizer()
@@ -198,7 +210,13 @@ final class Recognizer {
                 await onError(error)
             }
         }
-        try await analyzer.start(inputSequence: stream)
+        do {
+            try await analyzer.start(inputSequence: stream)
+        } catch {
+            continuation.finish()
+            results.cancel()
+            throw error
+        }
         return Recognizer(format: format, input: continuation, analyzer: analyzer, results: results)
     }
 

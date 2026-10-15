@@ -10,6 +10,7 @@ final class SystemAudioCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     private var onBuffer: ((AVAudioPCMBuffer) -> Void)?
     private var onMicrophone: ((AVAudioPCMBuffer) -> Void)?
     private var onStop: ((Error) -> Void)?
+    private var onMicrophoneLost: (() -> Void)?
     /// Kept so a restarted stream captures the microphone too, if it was on.
     private var capturesMicrophone = false
 
@@ -17,13 +18,15 @@ final class SystemAudioCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         microphone: Bool,
         onBuffer: @escaping (AVAudioPCMBuffer) -> Void,
         onMicrophone: @escaping (AVAudioPCMBuffer) -> Void,
+        onMicrophoneLost: @escaping () -> Void,
         onStop: @escaping (Error) -> Void
     ) async throws {
         self.onBuffer = onBuffer
         self.onMicrophone = onMicrophone
+        self.onMicrophoneLost = onMicrophoneLost
         self.onStop = onStop
         capturesMicrophone = microphone
-        try await startStream()
+        try await startStreamKeepingSystemAudio()
     }
 
     /// Turns the microphone on or off without interrupting the Mac's audio.
@@ -45,7 +48,20 @@ final class SystemAudioCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         let old = stream
         stream = nil
         try? await old?.stopCapture()
-        try await startStream()
+        try await startStreamKeepingSystemAudio()
+    }
+
+    /// A stream that won't start with the microphone (permission revoked, device gone) starts
+    /// without it, so the meeting's captions carry on; `onMicrophoneLost` reports it.
+    private func startStreamKeepingSystemAudio() async throws {
+        do {
+            try await startStream()
+        } catch {
+            guard capturesMicrophone else { throw error }
+            capturesMicrophone = false
+            try await startStream()
+            onMicrophoneLost?()
+        }
     }
 
     private func startStream() async throws {
@@ -82,6 +98,7 @@ final class SystemAudioCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         stream = nil
         onBuffer = nil
         onMicrophone = nil
+        onMicrophoneLost = nil
         onStop = nil
     }
 

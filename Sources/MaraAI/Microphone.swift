@@ -32,8 +32,10 @@ enum MicrophonePermission {
 /// the words: an utterance from the microphone that repeats what came from the Mac around the
 /// same time is that echo.
 enum EchoFilter {
-    /// How far apart the two transcriptions of the same sentence can finish.
-    static let window: Double = 15
+    /// How far apart the two transcriptions of the same sentence can finish. Measured: the
+    /// microphone's ends 1 s before to 2 s after the Mac's. Kept tight, because someone repeating
+    /// your words a little later ("ok, let's move it to Friday") is not an echo.
+    static let window: Double = 6
     /// Short utterances ("ok", "sim, claro") share words with almost anything, so they only count as
     /// an echo when the same words, in the same order, came from the Mac within a few seconds.
     static let shortWindow: Double = 4

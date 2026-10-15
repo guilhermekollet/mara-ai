@@ -293,6 +293,7 @@ final class CaptionModel: ObservableObject {
                         self?.handle(text, isFinal: isFinal)
                     }
                 },
+                onMicrophoneLost: { [weak self] in self?.microphoneLost() },
                 onError: { [weak self] error in
                     SessionLog.write("ERRO \(error.localizedDescription)")
                     self?.status = localized("Erro: \(error.localizedDescription)")
@@ -301,6 +302,8 @@ final class CaptionModel: ObservableObject {
             )
             self.session = session
             isRunning = true
+            // The microphone may have been switched while the session was starting.
+            await applyMicrophone()
             soundCues.play(.start)
             menuBarAnimator.setActive(true)
             audioMeter.setActive(true)
@@ -384,15 +387,17 @@ final class CaptionModel: ObservableObject {
         }
     }
 
+    /// Apple Speech sometimes delivers the previous sentence's punctuation at the start of the next
+    /// one (". Coisa linda…"). Returns those marks apart, to go back where they belong.
+    private static func splitLeadingPunctuation(_ text: String) -> (marks: String, text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let marks = String(trimmed.prefix { ".,;:!?…".contains($0) })
+        return (marks, String(trimmed.dropFirst(marks.count)).trimmingCharacters(in: .whitespaces))
+    }
+
     private func handle(_ text: String, isFinal: Bool) {
-        // Apple Speech sometimes delivers the previous sentence's punctuation at the start of the next one
-        // (". Coisa linda…"). The mark goes back to the end of the sentence it belongs to.
-        var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let leading = String(trimmed.prefix { ".,;:!?…".contains($0) })
-        if !leading.isEmpty {
-            trimmed = String(trimmed.dropFirst(leading.count)).trimmingCharacters(in: .whitespaces)
-            if isFinal { attachPunctuation(leading, speaker: .others) }
-        }
+        let (leading, trimmed) = Self.splitLeadingPunctuation(text)
+        if isFinal && !leading.isEmpty { attachPunctuation(leading, speaker: .others) }
         guard isFinal else {
             volatile = trimmed
             SessionLog.write("PARCIAL \(trimmed)")
@@ -411,7 +416,8 @@ final class CaptionModel: ObservableObject {
         let finalizedAt = Date()
 
         dropEchoes(of: trimmed)
-        let context = segments.suffix(3).map(\.original)
+        // Only the others' sentences: what you say doesn't leave the Mac unless you ask for a summary.
+        let context = segments.filter { $0.speaker == .others }.suffix(3).map(\.original)
         var segment = Segment(original: trimmed)
         guard translates else {
             segment.translation = trimmed
@@ -460,13 +466,10 @@ final class CaptionModel: ObservableObject {
     /// into the captions, the transcript and the summary as yours, unless it is the echo of the
     /// others coming out of the speakers.
     private func handleMine(_ text: String, isFinal: Bool) {
-        guard isFinal else { return }
-        var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let leading = String(trimmed.prefix { ".,;:!?…".contains($0) })
-        if !leading.isEmpty {
-            trimmed = String(trimmed.dropFirst(leading.count)).trimmingCharacters(in: .whitespaces)
-            attachPunctuation(leading, speaker: .me)
-        }
+        // Turned off: whatever the recognizer still had pending is not kept.
+        guard isFinal, microphoneOn else { return }
+        let (leading, trimmed) = Self.splitLeadingPunctuation(text)
+        if !leading.isEmpty { attachPunctuation(leading, speaker: .me) }
         guard !trimmed.isEmpty else { return }
         let now = Date()
         var heard = segments.filter { $0.speaker == .others }.suffix(8).map { ($0.original, now.timeIntervalSince($0.date)) }
@@ -506,20 +509,42 @@ final class CaptionModel: ObservableObject {
         if on && !MicrophonePermission.isGranted {
             guard !MicrophonePermission.wasDenied, await MicrophonePermission.request() else {
                 status = localized("Sem permissão para o microfone: ative a Mara em Ajustes do Sistema › Privacidade e Segurança › Microfone.")
-                MicrophonePermission.openSystemSettings()
                 return
             }
         }
         microphoneOn = on
-        guard let session else { return }
-        do {
-            try await session.setMicrophone(on)
-            SessionLog.write(on ? "MICROFONE ligado" : "MICROFONE desligado")
-        } catch {
-            microphoneOn = false
-            SessionLog.write("ERRO no microfone: \(error.localizedDescription)")
-            status = localized("Não foi possível usar o microfone: \(error.localizedDescription)")
+        await applyMicrophone()
+    }
+
+    private var applyingMicrophone = false
+
+    /// Brings the session in line with `microphoneOn`. One change at a time: toggles made while
+    /// one is under way (a double ⌃⌥M, or during Iniciar) are picked up by the same loop, so the
+    /// session never ends up transcribing a microphone shown as off.
+    private func applyMicrophone() async {
+        guard !applyingMicrophone else { return }
+        applyingMicrophone = true
+        defer { applyingMicrophone = false }
+        while let session, session.microphoneActive != microphoneOn {
+            let on = microphoneOn
+            do {
+                try await session.setMicrophone(on)
+                SessionLog.write(on ? "MICROFONE ligado" : "MICROFONE desligado")
+            } catch {
+                SessionLog.write("ERRO no microfone: \(error.localizedDescription)")
+                status = localized("Não foi possível usar o microfone: \(error.localizedDescription)")
+                microphoneOn = session.microphoneActive
+                return
+            }
         }
+    }
+
+    /// The microphone stopped working mid-session (permission revoked, device gone): it is turned
+    /// off and the captions carry on with the Mac's audio.
+    private func microphoneLost() {
+        SessionLog.write("MICROFONE perdido")
+        microphoneOn = false
+        status = localized("O microfone parou de responder e foi desligado. As legendas continuam.")
     }
 
     @discardableResult

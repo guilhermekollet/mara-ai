@@ -241,3 +241,4 @@
 "Ligado, o que você diz entra na transcrição como seu, e o resumo sabe quem disse o quê. A Mara não sabe se você está mudo na reunião: desligue quando não quiser ser transcrito, aqui, na janela de legendas ou com ⌃⌥M. Sem fone, a Mara descarta o eco dos outros saindo pelos alto-falantes." = "When it's on, what you say goes into the transcript as yours, and the summary knows who said what. Mara can't tell whether you're muted in the meeting: turn it off when you don't want to be transcribed, here, in the captions window or with ⌃⌥M. Without headphones, Mara drops the echo of the others coming out of the speakers.";
 "Transcrever o meu microfone" = "Transcribe my microphone";
 "O macOS não deu acesso ao microfone." = "macOS didn't give access to the microphone.";
+"O microfone parou de responder e foi desligado. As legendas continuam." = "The microphone stopped responding and was turned off. Captions carry on.";

@@ -134,7 +134,7 @@ API keys are stored in the macOS Keychain, never in files.
 | Data | Where it goes |
 | --- | --- |
 | Meeting audio | Stays on your Mac. It is never sent anywhere. |
-| Microphone | Off unless you turn it on (macOS asks for the permission the first time). Transcribed on your Mac like the meeting audio. |
+| Microphone | Off unless you turn it on (macOS asks for the permission the first time). Transcribed on your Mac like the meeting audio; what you said reaches OpenAI only inside a summary you ask for, never in GPT translation. |
 | Transcript text | Sent to OpenAI only when GPT refinement is on, or when you ask for a summary. |
 | API keys | macOS Keychain. |
 | Transcripts and summaries | Text and Markdown files in `~/Documents/Mara AI`. |

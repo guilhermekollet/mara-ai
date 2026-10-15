@@ -23,6 +23,11 @@ struct EchoFilterTests {
         #expect(!EchoFilter.isEcho("Sure, I'll send it tomorrow morning with the new numbers.", others: others))
     }
 
+    @Test func someoneRepeatingYourWordsLaterIsNotAnEcho() {
+        let others = [(text: "Okay, let's move the demo to Friday then.", secondsApart: -8.0)]
+        #expect(!EchoFilter.isEcho("Let's move the demo to Friday.", others: others))
+    }
+
     @Test func anOldSentenceDoesntCount() {
         let others = [(text: "We can review the contract on Thursday.", secondsApart: 40.0)]
         #expect(!EchoFilter.isEcho("we can review the contract on thursday", others: others))
