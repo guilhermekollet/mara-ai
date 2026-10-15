@@ -89,9 +89,12 @@ open "build/Mara AI.app"
 
 ### First run
 
-1. Mara lives in the menu bar (the dotted "M"). Click it and press **Iniciar**.
-2. Allow **Screen & System Audio Recording** when macOS asks, then quit and reopen Mara once.
-3. Pick the meeting language with the globe icon and start a call.
+1. A short introduction opens. It asks for **Screen & System Audio Recording** (macOS then needs
+   Mara reopened once, which the introduction does for you), downloads the speech model and
+   Apple's translation for the meeting language, and takes your OpenAI key if you want summaries.
+2. Mara lives in the menu bar (the dotted "M"). Click it and press **Iniciar**, or use ⌃⌥S.
+
+You can see the introduction again in **Ajustes › Atalhos**.
 
 ### Signing
 
@@ -187,6 +190,7 @@ Sources/MaraAI/
   SummaryView.swift          Summary window
   MenuBarPanel.swift         Menu bar panel
   SettingsView.swift         Settings window
+  OnboardingView.swift       First-launch introduction: permission, language download, OpenAI key
   …                          Theme, icons, animated captions, sound bars, hot keys, usage ledger
 Tests/MaraAITests/           Swift Testing suite
 scripts/                     Icon generation, signing certificate, test runner, release packaging

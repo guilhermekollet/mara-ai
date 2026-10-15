@@ -108,7 +108,7 @@ final class CaptionModel: ObservableObject {
     private var localFinal: TranslationSession?
     private var isTranslatingVolatile = false
     private var volatileGeneration = 0
-    private static let targetLanguage = Locale.Language(identifier: "pt-BR")
+    static let targetLanguage = Locale.Language(identifier: "pt-BR")
     private var transcriptURL: URL?
     private var transcriptTitle = ""
 

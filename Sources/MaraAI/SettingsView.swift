@@ -518,6 +518,7 @@ private struct GlossarySettings: View {
 
 private struct ShortcutSettings: View {
     @EnvironmentObject private var model: CaptionModel
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -551,6 +552,13 @@ private struct ShortcutSettings: View {
                 )
                 .font(.system(size: 11.5))
                 .foregroundStyle(.orange)
+            }
+            SettingsCard("Introdução", hint: "A apresentação da primeira vez: a permissão de áudio, o idioma da reunião e a chave para o resumo.") {
+                Button("Ver a introdução") {
+                    UserDefaults.standard.set(0, forKey: Onboarding.stepKey)
+                    present(onboardingWindowID, using: openWindow)
+                }
+                .buttonStyle(PillButtonStyle(prominent: false))
             }
         }
     }
