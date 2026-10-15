@@ -3,6 +3,7 @@ import Translation
 
 @main
 struct MaraAIApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var model = CaptionModel()
 
     init() {
@@ -50,6 +51,18 @@ struct MaraAIApp: App {
 }
 
 let captionsWindowID = "captions"
+
+/// Starts the update checks on launch and puts a downloaded update in place on quit.
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        Updater.shared.start()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        Updater.shared.installIfReady(relaunch: false)
+    }
+}
 
 /// Opens one of the app's windows in front of everything, on the screen the pointer is on.
 /// SwiftUI puts a window back where it was last closed, which can be another monitor the person

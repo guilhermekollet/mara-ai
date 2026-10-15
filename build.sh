@@ -8,7 +8,8 @@
 # the app is signed ad hoc.
 #
 # Releases (scripts/package-release.sh) also set MARA_VERSION, stamped into the bundle's
-# Info.plist, and MARA_OUTPUT_DIR, so packaging never replaces the app you are running from build/.
+# Info.plist, MARA_UPDATES, which lets the app update itself, and MARA_OUTPUT_DIR, so packaging
+# never replaces the app you are running from build/.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -23,10 +24,18 @@ cp Info.plist "$APP/Contents/"
 if [[ -n "${MARA_VERSION:-}" ]]; then
   /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $MARA_VERSION" "$APP/Contents/Info.plist"
 fi
+if [[ -n "${MARA_UPDATES:-}" ]]; then
+  /usr/libexec/PlistBuddy -c "Add :MaraUpdates bool true" "$APP/Contents/Info.plist"
+fi
 
 IDENTITY="${MARA_SIGNING_IDENTITY:-Mara AI Local Signing}"
 if [[ "$IDENTITY" != "-" ]] && security find-identity -p codesigning | grep -q "$IDENTITY"; then
   codesign --force --sign "$IDENTITY" "$APP"
+elif [[ -n "${MARA_SIGNING_IDENTITY:-}" && "$MARA_SIGNING_IDENTITY" != "-" ]]; then
+  # An identity asked for by name must be used: a release signed ad hoc by accident could not
+  # be updated from the versions signed with the release certificate.
+  echo "error: signing identity \"$MARA_SIGNING_IDENTITY\" not found" >&2
+  exit 1
 else
   codesign --force --sign - "$APP"
 fi

@@ -58,6 +58,8 @@ ends, it summarizes the conversation with AI, using your own OpenAI key.
 **Everyday details**
 - A short introduction on first launch: the audio permission, the meeting language downloaded
   ahead of time and, if you want summaries, your OpenAI key.
+- Automatic updates: a new version downloads in the background, is checked against the project's
+  signature and installs when you quit Mara (or right away, with **Reiniciar agora**).
 - Global shortcuts: <kbd>⌃⌥S</kbd> start/stop, <kbd>⌃⌥L</kbd> show/hide captions.
 - A usage ledger with every GPT call and its estimated cost.
 - Transcripts (plain text) and summaries (Markdown) saved in `~/Documents/Mara AI`.
@@ -77,8 +79,8 @@ Get the latest `.zip` from [Releases](https://github.com/guilhermekollet/mara-ai
 
 Mara is signed but not notarized: the project has no paid Apple Developer account. The first time
 you open it, macOS says it can't verify the developer. Open **System Settings → Privacy &
-Security**, scroll down and click **Open Anyway** next to Mara AI. You only do this once per
-version.
+Security**, scroll down and click **Open Anyway** next to Mara AI. You only do this once: from
+0.3.0 on, Mara updates itself, and macOS keeps both this choice and the recording permission.
 
 ### Build from source
 
@@ -97,7 +99,7 @@ open "build/Mara AI.app"
    Apple's translation for the meeting language, and takes your OpenAI key if you want summaries.
 2. Mara lives in the menu bar (the dotted "M"). Click it and press **Iniciar**, or use ⌃⌥S.
 
-You can see the introduction again in **Ajustes › Atalhos**.
+You can see the introduction again in **Ajustes › Geral**.
 
 ### Signing
 
@@ -117,7 +119,7 @@ Everything lives in **Ajustes** (Settings), opened from the menu bar panel:
 | Aparência | Caption size and background opacity, standby and auto-stop timers, sound cues |
 | Consumo | GPT usage per session, day, month and in total |
 | Glossário | Names and terms the team uses |
-| Atalhos | Turn the global shortcuts on or off, see the introduction again |
+| Geral | Automatic updates, the global shortcuts, the introduction again |
 
 API keys are stored in the macOS Keychain, never in files.
 
@@ -129,8 +131,10 @@ API keys are stored in the macOS Keychain, never in files.
 | Transcript text | Sent to OpenAI only when GPT refinement is on, or when you ask for a summary. |
 | API keys | macOS Keychain. |
 | Transcripts and summaries | Text and Markdown files in `~/Documents/Mara AI`. |
+| Update checks | Once a day Mara asks GitHub for the latest release; nothing about you or your meetings is sent. Turn it off in **Ajustes › Geral**. |
 
-Mara has no server of its own: every request goes straight from your Mac to OpenAI.
+Mara has no server of its own: requests go straight from your Mac to OpenAI, and to GitHub for
+updates.
 
 ## Troubleshooting
 
@@ -143,8 +147,8 @@ Click **Open Anyway** in **System Settings → Privacy & Security**, as in [Down
 tccutil reset ScreenCapture com.guilhermekollet.mara-ai
 ```
 
-Releases are signed ad hoc, so after updating to a new version macOS may ask for the permission
-again.
+Releases up to 0.2.0 were signed ad hoc, so updating from them asks for the permission once more.
+From 0.3.0 on, every release is signed with the same certificate and macOS keeps it.
 
 **The menu bar icon doesn't show up.** On MacBooks with a notch, icons that don't fit are hidden
 behind it. Remove a few menu bar items (hold <kbd>⌘</kbd> and drag them out) and Mara appears.
@@ -171,14 +175,25 @@ The website lives in [`web/`](web/README.md) (Next.js, Tailwind CSS).
 ### Releasing
 
 Push a version tag and `.github/workflows/release.yml` does the rest: it runs the tests, builds the
-app with that version and publishes a GitHub release with the zip and its SHA-256 checksum.
+app with that version, signs it and publishes a GitHub release with the zip, its SHA-256 checksum
+and its update signature.
+
+Two kinds of signing keep updates working, both held as repository secrets:
+
+- `MARA_SIGNING_P12` and `MARA_SIGNING_P12_PASSWORD`: the project's self-signed code-signing
+  certificate. Every release carries the same one, so macOS keeps the recording permission across
+  updates, and the updater refuses an app signed with anything else.
+- `MARA_UPDATE_PRIVATE_KEY`: the Ed25519 key whose public half is in `Updater.swift`. The updater
+  installs only a zip with a valid signature from it. Losing it means installed copies can no
+  longer update themselves, so keep its backup safe.
 
 ```bash
 git tag v0.2.0
 git push origin v0.2.0
 ```
 
-`scripts/package-release.sh 0.2.0` builds the same zip locally, in `dist/`.
+`scripts/package-release.sh 0.2.0` builds the same zip locally, in `dist/` (signed ad hoc, without
+an update signature, unless the variables above are set).
 
 ## Project layout
 
@@ -187,6 +202,7 @@ Sources/MaraAI/
   MaraAIApp.swift            App entry point, captions window, menu bar item
   CaptionModel.swift         Session state: capture, transcription, translation, summary
   CaptionLanguage.swift      The languages captions and summaries are written in
+  Updater.swift              Automatic updates from GitHub Releases, checked before installing
   TranscriptionSession.swift Apple SpeechAnalyzer pipeline and the standby gate
   SystemAudioCapture.swift   System audio through ScreenCaptureKit (restarts if macOS stops it)
   Translator.swift           OpenAI calls (refinement, summary) and Keychain helpers
@@ -197,7 +213,7 @@ Sources/MaraAI/
   OnboardingView.swift       First-launch introduction: permission, language download, OpenAI key
   …                          Theme, icons, animated captions, sound bars, hot keys, usage ledger
 Tests/MaraAITests/           Swift Testing suite
-scripts/                     Icon generation, signing certificate, test runner, release packaging
+scripts/                     Icon generation, signing, test runner, release packaging and update signing
 web/                         Website
 ```
 

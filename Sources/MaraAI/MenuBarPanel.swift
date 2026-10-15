@@ -11,12 +11,16 @@ struct MenuBarPanel: View {
     /// (animated window resizing has crashed AppKit on macOS 26; see SettingsView).
     @State private var detailsShown = false
     @AppStorage(Onboarding.doneKey) private var onboardingDone = false
+    @ObservedObject private var updater = Updater.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
             if !onboardingDone && !model.isRunning {
                 setupCard
+            }
+            if case .ready(let version, let notes) = updater.state {
+                updateCard(version: version, notes: notes)
             }
             if model.isRunning || !model.segments.isEmpty || !model.status.isEmpty {
                 liveCard
@@ -80,6 +84,34 @@ struct MenuBarPanel: View {
                 .foregroundStyle(Theme.muted)
             Button("Continuar") { open(onboardingWindowID) }
                 .buttonStyle(PillButtonStyle())
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.accent.opacity(0.1), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    /// A new version, downloaded and checked: it installs on quit, or now with a restart.
+    private func updateCard(version: String, notes: URL) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Mara \(version) pronta para instalar")
+                .font(.system(size: 13, weight: .semibold))
+            Text(model.isRunning
+                ? "Instala quando você fechar a Mara, depois da reunião."
+                : "Instala quando você fechar a Mara, ou agora, reiniciando.")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 8) {
+                Button("Reiniciar agora") {
+                    updater.installIfReady(relaunch: true)
+                    NSApp.terminate(nil)
+                }
+                .buttonStyle(PillButtonStyle())
+                .disabled(model.isRunning || model.isStarting)
+                Link("Novidades", destination: notes)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Theme.muted)
+            }
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
