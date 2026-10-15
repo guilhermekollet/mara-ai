@@ -8,8 +8,9 @@ import type { Dictionary } from "@/i18n/dictionaries";
 // captioned word by word, the list is scrolled back and jumps to the new lines, and the window is
 // resized while the captions keep coming. Then the meeting goes quiet and Mara goes on standby, as
 // the app does after a stretch without audio: the moon opens large and faint in the middle of the
-// window, then settles at the top in place of the sound bars, and the pointer passes over the
-// window, bringing up the controls, until someone speaks again. Everything is drawn in macOS points and scaled as a whole with one fixed scale per
+// window, with the captions stepping back. When the pointer comes over the window the moon shrinks
+// to the top and the captions and controls come back; when it leaves, the moon returns to the
+// middle, until someone speaks again. Everything is drawn in macOS points and scaled as a whole with one fixed scale per
 // viewport size: animating the scale would make the text shimmer.
 
 type Copy = Dictionary["demo"];
@@ -24,9 +25,9 @@ const FAINT = "rgba(250,250,250,0.38)";
 const system = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif';
 
 const T = { start: 62, scrollFrom: 405, scrollTo: 428, arrow: 430, label: 490, jump: 535, exit: 1081 };
-// The standby: it starts after the quiet that follows the seventh line, the moon rises to the top
-// a moment later, and it ends when sound comes back, just before the last line.
-const STANDBY = { on: 772, rise: 827, off: 980 };
+// The standby: it starts after the quiet that follows the seventh line and ends when sound comes
+// back, just before the last line.
+const STANDBY = { on: 772, off: 980 };
 const STARTS = [112, 182, 252, 322, 466, 572, 652, 992];
 const LATE = 4; // the line that arrives while the list is scrolled back
 
@@ -240,9 +241,12 @@ function CaptionsWindow({ frame, lines, copy, w }: { frame: number; lines: Line[
   const toTop = progress(frame, lines[0].saidAt[0], 16);
   const speaking = lines.some((line) => frame >= line.saidAt[0] && frame < line.quietAt);
   // The standby badge opens in the middle, as the bars do when a session starts, with the captions
-  // stepping back behind it; then it rises to the top in place of the bars, until sound returns.
+  // stepping back behind it. With the pointer over the window it shrinks to the top, where the
+  // bars sit, and the captions come back; when sound returns it goes up there as the bars come in.
   const standby = progress(frame, STANDBY.on, 14) * (1 - progress(frame, STANDBY.off, 10));
-  const rise = progress(frame, STANDBY.rise, 18, easeInOut);
+  const { now: over, since } = hoverAt(frame, w);
+  const hovered = over ? progress(since, 0, 14, easeInOut) : 1 - progress(since, 0, 14, easeInOut);
+  const rise = Math.max(hovered, progress(frame, STANDBY.off, 12, easeInOut));
   const centered = standby * (1 - rise);
   const middle = heightAt(frame) / 2 - 13;
 
