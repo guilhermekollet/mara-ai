@@ -3,7 +3,7 @@
 // their browser, falling back to English.
 //
 // The caption demos (`demo`) are captioned in the page's language: English speech becomes
-// Portuguese captions on /pt, Portuguese speech becomes English on /en, and English speech becomes
+// Portuguese captions on /pt, Spanish speech becomes English on /en, and English speech becomes
 // Spanish on /es. The app itself captions in Brazilian Portuguese for now, which the FAQ answer
 // about languages states in every language; keep it in step with CaptionModel.swift.
 
@@ -24,24 +24,22 @@ const en = {
   meta: {
     title: "Mara AI — Meetings in any language",
     description:
-      "Mara AI captions and translates your meetings in real time, right on your Mac, summarizes the conversation and turns action items into Linear issues.",
+      "Mara AI captions and translates your meetings in real time, right on your Mac, and summarizes them with AI using your own OpenAI key.",
   },
   a11y: {
     sections: "Sections",
     footer: "Footer",
-    language: "Language",
-    toggleTheme: "Switch between light and dark theme",
-    toggleThemeShort: "Toggle theme",
+    menu: "Language and appearance",
   },
   nav: {
     howItWorks: "How it works",
     modules: "Modules",
-    tasks: "Tasks",
+    summary: "Summary",
     privacy: "Privacy",
     faq: "FAQ",
   },
   download: "Download for macOS",
-  getStarted: "Get started free",
+  menu: { language: "Language", appearance: "Appearance", light: "Light", dark: "Dark" },
   hero: {
     eyebrow: "Mara AI for macOS",
     title: "Meetings, without barriers.",
@@ -49,28 +47,18 @@ const en = {
     seeHow: "See how it works",
   },
   demo: {
-    label: "Mara AI window showing a meeting in Portuguese with captions translated into English",
-    meeting: "Revisão trimestral — Acme Corp",
-    people: ["Ana Souza", "Rafael Lima", "Beatriz Costa"],
-    you: "You",
-    youInitials: "YOU",
+    label: "Mara's captions window: a meeting in Spanish, captioned in English word by word",
+    // The jump-to-latest button's label in the captions window.
+    jump: "New captions",
+    // What the hero demo hears and captions, in order.
     phrases: [
-      {
-        source: "E acho que o prazo de entrega é realista para o nosso time.",
-        target: "And I think the delivery timeline is realistic for our team.",
-      },
-      {
-        source: "Você pode nos explicar os preços do plano empresarial?",
-        target: "Could you walk us through the pricing for the enterprise plan?",
-      },
-      {
-        source: "Vamos marcar uma continuação para terça-feira de manhã.",
-        target: "Let's schedule a follow-up for next Tuesday morning.",
-      },
-      {
-        source: "Precisamos fechar o trimestre com vinte por cento de crescimento.",
-        target: "We need to close the quarter with twenty percent growth.",
-      },
+      { source: "Creo que el plazo de entrega es realista para nuestro equipo.", target: "I think the delivery timeline is realistic for our team." },
+      { source: "¿Puedes enviar la propuesta revisada antes del jueves?", target: "Can you send the revised proposal by Thursday?" },
+      { source: "Agendemos una reunión de seguimiento el próximo martes.", target: "Let's schedule a follow-up meeting next Tuesday." },
+      { source: "Perfecto, yo preparo la demo para el cliente.", target: "Perfect, I'll prepare the demo for the client." },
+      { source: "Y revisamos los números del trimestre al final.", target: "And we'll go over the quarter's numbers at the end." },
+      { source: "Lucía, ¿puedes compartir la presentación en el chat?", target: "Lucía, can you share the slides in the chat?" },
+      { source: "Claro, la comparto ahora mismo.", target: "Sure, I'll share it right now." },
     ],
     // The still caption in the "incremental translation" band: a confirmed line, a line still
     // forming word by word, and the speech it comes from.
@@ -101,18 +89,18 @@ const en = {
   },
   modules: {
     title: "Built for developers",
-    text: "From the English stand-up with the team abroad to the issues in Linear: Mara follows the meeting from start to finish.",
+    text: "From the English stand-up with the team abroad to the summary when the call ends: Mara follows the meeting from start to finish.",
     available: "Available",
     items: [
       {
         title: "Meetings in other languages",
-        text: "Live captions in a discreet window over the call, and a summary ready when the meeting ends.",
-        points: ["Instant translation on your Mac", "Optional GPT refinement", "Summary with key points, decisions and action items"],
+        text: "Live captions in a discreet window over the call, forming word by word as people talk.",
+        points: ["Instant translation on your Mac", "Optional GPT refinement", "Free and offline in Mac-only mode"],
       },
       {
-        title: "Tasks in Linear",
-        text: "The action items from each meeting become Linear issues, and your cycle is one click away, in the menu bar.",
-        points: ["Summary action items become issues", "Your cycle in the menu bar", "Team deliveries per day"],
+        title: "AI summaries",
+        text: "When the call ends, GPT reads the transcript and sums up what was talked about, with your own OpenAI key.",
+        points: ["Tells a conversation from a talk", "Overview and the topics discussed", "Saved as a file on your Mac"],
       },
     ],
   },
@@ -125,34 +113,31 @@ const en = {
     final: "Final",
     finalText: "Turns white, already reviewed with the context of the conversation.",
   },
-  tasks: {
-    eyebrow: "Tasks",
-    title: "What was said becomes what needs to be done.",
-    text: "When the meeting ends, Mara summarizes the conversation and picks out the action items. Each one becomes a Linear issue, with assignee, due date and priority, after you review it.",
+  summary: {
+    eyebrow: "AI summary",
+    title: "The meeting ends, the summary is ready.",
+    text: "With your own OpenAI key, Mara reads the transcript and tells you what was talked about: the topics, what each side brought up and what was decided.",
     points: [
-      {
-        title: "Team deliveries, per day",
-        text: "A chart of what each person completed over the last few days, each in their own color, right in the panel and, in detail, by day or by week.",
-      },
-      {
-        title: "Your cycle in the menu bar",
-        text: "One click shows the highest-priority task in progress and how many are open, in progress, in review and done.",
-      },
-      {
-        title: "Without leaving the meeting",
-        text: "Action items become issues in the team you choose, with assignee, due date and priority. Nothing is created until you review it.",
-      },
+      { title: "Knows what kind of talk it was", text: "A meeting between several people or someone speaking alone, like a class or a talk: the summary adapts to what happened." },
+      { title: "What was talked about", text: "A short overview and the topics that came up, each with what was said and decided." },
+      { title: "Yours, on your Mac", text: "The summary is saved as a file in Documents and copied in one click. The transcript only goes to OpenAI when you ask." },
     ],
+    // The summary card illustrated next to the copy: what was talked about, not a task list.
     mock: {
-      deliveries: "Deliveries ›",
-      send: "Send",
-      status: { progress: "In Progress", review: "In Review", todo: "Todo", done: "Done" },
-      stats: { open: "Open", progress: "In progress", review: "Review", done: "Done" },
-      items: [
-        { title: "Send the revised proposal", due: "Thursday" },
-        { title: "Confirm the delivery date", due: "Today" },
-        { title: "Schedule the follow-up with the tech team", due: "Tuesday" },
+      heading: "Summary",
+      kind: "Conversation between several people",
+      overviewTitle: "Overview",
+      overview: "The team went over the delivery timeline and the client presentation, and agreed the current deadline is realistic.",
+      topicsTitle: "Topics",
+      topics: [
+        { title: "Delivery timeline", text: "Seen as realistic; the team keeps the current date." },
+        { title: "Revised proposal", text: "Goes out by Thursday, before the client demo." },
+        { title: "Quarter's numbers", text: "Left for the end of the meeting." },
       ],
+      decisionsTitle: "Decisions",
+      decisions: ["Keep the current deadline."],
+      copy: "Copy",
+      open: "Open file",
     },
   },
   privacy: {
@@ -178,7 +163,7 @@ const en = {
       {
         question: "Do I need an OpenAI key?",
         answer:
-          "No. Apple's local translation works without a key and at no cost. The key is only needed if you want GPT refinement at the end of each sentence.",
+          "No. Apple's local translation works without a key and at no cost. The key is only needed for the AI summary and, if you want it, GPT refinement of each sentence.",
       },
       {
         question: "Which languages are supported?",
@@ -186,19 +171,14 @@ const en = {
           "Meetings can be in English or Spanish, and for now the captions are shown in Brazilian Portuguese. Meetings in Portuguese work too: Mara transcribes and summarizes them, without translating. You pick the meeting language before you start.",
       },
       {
-        question: "How do action items become issues?",
+        question: "How does the summary work?",
         answer:
-          "When the meeting ends you ask for the summary, and each action item it finds appears with an assignee and due date when they were mentioned. You review the title, assignee, due date and priority and send them to Linear, one by one.",
-      },
-      {
-        question: "Do I need to use Linear?",
-        answer:
-          "For tasks, yes: Linear is where they live. Captions, translation and the summary work without it. With Linear connected, the panel shows the current cycle and the team's deliveries, and nothing is sent until you review it.",
+          "When the meeting ends you ask for the summary. The transcript goes to OpenAI with your key, and GPT works out whether it was a conversation between several people or a talk, then tells you what was said: an overview, the topics and the decisions. Nothing is sent unless you ask.",
       },
       {
         question: "Is Mara open source?",
         answer:
-          "Yes, under the MIT license. The app is written in Swift and SwiftUI, with no server of its own: calls go straight from your Mac to OpenAI and Linear, with your own keys. Contributions are welcome.",
+          "Yes, under the MIT license. The app is written in Swift and SwiftUI, with no server of its own: calls go straight from your Mac to OpenAI, with your own key. Contributions are welcome.",
       },
       {
         question: "Which computers does it run on?",
@@ -237,24 +217,22 @@ const pt: Dictionary = {
   meta: {
     title: "Mara AI — Reuniões em qualquer idioma",
     description:
-      "Mara AI legenda e traduz suas reuniões em tempo real, direto no Mac, resume a conversa e transforma as pendências em issues no Linear.",
+      "Mara AI legenda e traduz suas reuniões em tempo real, direto no Mac, e resume a conversa com IA usando a sua chave da OpenAI.",
   },
   a11y: {
     sections: "Seções",
     footer: "Rodapé",
-    language: "Idioma",
-    toggleTheme: "Alternar entre tema claro e escuro",
-    toggleThemeShort: "Alternar tema",
+    menu: "Idioma e aparência",
   },
   nav: {
     howItWorks: "Como funciona",
     modules: "Módulos",
-    tasks: "Demandas",
+    summary: "Resumo",
     privacy: "Privacidade",
     faq: "Perguntas",
   },
   download: "Baixar para macOS",
-  getStarted: "Começar grátis",
+  menu: { language: "Idioma", appearance: "Aparência", light: "Claro", dark: "Escuro" },
   hero: {
     eyebrow: "Mara AI para macOS",
     title: "Reuniões, sem barreira.",
@@ -262,28 +240,18 @@ const pt: Dictionary = {
     seeHow: "Ver como funciona",
   },
   demo: {
-    label: "Janela da Mara AI mostrando uma reunião em inglês com legendas traduzidas para português",
-    meeting: "Quarterly review — Acme Corp",
-    people: ["Sarah Kim", "James Miller", "Anna Lindqvist"],
-    you: "Você",
-    youInitials: "VOCÊ",
+    label: "Janela de legendas da Mara: uma reunião em inglês legendada em português, palavra a palavra",
+    // The jump-to-latest button's label in the captions window.
+    jump: "Falas novas",
+    // What the hero demo hears and captions, in order.
     phrases: [
-      {
-        source: "And I think the delivery timeline is realistic for our team.",
-        target: "E acho que o prazo de entrega é realista para o nosso time.",
-      },
-      {
-        source: "Could you walk us through the pricing for the enterprise plan?",
-        target: "Você pode nos explicar os preços do plano empresarial?",
-      },
-      {
-        source: "Let's schedule a follow-up for next Tuesday morning.",
-        target: "Vamos marcar uma continuação para terça-feira de manhã.",
-      },
-      {
-        source: "We need to close the quarter with twenty percent growth.",
-        target: "Precisamos fechar o trimestre com vinte por cento de crescimento.",
-      },
+      { source: "I think the delivery timeline is realistic for our team.", target: "Acho que o prazo de entrega é realista para o nosso time." },
+      { source: "Can you send the revised proposal by Thursday?", target: "Você pode enviar a proposta revisada até quinta-feira?" },
+      { source: "Let's schedule a follow-up meeting next Tuesday.", target: "Vamos marcar uma reunião de acompanhamento na próxima terça." },
+      { source: "Perfect, I'll prepare the demo for the client.", target: "Perfeito, eu preparo a demo para o cliente." },
+      { source: "And we'll go over the quarter's numbers at the end.", target: "E no final revisamos os números do trimestre." },
+      { source: "Lucía, can you share the slides in the chat?", target: "Lucía, você pode compartilhar os slides no chat?" },
+      { source: "Sure, I'll share it right now.", target: "Claro, vou compartilhar agora mesmo." },
     ],
     band: {
       final: "Podemos revisar o contrato na quinta-feira.",
@@ -312,18 +280,18 @@ const pt: Dictionary = {
   },
   modules: {
     title: "Feito para quem desenvolve",
-    text: "Da daily em inglês com o time de fora às issues no Linear: a Mara acompanha a reunião do começo ao fim.",
+    text: "Da daily em inglês com o time de fora ao resumo pronto quando a chamada termina: a Mara acompanha a reunião do começo ao fim.",
     available: "Disponível",
     items: [
       {
         title: "Reuniões em outros idiomas",
-        text: "Legendas ao vivo numa janela discreta sobre a chamada e um resumo pronto quando a reunião termina.",
-        points: ["Tradução instantânea no Mac", "Refinamento opcional por GPT", "Resumo com pontos, decisões e pendências"],
+        text: "Legendas ao vivo numa janela discreta sobre a chamada, formadas palavra a palavra enquanto as pessoas falam.",
+        points: ["Tradução instantânea no Mac", "Refinamento opcional por GPT", "Grátis e offline no modo Só no Mac"],
       },
       {
-        title: "Demandas no Linear",
-        text: "As pendências de cada reunião viram issues no Linear, e a sua cycle fica a um clique, na barra de menus.",
-        points: ["Pendências do resumo viram issues", "Sua cycle na barra de menus", "Entregas do time por dia"],
+        title: "Resumo com IA",
+        text: "Quando a chamada termina, o GPT lê a transcrição e resume o que foi conversado, com a sua chave da OpenAI.",
+        points: ["Entende se foi conversa ou apresentação", "Visão geral e assuntos discutidos", "Salvo como arquivo no seu Mac"],
       },
     ],
   },
@@ -336,34 +304,31 @@ const pt: Dictionary = {
     final: "Confirmada",
     finalText: "Fica em branco, já revisada com o contexto da conversa.",
   },
-  tasks: {
-    eyebrow: "Demandas",
-    title: "O que foi dito vira o que precisa ser feito.",
-    text: "Quando a reunião termina, a Mara resume a conversa e separa as pendências. Cada uma vira uma issue no Linear, com responsável, prazo e prioridade, depois que você confere.",
+  summary: {
+    eyebrow: "Resumo com IA",
+    title: "A reunião acaba, o resumo já está pronto.",
+    text: "Com a sua chave da OpenAI, a Mara lê a transcrição e conta o que foi conversado: os assuntos, o que cada lado trouxe e o que ficou decidido.",
     points: [
-      {
-        title: "Entregas do time, por dia",
-        text: "Um gráfico com o que cada pessoa concluiu nos últimos dias, cada uma com a sua cor, direto no painel e, em detalhe, por dia ou por semana.",
-      },
-      {
-        title: "Sua cycle na barra de menus",
-        text: "Um clique mostra a demanda em progresso de maior prioridade e quantas estão abertas, em progresso, em review e concluídas.",
-      },
-      {
-        title: "Sem sair da reunião",
-        text: "As pendências viram issues no time que você escolher, já com responsável, prazo e prioridade. Nada é criado sem você conferir.",
-      },
+      { title: "Entende o tipo de conversa", text: "Reunião entre várias pessoas ou alguém falando sozinho, como uma aula ou palestra: o resumo se adapta ao que aconteceu." },
+      { title: "O que foi conversado", text: "Uma visão geral em poucas linhas e os assuntos que surgiram, cada um com o que foi dito e decidido." },
+      { title: "Seu, no seu Mac", text: "O resumo fica salvo como arquivo em Documentos e é copiado com um clique. A transcrição só vai para a OpenAI quando você pede." },
     ],
+    // The summary card illustrated next to the copy: what was talked about, not a task list.
     mock: {
-      deliveries: "Entregas ›",
-      send: "Enviar",
-      status: { progress: "Em progresso", review: "Em review", todo: "A fazer", done: "Concluída" },
-      stats: { open: "Abertas", progress: "Progresso", review: "Review", done: "Concluídas" },
-      items: [
-        { title: "Enviar a proposta revisada", due: "quinta-feira" },
-        { title: "Confirmar o prazo de entrega", due: "hoje" },
-        { title: "Agendar a continuação com o time técnico", due: "terça" },
+      heading: "Resumo",
+      kind: "Conversa entre várias pessoas",
+      overviewTitle: "Visão geral",
+      overview: "O time revisou o prazo da entrega e a apresentação para o cliente, e concordou que o prazo atual é realista.",
+      topicsTitle: "Assuntos",
+      topics: [
+        { title: "Prazo de entrega", text: "Considerado realista; o time mantém a data atual." },
+        { title: "Proposta revisada", text: "Vai até quinta-feira, antes da demo para o cliente." },
+        { title: "Números do trimestre", text: "Ficaram para o fim da reunião." },
       ],
+      decisionsTitle: "Decisões",
+      decisions: ["Manter o prazo atual."],
+      copy: "Copiar",
+      open: "Abrir arquivo",
     },
   },
   privacy: {
@@ -389,7 +354,7 @@ const pt: Dictionary = {
       {
         question: "Preciso de uma chave da OpenAI?",
         answer:
-          "Não. A tradução local da Apple funciona sem chave e sem custo. A chave só é necessária se você quiser o refinamento por GPT ao fim de cada frase.",
+          "Não. A tradução local da Apple funciona sem chave e sem custo. A chave só é necessária para o resumo com IA e, se você quiser, para o refinamento de cada frase pelo GPT.",
       },
       {
         question: "Quais idiomas são suportados?",
@@ -397,19 +362,14 @@ const pt: Dictionary = {
           "Reuniões em inglês ou espanhol, com a legenda em português. Reuniões em português também funcionam: a Mara transcreve e resume, sem traduzir. Você escolhe o idioma da reunião antes de iniciar.",
       },
       {
-        question: "Como as pendências viram issues?",
+        question: "Como funciona o resumo?",
         answer:
-          "Ao fim da reunião você pede o resumo, e cada pendência identificada aparece com responsável e prazo quando eles foram mencionados. Você confere título, responsável, prazo e prioridade e envia ao Linear, uma a uma.",
-      },
-      {
-        question: "Preciso usar o Linear?",
-        answer:
-          "Para as demandas, sim: é no Linear que elas moram. As legendas, a tradução e o resumo funcionam sem ele. Com o Linear conectado, o painel mostra a cycle atual e as entregas do time, e nada é enviado sem você conferir.",
+          "Quando a reunião termina, você pede o resumo. A transcrição vai para a OpenAI com a sua chave, e o GPT identifica se foi uma conversa entre várias pessoas ou uma apresentação e conta o que foi falado: visão geral, assuntos e decisões. Nada é enviado sem você pedir.",
       },
       {
         question: "A Mara é de código aberto?",
         answer:
-          "Sim, sob licença MIT. O app é escrito em Swift e SwiftUI, sem servidor próprio: as chamadas vão direto do seu Mac para a OpenAI e o Linear, com as suas chaves. Contribuições são bem-vindas.",
+          "Sim, sob licença MIT. O app é escrito em Swift e SwiftUI, sem servidor próprio: as chamadas vão direto do seu Mac para a OpenAI, com a sua chave. Contribuições são bem-vindas.",
       },
       {
         question: "Em quais computadores funciona?",
@@ -446,24 +406,22 @@ const es: Dictionary = {
   meta: {
     title: "Mara AI — Reuniones en cualquier idioma",
     description:
-      "Mara AI subtitula y traduce tus reuniones en tiempo real, directamente en tu Mac, resume la conversación y convierte los pendientes en issues de Linear.",
+      "Mara AI subtitula y traduce tus reuniones en tiempo real, directamente en tu Mac, y las resume con IA usando tu propia clave de OpenAI.",
   },
   a11y: {
     sections: "Secciones",
     footer: "Pie de página",
-    language: "Idioma",
-    toggleTheme: "Cambiar entre tema claro y oscuro",
-    toggleThemeShort: "Cambiar tema",
+    menu: "Idioma y apariencia",
   },
   nav: {
     howItWorks: "Cómo funciona",
     modules: "Módulos",
-    tasks: "Tareas",
+    summary: "Resumen",
     privacy: "Privacidad",
     faq: "Preguntas",
   },
   download: "Descargar para macOS",
-  getStarted: "Empezar gratis",
+  menu: { language: "Idioma", appearance: "Apariencia", light: "Claro", dark: "Oscuro" },
   hero: {
     eyebrow: "Mara AI para macOS",
     title: "Reuniones, sin barreras.",
@@ -471,28 +429,18 @@ const es: Dictionary = {
     seeHow: "Ver cómo funciona",
   },
   demo: {
-    label: "Ventana de Mara AI mostrando una reunión en inglés con subtítulos traducidos al español",
-    meeting: "Quarterly review — Acme Corp",
-    people: ["Sarah Kim", "James Miller", "Anna Lindqvist"],
-    you: "Tú",
-    youInitials: "TÚ",
+    label: "Ventana de subtítulos de Mara: una reunión en inglés subtitulada en español, palabra por palabra",
+    // The jump-to-latest button's label in the captions window.
+    jump: "Nuevas frases",
+    // What the hero demo hears and captions, in order.
     phrases: [
-      {
-        source: "And I think the delivery timeline is realistic for our team.",
-        target: "Y creo que el plazo de entrega es realista para nuestro equipo.",
-      },
-      {
-        source: "Could you walk us through the pricing for the enterprise plan?",
-        target: "¿Podrían explicarnos los precios del plan empresarial?",
-      },
-      {
-        source: "Let's schedule a follow-up for next Tuesday morning.",
-        target: "Agendemos un seguimiento para el próximo martes por la mañana.",
-      },
-      {
-        source: "We need to close the quarter with twenty percent growth.",
-        target: "Necesitamos cerrar el trimestre con un veinte por ciento de crecimiento.",
-      },
+      { source: "I think the delivery timeline is realistic for our team.", target: "Creo que el plazo de entrega es realista para nuestro equipo." },
+      { source: "Can you send the revised proposal by Thursday?", target: "¿Puedes enviar la propuesta revisada antes del jueves?" },
+      { source: "Let's schedule a follow-up meeting next Tuesday.", target: "Agendemos una reunión de seguimiento el próximo martes." },
+      { source: "Perfect, I'll prepare the demo for the client.", target: "Perfecto, yo preparo la demo para el cliente." },
+      { source: "And we'll go over the quarter's numbers at the end.", target: "Y al final revisamos los números del trimestre." },
+      { source: "Lucía, can you share the slides in the chat?", target: "Lucía, ¿puedes compartir las diapositivas en el chat?" },
+      { source: "Sure, I'll share it right now.", target: "Claro, las comparto ahora mismo." },
     ],
     band: {
       final: "Podemos revisar el contrato el jueves.",
@@ -521,18 +469,18 @@ const es: Dictionary = {
   },
   modules: {
     title: "Hecho para quienes desarrollan",
-    text: "De la daily en inglés con el equipo de fuera a las issues en Linear: Mara acompaña la reunión de principio a fin.",
+    text: "De la daily en inglés con el equipo de fuera al resumen listo cuando termina la llamada: Mara acompaña la reunión de principio a fin.",
     available: "Disponible",
     items: [
       {
         title: "Reuniones en otros idiomas",
-        text: "Subtítulos en vivo en una ventana discreta sobre la llamada y un resumen listo cuando termina la reunión.",
-        points: ["Traducción instantánea en el Mac", "Refinamiento opcional con GPT", "Resumen con puntos, decisiones y pendientes"],
+        text: "Subtítulos en vivo en una ventana discreta sobre la llamada, formados palabra por palabra mientras las personas hablan.",
+        points: ["Traducción instantánea en el Mac", "Refinamiento opcional con GPT", "Gratis y sin conexión en el modo Solo en el Mac"],
       },
       {
-        title: "Tareas en Linear",
-        text: "Los pendientes de cada reunión se convierten en issues de Linear, y tu cycle queda a un clic, en la barra de menús.",
-        points: ["Los pendientes del resumen se vuelven issues", "Tu cycle en la barra de menús", "Entregas del equipo por día"],
+        title: "Resumen con IA",
+        text: "Cuando termina la llamada, GPT lee la transcripción y resume de qué se habló, con tu propia clave de OpenAI.",
+        points: ["Distingue una conversación de una charla", "Visión general y temas tratados", "Guardado como archivo en tu Mac"],
       },
     ],
   },
@@ -545,34 +493,31 @@ const es: Dictionary = {
     final: "Confirmada",
     finalText: "Se vuelve blanca, ya revisada con el contexto de la conversación.",
   },
-  tasks: {
-    eyebrow: "Tareas",
-    title: "Lo que se dijo se convierte en lo que hay que hacer.",
-    text: "Cuando termina la reunión, Mara resume la conversación y separa los pendientes. Cada uno se convierte en una issue de Linear, con responsable, fecha límite y prioridad, después de que lo revisas.",
+  summary: {
+    eyebrow: "Resumen con IA",
+    title: "La reunión termina y el resumen ya está listo.",
+    text: "Con tu propia clave de OpenAI, Mara lee la transcripción y cuenta de qué se habló: los temas, lo que aportó cada parte y lo que se decidió.",
     points: [
-      {
-        title: "Entregas del equipo, por día",
-        text: "Un gráfico con lo que cada persona completó en los últimos días, cada una con su color, directamente en el panel y, en detalle, por día o por semana.",
-      },
-      {
-        title: "Tu cycle en la barra de menús",
-        text: "Un clic muestra la tarea en progreso de mayor prioridad y cuántas están abiertas, en progreso, en revisión y completadas.",
-      },
-      {
-        title: "Sin salir de la reunión",
-        text: "Los pendientes se convierten en issues en el equipo que elijas, con responsable, fecha límite y prioridad. No se crea nada sin que lo revises.",
-      },
+      { title: "Entiende el tipo de conversación", text: "Una reunión entre varias personas o alguien hablando solo, como una clase o una charla: el resumen se adapta a lo que pasó." },
+      { title: "Lo que se conversó", text: "Una visión general en pocas líneas y los temas que surgieron, cada uno con lo que se dijo y se decidió." },
+      { title: "Tuyo, en tu Mac", text: "El resumen se guarda como archivo en Documentos y se copia con un clic. La transcripción solo va a OpenAI cuando lo pides." },
     ],
+    // The summary card illustrated next to the copy: what was talked about, not a task list.
     mock: {
-      deliveries: "Entregas ›",
-      send: "Enviar",
-      status: { progress: "En progreso", review: "En revisión", todo: "Por hacer", done: "Completada" },
-      stats: { open: "Abiertas", progress: "Progreso", review: "Revisión", done: "Hechas" },
-      items: [
-        { title: "Enviar la propuesta revisada", due: "jueves" },
-        { title: "Confirmar la fecha de entrega", due: "hoy" },
-        { title: "Agendar el seguimiento con el equipo técnico", due: "martes" },
+      heading: "Resumen",
+      kind: "Conversación entre varias personas",
+      overviewTitle: "Visión general",
+      overview: "El equipo revisó el plazo de entrega y la presentación para el cliente, y acordó que el plazo actual es realista.",
+      topicsTitle: "Temas",
+      topics: [
+        { title: "Plazo de entrega", text: "Considerado realista; el equipo mantiene la fecha actual." },
+        { title: "Propuesta revisada", text: "Sale antes del jueves, antes de la demo para el cliente." },
+        { title: "Números del trimestre", text: "Quedaron para el final de la reunión." },
       ],
+      decisionsTitle: "Decisiones",
+      decisions: ["Mantener el plazo actual."],
+      copy: "Copiar",
+      open: "Abrir archivo",
     },
   },
   privacy: {
@@ -598,7 +543,7 @@ const es: Dictionary = {
       {
         question: "¿Necesito una clave de OpenAI?",
         answer:
-          "No. La traducción local de Apple funciona sin clave y sin costo. La clave solo es necesaria si quieres el refinamiento con GPT al final de cada frase.",
+          "No. La traducción local de Apple funciona sin clave y sin costo. La clave solo es necesaria para el resumen con IA y, si quieres, para el refinamiento de cada frase con GPT.",
       },
       {
         question: "¿Qué idiomas son compatibles?",
@@ -606,19 +551,14 @@ const es: Dictionary = {
           "Las reuniones pueden ser en inglés o en español y, por ahora, los subtítulos se muestran en portugués de Brasil. Las reuniones en portugués también funcionan: Mara las transcribe y resume, sin traducir. Eliges el idioma de la reunión antes de empezar.",
       },
       {
-        question: "¿Cómo se convierten los pendientes en issues?",
+        question: "¿Cómo funciona el resumen?",
         answer:
-          "Al final de la reunión pides el resumen, y cada pendiente identificado aparece con responsable y fecha límite cuando se mencionaron. Revisas el título, el responsable, la fecha y la prioridad y lo envías a Linear, uno por uno.",
-      },
-      {
-        question: "¿Necesito usar Linear?",
-        answer:
-          "Para las tareas, sí: es en Linear donde viven. Los subtítulos, la traducción y el resumen funcionan sin él. Con Linear conectado, el panel muestra el cycle actual y las entregas del equipo, y no se envía nada sin que lo revises.",
+          "Cuando termina la reunión, pides el resumen. La transcripción va a OpenAI con tu clave, y GPT identifica si fue una conversación entre varias personas o una presentación y cuenta lo que se habló: visión general, temas y decisiones. No se envía nada sin que lo pidas.",
       },
       {
         question: "¿Mara es de código abierto?",
         answer:
-          "Sí, bajo la licencia MIT. La app está escrita en Swift y SwiftUI, sin servidor propio: las llamadas van directamente de tu Mac a OpenAI y Linear, con tus propias claves. Las contribuciones son bienvenidas.",
+          "Sí, bajo la licencia MIT. La app está escrita en Swift y SwiftUI, sin servidor propio: las llamadas van directamente de tu Mac a OpenAI, con tu propia clave. Las contribuciones son bienvenidas.",
       },
       {
         question: "¿En qué computadoras funciona?",

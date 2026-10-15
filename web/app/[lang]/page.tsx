@@ -1,12 +1,11 @@
 import { notFound } from "next/navigation";
-import { CaptionDemo } from "@/components/caption-demo";
+import { CaptionWindowDemo } from "@/components/caption-window-demo";
 import { PrivacyArt, type PrivacyArtName } from "@/components/privacy-art";
-import { CountUp, RevealObserver } from "@/components/motion-bits";
+import { RevealObserver } from "@/components/motion-bits";
 import { HeroWaves } from "@/components/hero-waves";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Brand } from "@/components/brand";
-import { AppleLogo, LinearLogo, Mark } from "@/components/mark";
-import { LanguageSwitcher } from "@/components/language-switcher";
+import { AppleLogo, Mark } from "@/components/mark";
+import { HeaderMenu } from "@/components/header-menu";
 import { getDictionary, hasLocale, locales, type Dictionary } from "@/i18n/dictionaries";
 
 const pill =
@@ -22,14 +21,14 @@ const card = "rounded-2xl border border-fg/10 bg-surface p-6";
 const NAV: { href: string; key: keyof Dictionary["nav"] }[] = [
   { href: "#como-funciona", key: "howItWorks" },
   { href: "#modulos", key: "modules" },
-  { href: "#demandas", key: "tasks" },
+  { href: "#resumo", key: "summary" },
   { href: "#privacidade", key: "privacy" },
   { href: "#faq", key: "faq" },
 ];
 
 // Illustrations, in the order of the matching items in the dictionary.
 const STEP_ART: PrivacyArtName[] = ["listen", "transcribe", "subtitle"];
-const MODULE_ICONS = ["captions", "linear"];
+const MODULE_ICONS = ["captions", "summary"];
 const PRIVACY_ART: PrivacyArtName[] = ["transcription", "translation", "optional", "keychain", "files", "usage"];
 
 // Public repository address. While it is empty, the "Contribute" section shows no GitHub button.
@@ -51,96 +50,8 @@ const OPEN_SOURCE = [
   },
 ];
 
-type Status = "progress" | "review" | "todo" | "done";
-
-// Status colors from Linear's dark theme.
-const STATUS_COLOR: Record<Status, string> = {
-  progress: "#f2c94c",
-  review: "#4cb782",
-  todo: "#e2e2e2",
-  done: "#5e6ad2",
-};
-
-// Priority following Linear's convention: 1 urgent, 2 high, 3 medium, 4 low. `item` points to the
-// title and due date in `tasks.mock.items`.
-type DemandCard = { id: string; item: number; owner: string; priority: number; sent: boolean };
-
-const DEMAND_GROUPS: { status: Status; items: DemandCard[] }[] = [
-  { status: "progress", items: [{ id: "MAR-128", item: 0, owner: "Sarah Kim", priority: 1, sent: true }] },
-  { status: "review", items: [{ id: "MAR-127", item: 1, owner: "", priority: 2, sent: true }] },
-  { status: "todo", items: [{ id: "MAR-14", item: 2, owner: "James Miller", priority: 3, sent: false }] },
-];
-
-const CYCLE_STATS: { value: number; key: keyof Dictionary["tasks"]["mock"]["stats"]; status: Status }[] = [
-  { value: 6, key: "open", status: "todo" },
-  { value: 3, key: "progress", status: "progress" },
-  { value: 2, key: "review", status: "review" },
-  { value: 9, key: "done", status: "done" },
-];
-
-// Status and priority icons drawn like Linear's.
-function StatusIcon({ status, className }: { status: Status; className?: string }) {
-  const color = STATUS_COLOR[status];
-  return (
-    <svg viewBox="0 0 14 14" aria-hidden="true" className={`shrink-0 ${className ?? "size-3"}`}>
-      {status === "done" ? (
-        <>
-          <circle cx="7" cy="7" r="6.75" fill={color} />
-          <path d="m4.2 7.2 1.9 1.9 3.8-4.1" fill="none" stroke="#0d0d0d" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-        </>
-      ) : (
-        <circle cx="7" cy="7" r="6" fill="none" stroke={color} strokeWidth="1.5" />
-      )}
-      {/* Half filled for "in progress" and three-quarters for "in review". */}
-      {status === "progress" && <path d="M7 7V3.500a3.5 3.5 0 0 1 0 7Z" fill={color} />}
-      {status === "review" && <path d="M7 7V3.500a3.5 3.5 0 1 1-3.5 3.500Z" fill={color} />}
-    </svg>
-  );
-}
-
-function PriorityIcon({ priority }: { priority: number }) {
-  if (priority === 1) {
-    return (
-      <svg viewBox="0 0 16 16" aria-hidden="true" className="size-3.5 shrink-0">
-        <rect x="1" y="1" width="14" height="14" rx="3" fill="#fb773f" />
-        <path d="M8 4.200v4.600M8 11.400v.2" stroke="#0d0d0d" strokeWidth="1.8" strokeLinecap="round" />
-      </svg>
-    );
-  }
-  // High lights three bars, medium two, low one.
-  const lit = 5 - priority;
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true" className="size-3.5 shrink-0">
-      {[0, 1, 2].map((bar) => (
-        <rect key={bar} x={1.5 + bar * 5} y={8 - bar * 3} width="3" height={6 + bar * 3} rx="1" fill="#e2e2e2" opacity={bar < lit ? 1 : 0.3} />
-      ))}
-    </svg>
-  );
-}
-
-// Avatar with the assignee's initials, like the one in the corner of Linear's cards.
-function Avatar({ name }: { name: string }) {
-  const initials = name
-    .split(" ")
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-  const hues = [262, 205, 160, 28, 340, 120];
-  const hue = hues[[...name].reduce((sum, char) => sum + char.charCodeAt(0), 0) % hues.length];
-  return (
-    <span
-      className="grid size-[18px] place-items-center rounded-full text-[7.5px] font-semibold text-ink"
-      style={{ backgroundColor: `hsl(${hue} 55% 72%)` }}
-    >
-      {initials}
-    </span>
-  );
-}
-
 // Icons for the module cards, drawn as thin strokes in the accent color.
 function ModuleIcon({ name }: { name: string }) {
-  if (name === "linear") return <LinearLogo className="size-[18px]" />;
   const paths: Record<string, React.ReactNode> = {
     // A caption window with two lines of subtitles.
     captions: (
@@ -149,8 +60,14 @@ function ModuleIcon({ name }: { name: string }) {
         <path d="M7 11h4M14 11h3M7 15h10" />
       </>
     ),
-    // Code brackets.
-    code: <path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16" />,
+    // A page of notes with a spark: the AI summary.
+    summary: (
+      <>
+        <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+        <path d="M9 13h6M9 17h4" />
+        <path d="M17 1.5v3M15.5 3h3" />
+      </>
+    ),
   };
   return (
     <svg
@@ -185,7 +102,7 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
   const { lang } = await params;
   if (!hasLocale(lang)) notFound();
   const t = getDictionary(lang);
-  const mock = t.tasks.mock;
+  const mock = t.summary.mock;
 
   return (
     <>
@@ -199,16 +116,11 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
           ))}
         </nav>
         <div className="ml-auto flex gap-1.5 sm:gap-2">
-          <LanguageSwitcher current={lang} label={t.a11y.language} />
-          <ThemeToggle label={t.a11y.toggleTheme} title={t.a11y.toggleThemeShort} />
           <a href={`${REPO_URL}/releases/latest`} className={`${pill} bg-pill text-pill-fg max-sm:hidden`}>
             <AppleLogo />
             {t.download}
           </a>
-          {/* On the narrowest phones the header keeps only the language and theme controls. */}
-          <a href="#comecar" className={`${pill} bg-accent text-ink-soft max-sm:px-3 max-[359px]:hidden`}>
-            {t.getStarted}
-          </a>
+          <HeaderMenu current={lang} copy={t.menu} label={t.a11y.menu} />
         </div>
       </header>
 
@@ -234,7 +146,7 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
             </a>
           </div>
           <div className="rise relative" style={after(780)}>
-            <CaptionDemo key={lang} copy={t.demo} />
+            <CaptionWindowDemo key={lang} copy={t.demo} />
           </div>
         </section>
 
@@ -323,80 +235,50 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
           </div>
         </section>
 
-        <section id="demandas" className="mx-auto max-w-[1120px] px-6 py-16 md:py-24">
+        <section id="resumo" className="mx-auto max-w-[1120px] px-6 py-16 md:py-24">
           <div className="grid items-center gap-14 md:grid-cols-2">
+            {/* The summary after a meeting: what kind of conversation it was and what was talked about. */}
             <div data-reveal aria-hidden="true" className="rounded-[32px] bg-linear-160 from-stage-from to-stage-to p-5 sm:p-10">
-              <div className="rounded-2xl bg-ink/90 p-4 shadow-[0_20px_50px_rgba(0,0,0,0.35)]">
-                <div className="mb-3 flex items-center gap-1.5 px-1 text-[12px] font-semibold text-paper">
-                  <LinearLogo className="size-[11px]" />
-                  Cycle 42
-                  <span className="ml-auto text-[11px] font-normal text-paper/50">{mock.deliveries}</span>
+              <div className="rounded-2xl bg-ink/90 p-4 text-left shadow-[0_20px_50px_rgba(0,0,0,0.35)]">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[14px] font-semibold text-paper">{mock.heading}</p>
+                  <span className="inline-flex h-[22px] items-center rounded-full bg-accent/15 px-2.5 text-[11px] font-medium text-accent">
+                    {mock.kind}
+                  </span>
                 </div>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {CYCLE_STATS.map((stat) => (
-                    <div key={stat.key} className="rounded-[9px] bg-paper/5 px-2 py-1.5">
-                      <p className="flex items-center gap-1 text-[15px] font-semibold text-paper tabular-nums">
-                        <StatusIcon status={stat.status} className="size-[9px]" />
-                        <CountUp value={stat.value} />
-                      </p>
-                      <p className="text-[9.5px] text-paper/50">{mock.stats[stat.key]}</p>
-                    </div>
+                <p className="mt-3 text-[12px] font-medium text-paper/55">{mock.overviewTitle}</p>
+                <p className="mt-1 text-[13px] leading-[1.5] text-paper/85">{mock.overview}</p>
+                <p className="mt-4 text-[12px] font-medium text-paper/55">{mock.topicsTitle}</p>
+                <ul className="mt-1.5 grid gap-1.5">
+                  {mock.topics.map((topic) => (
+                    <li key={topic.title} className="rounded-lg bg-white/[0.05] px-2.5 py-2">
+                      <p className="text-[12.5px] font-medium text-paper">{topic.title}</p>
+                      <p className="mt-0.5 text-[11.5px] leading-[1.45] text-paper/60">{topic.text}</p>
+                    </li>
                   ))}
-                </div>
-                <div className="mt-4 grid gap-3">
-                  {DEMAND_GROUPS.map((group) => (
-                    <div key={group.status}>
-                      <p className="mb-1.5 flex h-8 items-center gap-2 rounded-md bg-white/[0.04] pr-2.5 pl-2.5 text-[13px] font-medium text-paper">
-                        <StatusIcon status={group.status} className="size-3.5" />
-                        {mock.status[group.status]}
-                        <span className="font-normal text-[#8a8f98] tabular-nums">{group.items.length}</span>
-                        <span className="ml-auto text-[15px] leading-none font-normal text-[#8a8f98]">+</span>
-                      </p>
-                      <ul className="grid gap-1.5">
-                        {group.items.map((demand) => (
-                          <li key={demand.id} className="rounded-lg border border-white/[0.08] bg-white/[0.035] px-3 py-2.5">
-                            <div className="flex items-center justify-between">
-                              <span className="font-mono text-[11px] text-[#8a8f98]">{demand.id}</span>
-                              <Avatar name={demand.owner || t.demo.you} />
-                            </div>
-                            <p className="mt-2 flex items-start gap-[7px] text-[13px] leading-[1.35] font-medium text-paper">
-                              <StatusIcon status={group.status} className="mt-[2px] size-3.5" />
-                              {mock.items[demand.item].title}
-                            </p>
-                            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11.5px] text-[#8a8f98]">
-                              <span className="grid size-[22px] place-items-center rounded-[5px] border border-white/[0.08]">
-                                <PriorityIcon priority={demand.priority} />
-                              </span>
-                              <span className="inline-flex h-[22px] items-center rounded-full border border-white/[0.08] px-[7px]">
-                                {mock.items[demand.item].due}
-                              </span>
-                              <span
-                                className={`ml-auto inline-flex h-[22px] items-center gap-1.5 rounded-full px-2 font-medium whitespace-nowrap ${demand.sent ? "border border-white/[0.08] text-paper" : "border border-accent/60 text-accent"}`}
-                              >
-                                <LinearLogo className="size-[11px]" />
-                                {demand.sent ? mock.status[group.status] : mock.send}
-                              </span>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                </ul>
+                <p className="mt-4 text-[12px] font-medium text-paper/55">{mock.decisionsTitle}</p>
+                <ul className="mt-1 grid gap-0.5">
+                  {mock.decisions.map((decision) => (
+                    <li key={decision} className="text-[12.5px] leading-[1.45] text-paper/80">
+                      - {decision}
+                    </li>
                   ))}
+                </ul>
+                <div className="mt-4 flex gap-2">
+                  <span className="inline-flex h-[26px] items-center rounded-full bg-accent px-3 text-[12px] font-medium text-ink">{mock.copy}</span>
+                  <span className="inline-flex h-[26px] items-center rounded-full bg-paper/[0.12] px-3 text-[12px] font-medium text-paper">{mock.open}</span>
                 </div>
               </div>
             </div>
             <div data-reveal style={after(120)}>
-              <p className="mb-5 text-sm font-medium text-fg/70">{t.tasks.eyebrow}</p>
-              <h2 className={sectionTitle}>{t.tasks.title}</h2>
-              <p className="mt-4 text-lg text-fg/70">{t.tasks.text}</p>
+              <p className="mb-5 text-sm font-medium text-fg/70">{t.summary.eyebrow}</p>
+              <h2 className={sectionTitle}>{t.summary.title}</h2>
+              <p className="mt-4 text-lg text-fg/70">{t.summary.text}</p>
               <dl className="mt-7 grid gap-3.5">
-                {t.tasks.points.map((point, index) => (
+                {t.summary.points.map((point) => (
                   <div key={point.title}>
-                    <dt className="flex items-center gap-2 font-semibold">
-                      {/* The last point is the one about sending to Linear. */}
-                      {index === t.tasks.points.length - 1 && <LinearLogo className="size-3.5" />}
-                      {point.title}
-                    </dt>
+                    <dt className="font-semibold">{point.title}</dt>
                     <dd className="mt-0.5 text-fg/70">{point.text}</dd>
                   </div>
                 ))}
