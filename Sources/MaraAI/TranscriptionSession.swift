@@ -1,12 +1,17 @@
 import AVFoundation
 import Speech
 
-/// Connects system audio capture to SpeechAnalyzer (Apple's on-device transcription).
+/// Connects audio capture to SpeechAnalyzer (Apple's on-device transcription): one recognizer for
+/// the Mac's audio and, while the microphone is on, another for it.
 final class TranscriptionSession {
     private let capture = SystemAudioCapture()
-    private var analyzer: SpeechAnalyzer?
-    private var input: AsyncStream<AnalyzerInput>.Continuation?
-    private var resultsTask: Task<Void, Never>?
+    private var system: Recognizer?
+    private let microphone = MicrophoneInput()
+    private var microphoneRecognizer: Recognizer?
+    private var locale = Locale.current
+    private var vocabulary: [String] = []
+    private var onResult: (@MainActor (_ text: String, _ isFinal: Bool, _ speaker: Speaker) -> Void)?
+    private var onError: (@MainActor (Error) -> Void)?
 
     static func supportedLocales() async -> [Locale] {
         await SpeechTranscriber.supportedLocales
@@ -15,15 +20,7 @@ final class TranscriptionSession {
     /// The download that installs the speech model for `locale`, or nil when it is already on the
     /// Mac. The introduction uses it to fetch the model before the first meeting.
     static func modelDownload(for locale: Locale) async throws -> AssetInstallationRequest? {
-        guard let supported = await SpeechTranscriber.supportedLocale(equivalentTo: locale) else {
-            throw AppError.message(localized("O Apple Speech não transcreve o idioma \(locale.identifier)."))
-        }
-        let transcriber = SpeechTranscriber(
-            locale: supported,
-            transcriptionOptions: [],
-            reportingOptions: [.volatileResults, .fastResults],
-            attributeOptions: []
-        )
+        let transcriber = try await Recognizer.transcriber(for: locale, partials: true)
         return try await AssetInventory.assetInstallationRequest(supporting: [transcriber])
     }
 
@@ -31,69 +28,91 @@ final class TranscriptionSession {
         locale: Locale,
         vocabulary: [String],
         gate: ActivityGate,
+        microphoneGate: ActivityGate,
+        withMicrophone: Bool,
         onAudio: ((AVAudioPCMBuffer) -> Void)? = nil,
         onStatus: @escaping @MainActor (String) -> Void,
-        onResult: @escaping @MainActor (_ text: String, _ isFinal: Bool) -> Void,
+        onResult: @escaping @MainActor (_ text: String, _ isFinal: Bool, _ speaker: Speaker) -> Void,
         onError: @escaping @MainActor (Error) -> Void
     ) async throws {
-        guard let supported = await SpeechTranscriber.supportedLocale(equivalentTo: locale) else {
-            throw AppError.message(localized("O Apple Speech não transcreve o idioma \(locale.identifier)."))
-        }
+        self.locale = locale
+        self.vocabulary = vocabulary
+        self.onResult = onResult
+        self.onError = onError
+        microphone.gate = microphoneGate
 
-        let transcriber = SpeechTranscriber(
-            locale: supported,
-            transcriptionOptions: [],
-            reportingOptions: [.volatileResults, .fastResults],
-            attributeOptions: []
-        )
-
+        let transcriber = try await Recognizer.transcriber(for: locale, partials: true)
         if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
             await onStatus(localized("Baixando o modelo de transcrição deste idioma…"))
             try await request.downloadAndInstall()
         }
-
-        guard let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]) else {
-            throw AppError.message(localized("O Apple Speech não informou um formato de áudio compatível."))
-        }
-
-        let analyzer = SpeechAnalyzer(modules: [transcriber])
-        // Glossary terms help recognition get proper nouns and product names right.
-        if !vocabulary.isEmpty {
-            let context = AnalysisContext()
-            context.contextualStrings[.general] = vocabulary
-            try? await analyzer.setContext(context)
-        }
-        let (stream, continuation) = AsyncStream<AnalyzerInput>.makeStream()
-        self.analyzer = analyzer
-        self.input = continuation
-
-        resultsTask = Task {
+        let system = try await Recognizer.start(
+            transcriber, vocabulary: vocabulary,
+            onResult: { text, isFinal in onResult(text, isFinal, .others) },
+            onError: onError
+        )
+        self.system = system
+        // A microphone that fails doesn't take the meeting's captions down with it.
+        var withMicrophone = withMicrophone
+        if withMicrophone {
             do {
-                for try await result in transcriber.results {
-                    await onResult(String(result.text.characters), result.isFinal)
-                }
+                try await startMicrophoneRecognizer()
             } catch {
-                await onError(error)
+                withMicrophone = false
+                await onStatus(localized("Não foi possível usar o microfone: \(error.localizedDescription)"))
             }
         }
 
-        try await analyzer.start(inputSequence: stream)
-
         // The converter is only used on the capture queue.
         let converter = BufferConverter()
+        let format = system.format
+        let input = system.input
         try await capture.start(
+            microphone: withMicrophone,
             onBuffer: { buffer in
                 guard let converted = converter.convert(buffer, to: format) else { return }
                 onAudio?(converted)
                 // While on standby, audio is still metered but isn't sent to transcription.
                 for ready in gate.pass(converted) {
-                    continuation.yield(AnalyzerInput(buffer: ready))
+                    input.yield(AnalyzerInput(buffer: ready))
                 }
             },
+            onMicrophone: { [microphone] buffer in microphone.push(buffer) },
             onStop: { [weak self] error in
                 Task { @MainActor in await self?.recover(from: error, onError: onError) }
             }
         )
+    }
+
+    /// Turns the microphone's transcription on or off in the middle of a session.
+    func setMicrophone(_ on: Bool) async throws {
+        if on {
+            try await startMicrophoneRecognizer()
+            try await capture.setMicrophone(true)
+        } else {
+            try await capture.setMicrophone(false)
+            await stopMicrophoneRecognizer()
+        }
+    }
+
+    /// Only finished sentences: the person speaking knows what they said, so the captions don't
+    /// need to follow them word by word.
+    private func startMicrophoneRecognizer() async throws {
+        guard microphoneRecognizer == nil, let onResult, let onError else { return }
+        let transcriber = try await Recognizer.transcriber(for: locale, partials: false)
+        let recognizer = try await Recognizer.start(
+            transcriber, vocabulary: vocabulary,
+            onResult: { text, isFinal in onResult(text, isFinal, .me) },
+            onError: onError
+        )
+        microphoneRecognizer = recognizer
+        microphone.connect(recognizer)
+    }
+
+    private func stopMicrophoneRecognizer() async {
+        microphone.disconnect()
+        await microphoneRecognizer?.finish()
+        microphoneRecognizer = nil
     }
 
     private var restarts: [Date] = []
@@ -120,11 +139,103 @@ final class TranscriptionSession {
 
     func stop() async {
         await capture.stop()
-        input?.finish()
-        input = nil
-        // Finalize whatever was pending; the results loop ends on its own after that.
-        try? await analyzer?.finalizeAndFinishThroughEndOfInput()
-        analyzer = nil
+        await stopMicrophoneRecognizer()
+        await system?.finish()
+        system = nil
+    }
+}
+
+/// One SpeechAnalyzer with its transcriber, fed buffers already in the format it asked for.
+final class Recognizer {
+    let format: AVAudioFormat
+    let input: AsyncStream<AnalyzerInput>.Continuation
+    private let analyzer: SpeechAnalyzer
+    private let results: Task<Void, Never>
+
+    private init(format: AVAudioFormat, input: AsyncStream<AnalyzerInput>.Continuation, analyzer: SpeechAnalyzer, results: Task<Void, Never>) {
+        self.format = format
+        self.input = input
+        self.analyzer = analyzer
+        self.results = results
+    }
+
+    /// `partials` adds the provisional results that let the captions follow a sentence as it is said.
+    static func transcriber(for locale: Locale, partials: Bool) async throws -> SpeechTranscriber {
+        guard let supported = await SpeechTranscriber.supportedLocale(equivalentTo: locale) else {
+            throw AppError.message(localized("O Apple Speech não transcreve o idioma \(locale.identifier)."))
+        }
+        return SpeechTranscriber(
+            locale: supported,
+            transcriptionOptions: [],
+            reportingOptions: partials ? [.volatileResults, .fastResults] : [],
+            attributeOptions: []
+        )
+    }
+
+    static func start(
+        _ transcriber: SpeechTranscriber,
+        vocabulary: [String],
+        onResult: @escaping @MainActor (_ text: String, _ isFinal: Bool) -> Void,
+        onError: @escaping @MainActor (Error) -> Void
+    ) async throws -> Recognizer {
+        guard let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]) else {
+            throw AppError.message(localized("O Apple Speech não informou um formato de áudio compatível."))
+        }
+        let analyzer = SpeechAnalyzer(modules: [transcriber])
+        // Glossary terms help recognition get proper nouns and product names right.
+        if !vocabulary.isEmpty {
+            let context = AnalysisContext()
+            context.contextualStrings[.general] = vocabulary
+            try? await analyzer.setContext(context)
+        }
+        let (stream, continuation) = AsyncStream<AnalyzerInput>.makeStream()
+        let results = Task {
+            do {
+                for try await result in transcriber.results {
+                    await onResult(String(result.text.characters), result.isFinal)
+                }
+            } catch {
+                await onError(error)
+            }
+        }
+        try await analyzer.start(inputSequence: stream)
+        return Recognizer(format: format, input: continuation, analyzer: analyzer, results: results)
+    }
+
+    /// Finalizes whatever was pending; the results loop ends on its own after that.
+    func finish() async {
+        input.finish()
+        try? await analyzer.finalizeAndFinishThroughEndOfInput()
+    }
+}
+
+/// Where the microphone's audio goes. Connected and disconnected on the main actor while the capture
+/// queue pushes buffers, so the recognizer it feeds is guarded by a lock.
+final class MicrophoneInput: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recognizer: Recognizer?
+    private let converter = BufferConverter()
+    var gate: ActivityGate?
+
+    func connect(_ recognizer: Recognizer) {
+        lock.lock()
+        self.recognizer = recognizer
+        lock.unlock()
+    }
+
+    func disconnect() {
+        lock.lock()
+        recognizer = nil
+        lock.unlock()
+    }
+
+    func push(_ buffer: AVAudioPCMBuffer) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let recognizer, let converted = converter.convert(buffer, to: recognizer.format) else { return }
+        for ready in gate?.pass(converted) ?? [converted] {
+            recognizer.input.yield(AnalyzerInput(buffer: ready))
+        }
     }
 }
 
@@ -138,6 +249,8 @@ final class BufferConverter {
         if converter == nil || converter?.inputFormat != buffer.format || converter?.outputFormat != format {
             converter = AVAudioConverter(from: buffer.format, to: format)
             converter?.primeMethod = .none
+            // The microphone can have several channels; speech recognition wants one.
+            converter?.downmix = true
         }
         guard let converter else { return nil }
 

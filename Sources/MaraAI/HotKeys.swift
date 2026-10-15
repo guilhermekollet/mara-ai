@@ -16,7 +16,8 @@ final class HotKeys {
     /// All of them use Control + Option, a combination meeting apps rarely claim.
     static let toggleSession = Shortcut(id: 1, keyCode: kVK_ANSI_S, keys: "⌃⌥S", title: localized("Iniciar ou parar"))
     static let toggleCaptions = Shortcut(id: 2, keyCode: kVK_ANSI_L, keys: "⌃⌥L", title: localized("Mostrar ou ocultar as legendas"))
-    static let all = [toggleSession, toggleCaptions]
+    static let toggleMicrophone = Shortcut(id: 3, keyCode: kVK_ANSI_M, keys: "⌃⌥M", title: localized("Ligar ou desligar o microfone"))
+    static let all = [toggleSession, toggleCaptions, toggleMicrophone]
 
     private var actions: [UInt32: () -> Void] = [:]
     private var references: [EventHotKeyRef] = []

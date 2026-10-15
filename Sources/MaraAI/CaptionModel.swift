@@ -11,6 +11,7 @@ final class CaptionModel: ObservableObject {
         var translation: String?
         /// True when the translation is already GPT's final version (the local one doesn't overwrite it).
         var refined = false
+        var speaker = Speaker.others
     }
 
     @Published var segments: [Segment] = []
@@ -87,6 +88,12 @@ final class CaptionModel: ObservableObject {
         didSet { GlossaryEntry.save(glossary) }
     }
 
+    /// Also transcribes the microphone, so the transcript and the summary include what you said.
+    /// Off by default: Mara can't tell whether you are muted in the meeting app, so you decide.
+    @Published private(set) var microphoneOn: Bool {
+        didSet { UserDefaults.standard.set(microphoneOn, forKey: "microphoneOn") }
+    }
+
     /// Seconds without audio before going on hold and before stopping on its own (0 disables the feature).
     @Published var idleAfter: Double {
         didSet { UserDefaults.standard.set(idleAfter, forKey: "idleAfter") }
@@ -97,6 +104,7 @@ final class CaptionModel: ObservableObject {
     /// On hold: the session stays open, but without transcribing, until sound comes back.
     @Published private(set) var isIdle = false
     private var gate: ActivityGate?
+    private var microphoneGate: ActivityGate?
     private var idleTask: Task<Void, Never>?
 
     @Published var fontSize: Double {
@@ -139,6 +147,8 @@ final class CaptionModel: ObservableObject {
         soundCuesEnabled = UserDefaults.standard.object(forKey: "soundCues") as? Bool ?? true
         fontSize = UserDefaults.standard.object(forKey: "fontSize") as? Double ?? 17
         opacity = UserDefaults.standard.object(forKey: "opacity") as? Double ?? 0.55
+        // Without the permission (revoked in System Settings, say), it starts off.
+        microphoneOn = UserDefaults.standard.bool(forKey: "microphoneOn") && MicrophonePermission.isGranted
         applyHotKeys()
         soundCues.enabled = soundCuesEnabled
         Self.forgetLinear()
@@ -217,6 +227,7 @@ final class CaptionModel: ObservableObject {
                 self.toggle()
             }),
             (HotKeys.toggleCaptions, { [weak self] in self?.toggleCaptionsWindow() }),
+            (HotKeys.toggleMicrophone, { [weak self] in self?.toggleMicrophone() }),
         ]
         for (shortcut, action) in bindings where !HotKeys.shared.register(shortcut, action: action) {
             unavailableHotKeys.append(shortcut.keys)
@@ -245,7 +256,10 @@ final class CaptionModel: ObservableObject {
 
     func copyTranscript() {
         let text = segments
-            .map { [$0.translation == $0.original ? nil : $0.translation, $0.original].compactMap { $0 }.joined(separator: "\n") }
+            .map { segment in
+                let original = segment.speaker == .me ? localized("Você: \(segment.original)") : segment.original
+                return [segment.translation == segment.original ? nil : segment.translation, original].compactMap { $0 }.joined(separator: "\n")
+            }
             .joined(separator: "\n\n")
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
@@ -259,15 +273,26 @@ final class CaptionModel: ObservableObject {
 
         let session = TranscriptionSession()
         let gate = ActivityGate()
+        let microphoneGate = ActivityGate()
         self.gate = gate
+        self.microphoneGate = microphoneGate
+        let withMicrophone = microphoneOn && MicrophonePermission.isGranted
         do {
             try await session.start(
                 locale: Locale(identifier: localeID),
                 vocabulary: glossary.map { $0.term.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty },
                 gate: gate,
+                microphoneGate: microphoneGate,
+                withMicrophone: withMicrophone,
                 onAudio: { [audioMeter] buffer in audioMeter.push(buffer) },
                 onStatus: { [weak self] in self?.status = $0 },
-                onResult: { [weak self] text, isFinal in self?.handle(text, isFinal: isFinal) },
+                onResult: { [weak self] text, isFinal, speaker in
+                    if speaker == .me {
+                        self?.handleMine(text, isFinal: isFinal)
+                    } else {
+                        self?.handle(text, isFinal: isFinal)
+                    }
+                },
                 onError: { [weak self] error in
                     SessionLog.write("ERRO \(error.localizedDescription)")
                     self?.status = localized("Erro: \(error.localizedDescription)")
@@ -282,7 +307,7 @@ final class CaptionModel: ObservableObject {
             beginTranscript()
             sessionStart = Date()
             SessionLog.begin()
-            SessionLog.write("INICIO idioma=\(localeID) modelo=\(gptEnabled ? model : "sem GPT")")
+            SessionLog.write("INICIO idioma=\(localeID) modelo=\(gptEnabled ? model : "sem GPT") microfone=\(withMicrophone)")
             if translates {
                 status = ""
                 await prepareLocalTranslation()
@@ -307,6 +332,7 @@ final class CaptionModel: ObservableObject {
         idleTask?.cancel()
         idleTask = nil
         gate = nil
+        microphoneGate = nil
         menuBarAnimator.setActive(false)
         audioMeter.setActive(false)
         await session.stop()
@@ -322,7 +348,8 @@ final class CaptionModel: ObservableObject {
         idleTask?.cancel()
         idleTask = Task { [weak self] in
             while !Task.isCancelled, let self, self.isRunning, let gate = self.gate {
-                let quiet = gate.secondsSinceSound
+                // Speaking into the microphone counts as sound too, even if the others are quiet.
+                let quiet = min(gate.secondsSinceSound, self.microphoneOn ? self.microphoneGate?.secondsSinceSound ?? .infinity : .infinity)
                 if self.autoStopAfter > 0, quiet >= self.autoStopAfter {
                     let minutes = max(1, Int((self.autoStopAfter / 60).rounded()))
                     SessionLog.write("DESLIGADA por \(Int(quiet))s sem áudio")
@@ -336,6 +363,7 @@ final class CaptionModel: ObservableObject {
                         self.isIdle = false
                         self.soundCues.play(.resume)
                         gate.setPaused(false)
+                        self.microphoneGate?.setPaused(false)
                         self.menuBarAnimator.setActive(true)
                         SessionLog.write("VOLTOU da espera")
                     }
@@ -345,6 +373,7 @@ final class CaptionModel: ObservableObject {
                         self.isIdle = true
                         self.soundCues.play(.standby)
                         gate.setPaused(true)
+                        self.microphoneGate?.setPaused(true)
                         self.menuBarAnimator.setActive(false)
                         self.clearVolatile()
                         SessionLog.write("ESPERA após \(Int(quiet))s sem áudio")
@@ -362,7 +391,7 @@ final class CaptionModel: ObservableObject {
         let leading = String(trimmed.prefix { ".,;:!?…".contains($0) })
         if !leading.isEmpty {
             trimmed = String(trimmed.dropFirst(leading.count)).trimmingCharacters(in: .whitespaces)
-            if isFinal { attachPunctuation(leading) }
+            if isFinal { attachPunctuation(leading, speaker: .others) }
         }
         guard isFinal else {
             volatile = trimmed
@@ -381,6 +410,7 @@ final class CaptionModel: ObservableObject {
         SessionLog.write("FINAL \(trimmed)")
         let finalizedAt = Date()
 
+        dropEchoes(of: trimmed)
         let context = segments.suffix(3).map(\.original)
         var segment = Segment(original: trimmed)
         guard translates else {
@@ -421,6 +451,74 @@ final class CaptionModel: ObservableObject {
                 SessionLog.write("GPT falhou: \(error.localizedDescription)")
                 status = localized("Falha ao traduzir pelo GPT: \(error.localizedDescription)")
             }
+        }
+    }
+
+    // MARK: Microphone
+
+    /// What you said, from the microphone. It isn't translated (you know what you said): it goes
+    /// into the captions, the transcript and the summary as yours, unless it is the echo of the
+    /// others coming out of the speakers.
+    private func handleMine(_ text: String, isFinal: Bool) {
+        guard isFinal else { return }
+        var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let leading = String(trimmed.prefix { ".,;:!?…".contains($0) })
+        if !leading.isEmpty {
+            trimmed = String(trimmed.dropFirst(leading.count)).trimmingCharacters(in: .whitespaces)
+            attachPunctuation(leading, speaker: .me)
+        }
+        guard !trimmed.isEmpty else { return }
+        let now = Date()
+        var heard = segments.filter { $0.speaker == .others }.suffix(8).map { ($0.original, now.timeIntervalSince($0.date)) }
+        if !volatile.isEmpty { heard.append((volatile, 0)) }
+        if EchoFilter.isEcho(trimmed, others: heard) {
+            SessionLog.write("MICROFONE eco descartado: \(trimmed)")
+            return
+        }
+        SessionLog.write("MICROFONE \(trimmed)")
+        var segment = Segment(original: trimmed, translation: trimmed, refined: true)
+        segment.speaker = .me
+        segments.append(segment)
+        saveTranscript()
+    }
+
+    /// The others' sentence can finish after its echo from the microphone was already taken as
+    /// yours; when it does, that echo goes away.
+    private func dropEchoes(of theirs: String) {
+        let now = Date()
+        let before = segments.count
+        segments.removeAll { segment in
+            segment.speaker == .me && now.timeIntervalSince(segment.date) <= EchoFilter.window
+                && EchoFilter.isEcho(segment.original, others: [(theirs, -now.timeIntervalSince(segment.date))])
+        }
+        if segments.count != before {
+            SessionLog.write("MICROFONE \(before - segments.count) eco(s) removido(s)")
+        }
+    }
+
+    /// Turns the microphone on or off, asking for the permission the first time. Works during a
+    /// session too, without interrupting the Mac's audio.
+    func toggleMicrophone() {
+        Task { await setMicrophone(!microphoneOn) }
+    }
+
+    func setMicrophone(_ on: Bool) async {
+        if on && !MicrophonePermission.isGranted {
+            guard !MicrophonePermission.wasDenied, await MicrophonePermission.request() else {
+                status = localized("Sem permissão para o microfone: ative a Mara em Ajustes do Sistema › Privacidade e Segurança › Microfone.")
+                MicrophonePermission.openSystemSettings()
+                return
+            }
+        }
+        microphoneOn = on
+        guard let session else { return }
+        do {
+            try await session.setMicrophone(on)
+            SessionLog.write(on ? "MICROFONE ligado" : "MICROFONE desligado")
+        } catch {
+            microphoneOn = false
+            SessionLog.write("ERRO no microfone: \(error.localizedDescription)")
+            status = localized("Não foi possível usar o microfone: \(error.localizedDescription)")
         }
     }
 
@@ -468,12 +566,7 @@ final class CaptionModel: ObservableObject {
         guard canSummarize else { return }
         isSummarizing = true
         summaryError = nil
-        // The original is more faithful than the translation, and the timestamp helps the model follow the conversation.
-        let transcript = segments
-            .map { segment in
-                "[\(segment.date.formatted(date: .omitted, time: .shortened))] \(segment.original)"
-            }
-            .joined(separator: "\n")
+        let transcript = Self.summaryTranscript(segments)
         let translator = Translator(apiKey: apiKey, model: summaryModel, glossary: glossary)
         let destination = summaryURL
         let language = captionLanguage
@@ -481,7 +574,9 @@ final class CaptionModel: ObservableObject {
             defer { isSummarizing = false }
             let startedAt = Date()
             do {
-                let (text, calls) = try await translator.summarize(transcript, language: language.englishName)
+                let (text, calls) = try await translator.summarize(
+                    transcript, language: language.englishName, withSpeakers: segments.contains { $0.speaker == .me }
+                )
                 for call in calls { recordUsage(call, model: translator.model, since: startedAt) }
                 summary = MeetingSummary.parse(text, language: language.code)
                 soundCues.play(.summaryReady)
@@ -494,6 +589,20 @@ final class CaptionModel: ObservableObject {
                 soundCues.play(.failure)
             }
         }
+    }
+
+    /// The transcript the summary is written from. The original is more faithful than the
+    /// translation, and the timestamp helps the model follow the conversation. When the microphone
+    /// was on, each line says whose it is ("Me" for the person the summary is for).
+    static func summaryTranscript(_ segments: [Segment]) -> String {
+        let speakers = segments.contains { $0.speaker == .me }
+        return segments
+            .map { segment in
+                let time = "[\(segment.date.formatted(date: .omitted, time: .shortened))]"
+                guard speakers else { return "\(time) \(segment.original)" }
+                return "\(time) \(segment.speaker == .me ? "Me" : "Others"): \(segment.original)"
+            }
+            .joined(separator: "\n")
     }
 
     /// Saves the summary as Markdown wherever the user picks.
@@ -524,8 +633,8 @@ final class CaptionModel: ObservableObject {
     }
 
     /// Puts late-arriving punctuation at the end of the last utterance, if it doesn't already end in punctuation.
-    private func attachPunctuation(_ marks: String) {
-        guard let index = segments.indices.last else { return }
+    private func attachPunctuation(_ marks: String, speaker: Speaker) {
+        guard let index = segments.lastIndex(where: { $0.speaker == speaker }) else { return }
         let endsWithPunctuation = { (text: String) in text.last.map { ".,;:!?…".contains($0) } ?? true }
         // Without translation (meeting in the caption language), the caption is the original itself:
         // both change together.
@@ -646,7 +755,8 @@ final class CaptionModel: ObservableObject {
         let body = segments.map { segment in
             let time = segment.date.formatted(date: .omitted, time: .standard)
             let translation = segment.translation == segment.original ? nil : segment.translation
-            return (["[\(time)]", translation, segment.original].compactMap { $0 }).joined(separator: "\n")
+            let stamp = segment.speaker == .me ? "[\(time)] \(localized("Você"))" : "[\(time)]"
+            return ([stamp, translation, segment.original].compactMap { $0 }).joined(separator: "\n")
         }
         let text = transcriptTitle + "\n\n" + body.joined(separator: "\n\n") + "\n"
         do {

@@ -166,6 +166,8 @@ struct ContentView: View {
                 .keyboardShortcut(.return, modifiers: .command)
                 .disabled(model.isStarting)
                 .modifier(HoverReveal(shown: hovering, order: 1))
+            MicrophoneButton()
+                .modifier(HoverReveal(shown: hovering, order: 2))
             if !model.status.isEmpty {
                 Text(model.status)
                     .font(.system(size: 10))
@@ -173,16 +175,16 @@ struct ContentView: View {
                     .lineLimit(1)
                     .padding(.horizontal, 6)
                     .help(model.status)
-                    .modifier(HoverReveal(shown: hovering, order: 2))
+                    .modifier(HoverReveal(shown: hovering, order: 3))
             }
             Spacer(minLength: 0)
             IconButton(symbol: "doc.on.doc", help: localized("Copiar a transcrição")) { model.copyTranscript() }
                 .disabled(model.segments.isEmpty)
-                .modifier(HoverReveal(shown: hovering, order: 3))
+                .modifier(HoverReveal(shown: hovering, order: 4))
             IconButton(symbol: "gearshape", help: localized("Ajustes")) { present(settingsWindowID, using: openWindow) }
-            .modifier(HoverReveal(shown: hovering, order: 4))
+            .modifier(HoverReveal(shown: hovering, order: 5))
             IconButton(symbol: "xmark", help: localized("Fechar a janela de legendas")) { dismissWindow(id: captionsWindowID) }
-                .modifier(HoverReveal(shown: hovering, order: 5))
+                .modifier(HoverReveal(shown: hovering, order: 6))
         }
         .padding(.horizontal, 6)
         .frame(height: 32)
@@ -242,9 +244,15 @@ struct ContentView: View {
                     ForEach(model.segments) { segment in
                         let isLatest = segment.id == model.segments.last?.id && model.volatile.isEmpty
                         VStack(alignment: .leading, spacing: 1) {
+                            if segment.speaker == .me {
+                                // Yours, from the microphone: labeled and quieter, since the captions are for the others.
+                                Text(localized("Você"))
+                                    .font(.system(size: 10.5, weight: .semibold))
+                                    .foregroundStyle(Theme.accent.opacity(0.8))
+                            }
                             Text(segment.translation ?? "…")
                                 .font(.system(size: model.fontSize, weight: .medium))
-                                .foregroundStyle(Theme.paper)
+                                .foregroundStyle(segment.speaker == .me ? Theme.paper.opacity(0.7) : Theme.paper)
                             if segment.translation != segment.original {
                                 Text(segment.original)
                                     .font(.system(size: 11))
@@ -408,6 +416,22 @@ struct IdleBadge: View {
         }
         .foregroundStyle(Theme.paper.opacity(0.45))
         .help(localized("Sem áudio há algum tempo. A Mara volta a ouvir sozinha quando houver som."))
+    }
+}
+
+/// The microphone in the captions window's control bar: lavender while it is on, so it's clear
+/// when what you say is being transcribed.
+struct MicrophoneButton: View {
+    @EnvironmentObject private var model: CaptionModel
+
+    var body: some View {
+        IconButton(
+            symbol: model.microphoneOn ? "mic.fill" : "mic.slash",
+            help: model.microphoneOn
+                ? localized("Microfone ligado: o que você diz entra na transcrição (⌃⌥M)")
+                : localized("Microfone desligado: só o áudio do Mac é transcrito (⌃⌥M)"),
+            color: model.microphoneOn ? Theme.accent : Theme.paper.opacity(0.7)
+        ) { model.toggleMicrophone() }
     }
 }
 

@@ -262,7 +262,7 @@ private struct PermissionPage: View {
         PageLayout(
             symbol: "waveform.badge.mic",
             title: localized("Deixe a Mara ouvir o Mac"),
-            text: localized("Para legendar, a Mara precisa do áudio que sai do Mac: Zoom, Meet, Teams ou o navegador. O macOS chama isso de Gravação de Tela e Áudio do Sistema. A Mara usa só o som: não guarda imagens da tela e não usa o seu microfone.")
+            text: localized("Para legendar, a Mara precisa do áudio que sai do Mac: Zoom, Meet, Teams ou o navegador. O macOS chama isso de Gravação de Tela e Áudio do Sistema. A Mara usa só o som: não guarda imagens da tela, e o seu microfone fica desligado até você ligá-lo.")
         ) {
             Group {
                 if granted {

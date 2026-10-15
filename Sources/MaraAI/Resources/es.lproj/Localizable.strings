@@ -89,7 +89,7 @@
 "Resumo com IA" = "Resumen con IA";
 "No fim, um resumo do que foi conversado, feito pelo GPT com a sua chave da OpenAI." = "Al final, un resumen de lo que se habló, hecho por GPT con tu clave de OpenAI.";
 "Deixe a Mara ouvir o Mac" = "Deja que Mara escuche el Mac";
-"Para legendar, a Mara precisa do áudio que sai do Mac: Zoom, Meet, Teams ou o navegador. O macOS chama isso de Gravação de Tela e Áudio do Sistema. A Mara usa só o som: não guarda imagens da tela e não usa o seu microfone." = "Para subtitular, Mara necesita el audio que sale del Mac: Zoom, Meet, Teams o el navegador. macOS lo llama Grabación de pantalla y audio del sistema. Mara solo usa el sonido: no guarda imágenes de la pantalla y no usa tu micrófono.";
+"Para legendar, a Mara precisa do áudio que sai do Mac: Zoom, Meet, Teams ou o navegador. O macOS chama isso de Gravação de Tela e Áudio do Sistema. A Mara usa só o som: não guarda imagens da tela, e o seu microfone fica desligado até você ligá-lo." = "Para subtitular, Mara necesita el audio que sale del Mac: Zoom, Meet, Teams o el navegador. macOS lo llama Grabación de pantalla y audio del sistema. Mara solo usa el sonido: no guarda imágenes de la pantalla, y tu micrófono queda apagado hasta que lo enciendas.";
 "Permissão concedida" = "Permiso concedido";
 "A Mara já pode ouvir as suas reuniões." = "Mara ya puede escuchar tus reuniones.";
 "Permitir" = "Permitir";
@@ -228,3 +228,16 @@
 "O app da versão %@ não tem a assinatura do projeto." = "La app de la versión %@ no tiene la firma del proyecto.";
 "Não foi possível ler a assinatura desta versão da Mara." = "No se pudo leer la firma de esta versión de Mara.";
 "Não foi possível abrir o pacote da atualização." = "No se pudo abrir el paquete de la actualización.";
+
+/* Microphone */
+"Você" = "Tú";
+"Você: %@" = "Tú: %@";
+"Ligar ou desligar o microfone" = "Encender o apagar el micrófono";
+"Microfone ligado: o que você diz entra na transcrição (⌃⌥M)" = "Micrófono encendido: lo que dices entra en la transcripción (⌃⌥M)";
+"Microfone desligado: só o áudio do Mac é transcrito (⌃⌥M)" = "Micrófono apagado: solo se transcribe el audio del Mac (⌃⌥M)";
+"Sem permissão para o microfone: ative a Mara em Ajustes do Sistema › Privacidade e Segurança › Microfone." = "Sin permiso para el micrófono: activa Mara en Ajustes del Sistema › Privacidad y seguridad › Micrófono.";
+"Não foi possível usar o microfone: %@" = "No se pudo usar el micrófono: %@";
+"Seu microfone" = "Tu micrófono";
+"Ligado, o que você diz entra na transcrição como seu, e o resumo sabe quem disse o quê. A Mara não sabe se você está mudo na reunião: desligue quando não quiser ser transcrito, aqui, na janela de legendas ou com ⌃⌥M. Sem fone, a Mara descarta o eco dos outros saindo pelos alto-falantes." = "Encendido, lo que dices entra en la transcripción como tuyo, y el resumen sabe quién dijo qué. Mara no sabe si estás silenciado en la reunión: apágalo cuando no quieras que te transcriban, aquí, en la ventana de subtítulos o con ⌃⌥M. Sin auriculares, Mara descarta el eco de los demás que sale por los altavoces.";
+"Transcrever o meu microfone" = "Transcribir mi micrófono";
+"O macOS não deu acesso ao microfone." = "macOS no dio acceso al micrófono.";
