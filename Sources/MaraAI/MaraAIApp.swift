@@ -122,17 +122,26 @@ struct ContentView: View {
     /// left still for a while, so it doesn't cover captions while someone is rereading.
     @State private var showsJumpLabel = false
     @State private var jumpLabelTimer: Task<Void, Never>?
+    /// Going on standby, the moon opens in the middle of the window for a moment, with the
+    /// captions stepping back, before it settles at the top in place of the sound bars.
+    @State private var standbyIntro = false
+    @State private var standbyIntroTimer: Task<Void, Never>?
+    /// The dotted "M" builds itself when the window opens.
+    @State private var markShown = false
     private let bottomID = "bottom"
     private let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
 
     var body: some View {
         ZStack(alignment: .top) {
             captions
+                .opacity(standbyIntro ? 0.12 : 1)
+                .animation(.easeInOut(duration: 0.4), value: standbyIntro)
             // The controls only appear on hover, so the window is nothing but captions.
             controlBar
         }
         .overlay { listeningIndicator }
         .animation(.spring(response: 0.6, dampingFraction: 0.86), value: indicatorInHeader)
+        .onChange(of: model.isIdle) { _, idle in showStandbyIntro(idle) }
         .frame(minWidth: 300, minHeight: 96)
         .background {
             ZStack {
@@ -196,8 +205,22 @@ struct ContentView: View {
 
     private var isEmpty: Bool { model.segments.isEmpty && model.volatile.isEmpty }
 
+    private func showStandbyIntro(_ idle: Bool) {
+        standbyIntroTimer?.cancel()
+        guard idle, !isEmpty else {
+            standbyIntro = false
+            return
+        }
+        standbyIntro = true
+        standbyIntroTimer = Task {
+            try? await Task.sleep(for: .seconds(1.4))
+            guard !Task.isCancelled else { return }
+            standbyIntro = false
+        }
+    }
+
     /// On the first utterance, the indicator moves from the middle of the window to the top center.
-    private var indicatorInHeader: Bool { !isEmpty }
+    private var indicatorInHeader: Bool { !isEmpty && !standbyIntro }
 
     /// The sound bars (or the moon, when idle). It is a single piece that changes position and size
     /// with a spring, instead of two pieces that appear and disappear.
@@ -222,13 +245,14 @@ struct ContentView: View {
         }
     }
 
-    /// Before the first utterance: the logo when stopped, the sound bars when listening.
+    /// Before the first utterance: the dotted "M" when stopped, the sound bars when listening.
     private var emptyState: some View {
         Group {
             if !model.isRunning {
-                Text("Mara")
-                    .font(Theme.display(20))
-                    .foregroundStyle(Theme.paper.opacity(0.35))
+                DotMark(shown: markShown, dot: 4, spacing: 1.8)
+                    .opacity(0.45)
+                    .transition(.opacity)
+                    .onAppear { markShown = true }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
