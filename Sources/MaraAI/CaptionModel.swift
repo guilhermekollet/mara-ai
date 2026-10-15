@@ -126,7 +126,12 @@ final class CaptionModel: ObservableObject {
     }
     let reader = CaptionReader()
     let voiceModels = VoiceModelStore.shared
-    private let speakerPitch = SpeakerPitch()
+    /// Cuts what the others say into pieces to read before each sentence ends.
+    private var pieceCutter = PieceCutter()
+    /// Pieces are translated one after another, so they reach the reader in order.
+    private var readingChain: Task<Void, Never>?
+    /// Who said each piece being read: the voice's gender, its slot, and whether that's still being worked out.
+    private var pieceSpeakers: [UUID: (gender: VoiceGender?, slot: Int, pending: Bool)] = [:]
     /// Tells the speakers apart by their voices: "Pessoa 1, 2…" in the transcript and the summary,
     /// and a voice of their own when reading aloud. Off by default; downloads a small model.
     @Published private(set) var identifySpeakers: Bool {
@@ -344,10 +349,7 @@ final class CaptionModel: ObservableObject {
                 microphoneGate: microphoneGate,
                 withMicrophone: withMicrophone,
                 sentenceAudio: sentenceAudio,
-                onAudio: { [audioMeter, speakerPitch] buffer in
-                    audioMeter.push(buffer)
-                    speakerPitch.push(buffer)
-                },
+                onAudio: { [audioMeter] buffer in audioMeter.push(buffer) },
                 onStatus: { [weak self] in self?.status = $0 },
                 onResult: { [weak self] text, isFinal, speaker, range in
                     if speaker == .me {
@@ -380,7 +382,8 @@ final class CaptionModel: ObservableObject {
             } else {
                 status = ""
             }
-            _ = speakerPitch.take()
+            pieceCutter = PieceCutter()
+            pieceSpeakers = [:]
             prepareSpeakers()
             prepareReader()
             startIdleWatch()
@@ -470,6 +473,7 @@ final class CaptionModel: ObservableObject {
         guard isFinal else {
             volatile = trimmed
             SessionLog.write("PARCIAL \(trimmed)")
+            if readingAloud, let piece = pieceCutter.partial(trimmed) { read(piece, range: range) }
             if translates {
                 translateVolatile()
             } else {
@@ -488,9 +492,7 @@ final class CaptionModel: ObservableObject {
         // Only the others' sentences: what you say doesn't leave the Mac unless you ask for a summary.
         let context = segments.filter { $0.speaker == .others }.suffix(3).map(\.original)
         var segment = Segment(original: trimmed)
-        let pitch = speakerPitch.take()
-        segment.gender = SpeakerPitch.gender(forPitch: pitch)
-        identifySpeaker(of: &segment, range: range, pitch: pitch)
+        identifySpeaker(of: &segment, range: range)
         guard translates else {
             segment.translation = trimmed
             segment.refined = true
@@ -503,9 +505,7 @@ final class CaptionModel: ObservableObject {
         saveTranscript()
 
         let id = segment.id
-        if readAloud {
-            reader.enqueue(ReadoutQueue.Item(id: id, finalizedAt: finalizedAt))
-        }
+        if readingAloud, let rest = pieceCutter.final(trimmed) { read(rest, range: range) }
 
         if let localFinal {
             Task {
@@ -587,17 +587,41 @@ final class CaptionModel: ObservableObject {
         }
     }
 
+    /// Reading only happens in translated meetings, once the voice is loaded.
+    private var readingAloud: Bool { readAloud && isRunning && translates && reader.isLoaded }
+
+    /// Translates `piece` (Apple's on-device translation, a few hundredths of a second) and queues
+    /// it, after the pieces before it. Who said it is worked out meanwhile, from the sentence's
+    /// audio so far, so the reader can pick their voice.
+    private func read(_ piece: String, range: CMTimeRange) {
+        guard let localFinal else { return }
+        let id = UUID()
+        let createdAt = Date()
+        if let sentenceAudio, range.isValid, !range.isEmpty {
+            pieceSpeakers[id] = (nil, 0, true)
+            let clip = sentenceAudio.clip(from: range.start.seconds, to: range.end.seconds)
+            let tracker = speakerTracker
+            Task {
+                let (info, gender) = await Self.speaker(of: clip, tracker: tracker)
+                pieceSpeakers[id] = (gender, info?.slot ?? 0, false)
+            }
+        }
+        let previous = readingChain
+        readingChain = Task {
+            await previous?.value
+            guard let translated = try? await localFinal.translate(piece).targetText, isRunning else { return }
+            reader.enqueue(ReadoutQueue.Item(id: id, createdAt: createdAt, text: translated))
+        }
+        // Only the recent pieces matter.
+        if pieceSpeakers.count > 60 {
+            for key in pieceSpeakers.keys.prefix(pieceSpeakers.count - 40) { pieceSpeakers[key] = nil }
+        }
+    }
+
     private func configureReader() {
         reader.speed = readoutSpeed
         reader.volume = readoutVolume
-        reader.text = { [weak self] id in
-            guard let segment = self?.segments.first(where: { $0.id == id }), let translation = segment.translation else { return nil }
-            return (translation, segment.refined)
-        }
-        reader.speaker = { [weak self] id in
-            guard let segment = self?.segments.first(where: { $0.id == id }) else { return nil }
-            return (segment.gender, segment.voiceSlot, segment.identifying)
-        }
+        reader.speaker = { [weak self] id in self?.pieceSpeakers[id] }
         reader.voiceFor = { [weak self] gender, slot in
             self?.readoutVoice(gender, slot: slot).id ?? "F1"
         }
@@ -616,7 +640,6 @@ final class CaptionModel: ObservableObject {
         guard readAloud, isRunning, translates else { return }
         let engine = readoutEngine
         reader.language = captionLanguage.code
-        reader.expectsRefinement = gptEnabled
         Task {
             // Turned on before the voices finished downloading: starts reading once they're here.
             if voiceModels.state(engine.model) != .ready {
@@ -672,24 +695,37 @@ final class CaptionModel: ObservableObject {
         }
     }
 
-    /// Starts telling who said the sentence in `segment`, from its audio. The result lands on the
-    /// segment a quarter of a second later; reading aloud waits for it.
-    private func identifySpeaker(of segment: inout Segment, range: CMTimeRange, pitch: Double?) {
-        guard let speakerTracker, let sentenceAudio, range.isValid, !range.isEmpty else { return }
+    /// Starts telling who said the sentence in `segment`, from its audio: their number, for the
+    /// transcript and the summary, and the gender of their voice.
+    private func identifySpeaker(of segment: inout Segment, range: CMTimeRange) {
+        guard let sentenceAudio, range.isValid, !range.isEmpty else { return }
         let id = segment.id
         segment.identifying = true
         let clip = sentenceAudio.clip(from: range.start.seconds, to: range.end.seconds)
+        let tracker = speakerTracker
         Task {
-            let info = await speakerTracker.identify(clip.samples, sampleRate: clip.sampleRate, pitch: pitch)
+            let (info, gender) = await Self.speaker(of: clip, tracker: tracker)
             guard let index = segments.firstIndex(where: { $0.id == id }) else { return }
             segments[index].identifying = false
+            segments[index].gender = gender
             guard let info else { return }
             segments[index].person = info.person
-            if let gender = info.gender { segments[index].gender = gender }
             segments[index].voiceSlot = info.slot
-            SessionLog.write("PESSOA \(info.person) \(info.gender?.rawValue ?? "?") voz \(info.slot)")
+            SessionLog.write("PESSOA \(info.person) \(gender?.rawValue ?? "?") voz \(info.slot)")
             saveTranscript()
         }
+    }
+
+    /// Who said `clip`: their person and voice slot when speakers are told apart, and the gender
+    /// of their voice (over everything they said, or from this clip alone). Off the main thread.
+    private static func speaker(of clip: (samples: [Float], sampleRate: Double), tracker: SpeakerTracker?) async -> (SpeakerInfo?, VoiceGender?) {
+        if let tracker, let info = await tracker.identify(clip.samples, sampleRate: clip.sampleRate) {
+            return (info, info.gender)
+        }
+        let pitch = await Task.detached(priority: .userInitiated) {
+            SpeakerPitch.median(of: clip.samples, sampleRate: clip.sampleRate)
+        }.value
+        return (nil, SpeakerPitch.gender(forPitch: pitch))
     }
 
     // MARK: Microphone

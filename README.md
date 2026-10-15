@@ -82,8 +82,10 @@ Mac. When the meeting ends, it summarizes the conversation with AI, using your o
 
 ## Reading captions aloud
 
-Turn it on in **Ajustes › Tradução › Ler em voz alta** (off by default). Mara then reads every
-finished sentence of a translated meeting, so you can follow by ear while you look at something else.
+Turn it on in **Ajustes › Tradução › Ler em voz alta** (off by default). Mara then reads what is
+said in a translated meeting, so you can follow by ear while you look at something else. She
+doesn't wait for the end of each sentence: as soon as a stretch of it settles (up to a comma, or
+about ten words), it's translated on the Mac and read while the person is still talking.
 
 ```mermaid
 flowchart LR
@@ -114,7 +116,9 @@ flowchart LR
   voice stays a good one. The transcript and the summary say Person 1, Person 2…; the summary uses
   people's names when they come up. On recorded speech it kept the right person for 95–100% of the
   sentences with 2 to 6 people; poor call audio, crosstalk or similar voices make it miss more.
-- **It keeps up.** A sentence is never cut off. When people talk faster than Mara can read, she
+- **Reading uses Apple's on-device translation**, which is instant. With GPT on, GPT still refines
+  the captions on screen.
+- **It keeps up.** A piece is never cut off, and the next one is voiced while the current one plays. When people talk faster than Mara can read, she
   speeds up a little and skips sentences that waited more than 10 seconds.
 - **Only translated meetings.** When the meeting is already in the caption language, you're
   hearing it anyway, so there's nothing to read.

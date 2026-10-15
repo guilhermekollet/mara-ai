@@ -117,7 +117,7 @@ func normalizedKey(_ key: String) -> String {
 /// index, in which they come out.
 func readoutOrder(pushedSecondsAgo ages: [Double]) -> [Int] {
     let now = Date()
-    let items = ages.map { ReadoutQueue.Item(id: UUID(), finalizedAt: now.addingTimeInterval(-$0)) }
+    let items = ages.map { ReadoutQueue.Item(id: UUID(), createdAt: now.addingTimeInterval(-$0), text: "") }
     var queue = ReadoutQueue()
     items.forEach { queue.push($0) }
     var order: [Int] = []
@@ -138,17 +138,9 @@ func noise(count: Int) -> [Float] {
     (0..<count).map { _ in Float.random(in: -0.3...0.3) }
 }
 
-/// Feeds one second of a tone at `hertz` the way capture does, then takes the sentence's pitch
-/// twice: the second time nothing new was heard.
-func pitchesTaken(afterHearing hertz: Double) -> (first: Double?, second: Double?) {
-    let tracker = SpeakerPitch()
-    let format = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16_000, channels: 1, interleaved: false)!
-    let samples = voiceTone(hertz, seconds: 1)
-    let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count))!
-    buffer.frameLength = AVAudioFrameCount(samples.count)
-    for (index, sample) in samples.enumerated() { buffer.int16ChannelData![0][index] = Int16(sample * 32_767) }
-    tracker.push(buffer)
-    return (tracker.take(), tracker.take())
+/// The median pitch of one second of a tone at `hertz`, measured as a piece's clip would be.
+func pitchOfOneSecond(_ hertz: Double) -> Double? {
+    SpeakerPitch.median(of: voiceTone(hertz, seconds: 1), sampleRate: 16_000)
 }
 
 /// SHA-256 of "mara".

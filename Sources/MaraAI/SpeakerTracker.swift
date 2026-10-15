@@ -105,21 +105,23 @@ final class SpeakerTracker: @unchecked Sendable {
     }
 
     /// Who said the sentence in `samples`. Nil when the sentence is too short to tell.
-    func identify(_ samples: [Float], sampleRate: Double, pitch: Double?) async -> SpeakerInfo? {
+    func identify(_ samples: [Float], sampleRate: Double) async -> SpeakerInfo? {
         await withCheckedContinuation { continuation in
             queue.async {
-                continuation.resume(returning: self.identifyNow(samples, sampleRate: sampleRate, pitch: pitch))
+                continuation.resume(returning: self.identifyNow(samples, sampleRate: sampleRate))
             }
         }
     }
 
-    private func identifyNow(_ samples: [Float], sampleRate: Double, pitch: Double?) -> SpeakerInfo? {
+    private func identifyNow(_ samples: [Float], sampleRate: Double) -> SpeakerInfo? {
         let audio = Self.resampled(samples, from: sampleRate)
         guard let embedding = try? embedder.embed(audio) else { return nil }
         let speaker = clusters.assign(embedding)
-        if let pitch { pitches[speaker, default: []].append(pitch) }
+        if let pitch = SpeakerPitch.median(of: audio, sampleRate: Double(SpeakerEmbedder.sampleRate)) {
+            pitches[speaker, default: []].append(pitch)
+        }
         let sorted = (pitches[speaker] ?? []).sorted()
-        let gender = sorted.isEmpty ? nil : SpeakerPitch.gender(forPitch: sorted[sorted.count / 2])
+        let gender = sorted.isEmpty ? nil : SpeakerPitch.gender(forPersonPitch: sorted[sorted.count / 2])
         let slot = gender.map { cast.slot(for: speaker, gender: $0) } ?? 0
         return SpeakerInfo(person: speaker + 1, gender: gender, slot: slot)
     }

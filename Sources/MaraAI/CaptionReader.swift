@@ -1,16 +1,80 @@
 import AVFoundation
 
-/// Which sentences get read, in order. Speech is slower than captions, so the queue stays short:
-/// the sentence being read is never cut, at most two wait behind it, and a sentence that waited
-/// too long is skipped. Falling behind, the voice speeds up a little instead.
+/// Cuts what someone is saying into pieces to read before they finish the sentence. The words of
+/// a sentence in progress settle as it goes: in a real meeting, all but the last three never
+/// changed again (804 of 804 updates). So once the settled part reaches a comma, or about ten
+/// words, that piece is ready; when the sentence ends, whatever wasn't read yet is the last piece.
+struct PieceCutter {
+    /// The last words of a sentence in progress may still change.
+    static let unsettledWords = 3
+    /// A piece ends at punctuation once it has this many words…
+    static let shortestPiece = 4
+    /// …or here, when nobody pauses.
+    static let longestPiece = 10
+
+    /// How many words of the current sentence were already cut.
+    private(set) var cutWords: [String] = []
+
+    /// The next piece of the sentence in progress, if one is ready.
+    mutating func partial(_ text: String) -> String? {
+        let words = text.split(separator: " ").map(String.init)
+        let settled = max(0, words.count - Self.unsettledWords)
+        guard settled > cutWords.count else { return nil }
+        let candidate = Array(words[cutWords.count..<settled])
+        var end: Int?
+        if candidate.count >= Self.shortestPiece {
+            end = (Self.shortestPiece - 1..<candidate.count).last { index in
+                candidate[index].last.map { ",;:.!?…".contains($0) } ?? false
+            }.map { $0 + 1 }
+        }
+        if end == nil, candidate.count >= Self.longestPiece { end = Self.longestPiece }
+        guard let end else { return nil }
+        let piece = Array(candidate[..<end])
+        cutWords += piece
+        return piece.joined(separator: " ")
+    }
+
+    /// The rest of the finished sentence, after what was already cut, and a fresh start for the next.
+    mutating func final(_ text: String) -> String? {
+        defer { cutWords = [] }
+        let words = text.split(separator: " ").map(String.init)
+        let start = Self.alignedEnd(of: cutWords, in: words)
+        guard start < words.count else { return nil }
+        return words[start...].joined(separator: " ")
+    }
+
+    /// Where the words already cut end in the final text. The final adds punctuation and capitals
+    /// and sometimes changes a word, so the words are compared loosely, around the expected place.
+    static func alignedEnd(of cut: [String], in final: [String]) -> Int {
+        guard !cut.isEmpty else { return 0 }
+        let normalize = { (word: String) in
+            word.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+                .filter { $0.isLetter || $0.isNumber }
+        }
+        let tail = cut.suffix(2).map(normalize)
+        let expected = cut.count
+        for offset in [0, -1, 1, -2, 2, -3, 3] {
+            let end = expected + offset
+            guard end >= tail.count, end <= final.count else { continue }
+            if Array(final[(end - tail.count)..<end]).map(normalize) == tail { return end }
+        }
+        return min(expected, final.count)
+    }
+}
+
+/// What gets read, in order: pieces of what the others say, each translated as soon as it's
+/// stable. Speech is slower than captions, so the queue stays short: a piece being read is never
+/// cut, a few wait behind it, and a piece that waited too long is skipped. Falling behind, the
+/// voice speeds up a little instead.
 struct ReadoutQueue {
     struct Item: Equatable {
         let id: UUID
-        let finalizedAt: Date
+        let createdAt: Date
+        let text: String
     }
 
-    static let maxWaiting = 2
-    /// A sentence older than this, by the time its turn comes, is no longer worth hearing.
+    static let maxWaiting = 4
+    /// A piece older than this, by the time its turn comes, is no longer worth hearing.
     static let staleAfter: TimeInterval = 10
 
     private(set) var waiting: [Item] = []
@@ -20,33 +84,29 @@ struct ReadoutQueue {
         if waiting.count > Self.maxWaiting { waiting.removeFirst(waiting.count - Self.maxWaiting) }
     }
 
-    /// The next sentence to read, skipping the stale ones.
+    /// The next piece to read, skipping the stale ones.
     mutating func next(now: Date = Date()) -> Item? {
-        waiting.removeAll { now.timeIntervalSince($0.finalizedAt) > Self.staleAfter }
+        waiting.removeAll { now.timeIntervalSince($0.createdAt) > Self.staleAfter }
         return waiting.isEmpty ? nil : waiting.removeFirst()
     }
 
     mutating func clear() { waiting = [] }
 
-    /// How much faster than the chosen speed to read, given how many sentences still wait.
+    /// How much faster than the chosen speed to read, given how many pieces still wait.
     static func boost(waiting: Int) -> Double {
-        1 + 0.1 * Double(min(waiting, maxWaiting))
+        1 + 0.1 * Double(min(waiting, 3))
     }
 }
 
-/// Reads finished captions aloud with an on-device neural voice (`Synthesizer`), through Mara's own
+/// Reads the captions aloud with an on-device neural voice (`Synthesizer`), through Mara's own
 /// audio engine. ScreenCaptureKit leaves Mara's own sound out of the capture
 /// (`excludesCurrentProcessAudio`, measured: nothing of it reaches the meeting audio), so the voice
 /// never comes back as captions. The microphone is another matter: on speakers it hears Mara, so
 /// `onSpeakingChanged` lets the session pause it.
 @MainActor
 final class CaptionReader {
-    /// What a sentence says right now, and whether that's GPT's final version.
-    var text: (UUID) -> (text: String, refined: Bool)? = { _ in nil }
-    /// Whether a GPT version of each sentence is on its way, worth waiting a moment for.
-    var expectsRefinement = false
     var onSpeakingChanged: (Bool) -> Void = { _ in }
-    /// Who said a sentence, as far as it's known: the gender of their voice, their voice slot,
+    /// Who said a piece, as far as it's known: the gender of their voice, their voice slot,
     /// and whether telling who it was is still under way (worth waiting a moment for).
     var speaker: (UUID) -> (gender: VoiceGender?, slot: Int, pending: Bool)? = { _ in nil }
     /// The language's voice for a gender and slot.
@@ -70,11 +130,11 @@ final class CaptionReader {
     private var speaking = false
     private var quietAgain: Task<Void, Never>?
     private var idleStop: Task<Void, Never>?
-    /// The previous sentence's voice, kept when the pitch doesn't tell.
+    /// The previous piece's voice, kept when the pitch doesn't tell.
     private var lastGender: VoiceGender = .female
 
-    /// How long to wait for GPT's version of a sentence, counted from when it was finalized.
-    static let refinementWait: TimeInterval = 1.5
+    /// How long to wait for who said a piece, counted from when it was cut.
+    static let speakerWait: TimeInterval = 0.8
     /// The microphone stays paused this long after Mara stops: the sound's way out of the
     /// speakers and back into the microphone, plus the room's echo.
     static let microphoneTail: Duration = .milliseconds(400)
@@ -138,40 +198,55 @@ final class CaptionReader {
         await play(samples, sampleRate: synthesizer.sampleRate)
     }
 
+    /// A piece ready to play: its samples and the voice that read it.
+    private struct Prepared {
+        let item: ReadoutQueue.Item
+        let samples: [Float]
+    }
+
+    /// Plays the pieces in order. While one plays, the next is already being synthesized, so
+    /// there's no silence between the pieces of a sentence.
     private func drain() async {
-        while !Task.isCancelled, let item = queue.next() {
-            guard let synthesizer else { return }
-            guard let text = await resolvedText(item), !text.isEmpty else { continue }
-            let who = await resolvedSpeaker(item)
-            let gender = who?.gender ?? lastGender
-            lastGender = gender
-            let voice = voiceFor(gender, who?.slot ?? 0)
-            let pace = speed * ReadoutQueue.boost(waiting: queue.waiting.count)
-            let started = Date()
-            guard let samples = try? await synthesizer.synthesize(text, voice: voice, language: language, speed: pace),
-                  !Task.isCancelled else { continue }
-            SessionLog.write("VOZ \(voice) \(SessionLog.ms(since: started)) espera=\(queue.waiting.count) \(text)")
-            await play(samples, sampleRate: synthesizer.sampleRate)
-            recentlySpoken.append((text, Date()))
+        var upcoming: Prepared?
+        while !Task.isCancelled {
+            let current: Prepared
+            if let ready = upcoming {
+                current = ready
+                upcoming = nil
+            } else {
+                guard let item = queue.next() else { return }
+                guard let ready = await prepare(item) else { continue }
+                current = ready
+            }
+            guard let synthesizer, !Task.isCancelled else { return }
+            let playback = Task { await self.play(current.samples, sampleRate: synthesizer.sampleRate) }
+            if let next = queue.next() { upcoming = await prepare(next) }
+            await playback.value
+            recentlySpoken.append((current.item.text, Date()))
             recentlySpoken.removeAll { Date().timeIntervalSince($0.endedAt) > 30 }
         }
     }
 
-    /// The sentence's best text: GPT's when it arrives in time, otherwise Apple's.
-    private func resolvedText(_ item: ReadoutQueue.Item) async -> String? {
-        while expectsRefinement, let current = text(item.id), !current.refined,
-              Date().timeIntervalSince(item.finalizedAt) < Self.refinementWait, !Task.isCancelled {
-            try? await Task.sleep(for: .milliseconds(100))
-        }
-        return text(item.id)?.text.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func prepare(_ item: ReadoutQueue.Item) async -> Prepared? {
+        guard let synthesizer else { return nil }
+        let who = await resolvedSpeaker(item)
+        let gender = who?.gender ?? lastGender
+        lastGender = gender
+        let voice = voiceFor(gender, who?.slot ?? 0)
+        let pace = speed * ReadoutQueue.boost(waiting: queue.waiting.count)
+        let started = Date()
+        guard let samples = try? await synthesizer.synthesize(item.text, voice: voice, language: language, speed: pace),
+              !Task.isCancelled else { return nil }
+        SessionLog.write("VOZ \(voice) \(SessionLog.ms(since: started)) atraso=\(SessionLog.ms(since: item.createdAt)) espera=\(queue.waiting.count) \(item.text)")
+        return Prepared(item: item, samples: samples)
     }
 
-    /// Who said it, once known. Telling the speaker apart takes about a quarter of a second and
-    /// usually ends while the text is still being refined; it's not waited for past that.
+    /// Who said it, once known. Telling the speaker apart takes about a quarter of a second; it's
+    /// not waited for past `speakerWait`.
     private func resolvedSpeaker(_ item: ReadoutQueue.Item) async -> (gender: VoiceGender?, slot: Int)? {
         while let current = speaker(item.id), current.pending,
-              Date().timeIntervalSince(item.finalizedAt) < Self.refinementWait, !Task.isCancelled {
-            try? await Task.sleep(for: .milliseconds(50))
+              Date().timeIntervalSince(item.createdAt) < Self.speakerWait, !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(30))
         }
         return speaker(item.id).map { ($0.gender, $0.slot) }
     }
@@ -278,10 +353,8 @@ enum VoiceTrial {
             let samples = Array(UnsafeBufferPointer(start: buffer.floatChannelData![0], count: Int(buffer.frameLength)))
             // A caption sentence lasts a few seconds.
             let clip = Array(samples.prefix(Int(audio.processingFormat.sampleRate * 4)))
-            let pitch = SpeakerPitch()
-            pitch.push(buffer)
             started = Date()
-            let info = await tracker.identify(clip, sampleRate: audio.processingFormat.sampleRate, pitch: pitch.take())
+            let info = await tracker.identify(clip, sampleRate: audio.processingFormat.sampleRate)
             let speaker = String(file.lastPathComponent.split(separator: "_")[0])
             given[speaker, default: []].append(info?.person ?? 0)
             print("\(speaker) -> person \(info?.person ?? 0) \(info?.gender?.rawValue ?? "?") slot \(info?.slot ?? 0) in \(SessionLog.ms(since: started))")
