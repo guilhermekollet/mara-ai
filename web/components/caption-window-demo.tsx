@@ -107,14 +107,16 @@ const pointerPath = (w: number) => [
   [650, w / 2, 264],
   [662, w / 2, 264],
   [700, w + 80, 340],
-  // Back once the standby badge has risen: over the window, so the controls come up, and out again.
-  [851, w + 80, 300],
-  [873, w * 0.64, 150],
-  [899, w * 0.64, 150],
-  [923, w + 80, 330],
+  // Back once the standby badge has risen. It shows up still, in the margin beside the window, and
+  // only then moves in, so the controls clearly come up as it crosses the edge; then out again.
+  [851, w + 18, 170],
+  [860, w + 18, 170],
+  [890, w * 0.64, 150],
+  [906, w * 0.64, 150],
+  [930, w + 18, 175],
 ];
 const RESIZING = [570, 664];
-const pointerVisible = (frame: number) => (frame >= 26 && frame < 694) || (frame >= 851 && frame < 925);
+const pointerVisible = (frame: number) => (frame >= 26 && frame < 694) || (frame >= 851 && frame < 940);
 
 // ——— The component ———
 
@@ -177,7 +179,7 @@ export function CaptionWindowDemo({ copy }: { copy: Copy }) {
   const [px, py] = track(frame, path);
   const pointer = frame < 760
     ? Math.min(progress(frame, 18, 8), 1 - progress(frame, 694, 8))
-    : Math.min(progress(frame, 851, 8), 1 - progress(frame, 917, 8));
+    : Math.min(progress(frame, 851, 8), 1 - progress(frame, 930, 8));
   const resizing = frame >= RESIZING[0] && frame < RESIZING[1];
 
   return (
