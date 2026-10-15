@@ -28,5 +28,7 @@
     <true/>
     <key>NSSpeechRecognitionUsageDescription</key>
     <string>Transcreve o áudio da reunião para gerar as legendas.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Transcreve o que você diz na reunião, quando você liga o microfone na Mara.</string>
 </dict>
 </plist>

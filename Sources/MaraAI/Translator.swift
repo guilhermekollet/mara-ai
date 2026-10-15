@@ -52,20 +52,22 @@ struct Translator {
     /// Summarizes a meeting from its transcript, in `language`. Long meetings are first taken down
     /// as notes, part by part, and the summary is written from the notes. Returns the JSON text of
     /// the summary and every call made, so each one is logged with its cost.
-    func summarize(_ transcript: String, language: String) async throws -> (text: String, calls: [Result]) {
+    /// `withSpeakers`: the transcript marks each line "Me:" or "Others:" (the microphone was on).
+    func summarize(_ transcript: String, language: String, withSpeakers: Bool = false) async throws -> (text: String, calls: [Result]) {
+        let speakers = withSpeakers ? Self.speakersPrompt : ""
         var calls: [Result] = []
         var source = transcript
         let parts = Self.split(transcript, limit: Self.partLength)
         if parts.count > 1 {
             var notes: [String] = []
             for (index, part) in parts.enumerated() {
-                let result = try await complete(system: notesPrompt(language: language), user: part, timeout: 180)
+                let result = try await complete(system: notesPrompt(language: language) + speakers, user: part, timeout: 180)
                 calls.append(result)
                 notes.append("Part \(index + 1) of \(parts.count):\n\(result.text)")
             }
             source = "Notes taken from consecutive parts of the same meeting, in order:\n\n" + notes.joined(separator: "\n\n")
         }
-        let system = summaryPrompt(language: language)
+        let system = summaryPrompt(language: language, withSpeakers: withSpeakers) + speakers
         let result: Result
         do {
             result = try await complete(system: system, user: source, timeout: 180, format: .schema(MeetingSummary.schema))
@@ -97,11 +99,11 @@ struct Translator {
         return parts
     }
 
-    private func summaryPrompt(language: String) -> String {
+    private func summaryPrompt(language: String, withSpeakers: Bool) -> String {
         """
         You summarize a meeting for someone who was in it, from the transcript of its audio. Write \
-        in \(language). The transcript comes from speech recognition and does not say who is \
-        speaking; it may contain recognition errors, so fix obvious ones from context.
+        in \(language). The transcript comes from speech recognition\(withSpeakers ? "" : " and does not say who is speaking"); \
+        it may contain recognition errors, so fix obvious ones from context.
 
         First decide what kind of meeting it was. "conversation": several people talking with each \
         other, with turns, questions and answers, people addressing one another. "presentation": \
@@ -120,6 +122,18 @@ struct Translator {
         Do not invent anything and do not turn the summary into a task list.
         """ + glossaryPrompt
     }
+
+    /// Added when the microphone was on: the lines say who spoke, so the summary can too.
+    private static let speakersPrompt = """
+
+
+    Each line of this transcript says who spoke. "Me:" is the person this summary is for, from \
+    their microphone; "Others:" is everyone else in the meeting, from the computer's audio, and \
+    can be more than one person. Refer to "Me" as "you", in the second person, and say who said \
+    what when it matters: who proposed, agreed to or took on something, who asked what. Lines \
+    from "Me" can include stray words picked up by the microphone; skip what is not part of the \
+    meeting.
+    """
 
     private func notesPrompt(language: String) -> String {
         """

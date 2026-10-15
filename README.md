@@ -46,6 +46,11 @@ ends, it summarizes the conversation with AI, using your own OpenAI key.
 - Optional GPT refinement of each finished sentence, with your own OpenAI key.
 - A glossary of names and terms, used by speech recognition and by GPT.
 - Standby after a stretch without audio, and automatic stop after a longer one.
+- Optional microphone, off by default: what you say goes into the transcript labeled as yours
+  (untranslated), so the summary knows who said what. Without headphones, the echo of the others
+  coming out of the speakers is recognized and dropped. Mara can't see whether you are muted in
+  the meeting app, so you turn it on and off yourself (captions window, <kbd>⌃⌥M</kbd> or
+  **Ajustes › Geral**).
 
 **AI summary**
 - When the meeting ends, GPT tells what was talked about, with your own OpenAI key: whether it was
@@ -60,7 +65,8 @@ ends, it summarizes the conversation with AI, using your own OpenAI key.
   ahead of time and, if you want summaries, your OpenAI key.
 - Automatic updates: a new version downloads in the background, is checked against the project's
   signature and installs when you quit Mara (or right away, with **Reiniciar agora**).
-- Global shortcuts: <kbd>⌃⌥S</kbd> start/stop, <kbd>⌃⌥L</kbd> show/hide captions.
+- Global shortcuts: <kbd>⌃⌥S</kbd> start/stop, <kbd>⌃⌥L</kbd> show/hide captions,
+  <kbd>⌃⌥M</kbd> microphone on/off.
 - A usage ledger with every GPT call and its estimated cost.
 - Transcripts (plain text) and summaries (Markdown) saved in `~/Documents/Mara AI`.
 
@@ -119,7 +125,7 @@ Everything lives in **Ajustes** (Settings), opened from the menu bar panel:
 | Aparência | Caption size and background opacity, standby and auto-stop timers, sound cues |
 | Consumo | GPT usage per session, day, month and in total |
 | Glossário | Names and terms the team uses |
-| Geral | Automatic updates, the global shortcuts, the introduction again |
+| Geral | Automatic updates, your microphone, the global shortcuts, the introduction again |
 
 API keys are stored in the macOS Keychain, never in files.
 
@@ -128,6 +134,7 @@ API keys are stored in the macOS Keychain, never in files.
 | Data | Where it goes |
 | --- | --- |
 | Meeting audio | Stays on your Mac. It is never sent anywhere. |
+| Microphone | Off unless you turn it on (macOS asks for the permission the first time). Transcribed on your Mac like the meeting audio; what you said reaches OpenAI only inside a summary you ask for, never in GPT translation. |
 | Transcript text | Sent to OpenAI only when GPT refinement is on, or when you ask for a summary. |
 | API keys | macOS Keychain. |
 | Transcripts and summaries | Text and Markdown files in `~/Documents/Mara AI`. |
@@ -204,7 +211,8 @@ Sources/MaraAI/
   CaptionLanguage.swift      The languages captions and summaries are written in
   Updater.swift              Automatic updates from GitHub Releases, checked before installing
   TranscriptionSession.swift Apple SpeechAnalyzer pipeline and the standby gate
-  SystemAudioCapture.swift   System audio through ScreenCaptureKit (restarts if macOS stops it)
+  SystemAudioCapture.swift   System audio, and the microphone when on, through ScreenCaptureKit
+  Microphone.swift           Who spoke, the microphone permission and the echo filter
   Translator.swift           OpenAI calls (refinement, summary) and Keychain helpers
   MeetingSummary.swift       The summary's structure, its JSON schema and Markdown
   SummaryView.swift          Summary window

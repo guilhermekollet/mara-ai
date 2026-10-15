@@ -1,20 +1,45 @@
 import AVFoundation
 import ScreenCaptureKit
 
-/// Captures the audio coming out of the Mac (Zoom, Meet, Teams, browser) via ScreenCaptureKit.
+/// Captures the audio coming out of the Mac (Zoom, Meet, Teams, browser) via ScreenCaptureKit and,
+/// when turned on, the microphone, which arrives on the same stream as a separate output.
 final class SystemAudioCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     private var stream: SCStream?
     private let queue = DispatchQueue(label: "mara-ai.audio-capture")
+    private let microphoneQueue = DispatchQueue(label: "mara-ai.microphone-capture")
     private var onBuffer: ((AVAudioPCMBuffer) -> Void)?
+    private var onMicrophone: ((AVAudioPCMBuffer) -> Void)?
     private var onStop: ((Error) -> Void)?
+    private var onMicrophoneLost: (() -> Void)?
+    /// Kept so a restarted stream captures the microphone too, if it was on.
+    private var capturesMicrophone = false
 
     func start(
+        microphone: Bool,
         onBuffer: @escaping (AVAudioPCMBuffer) -> Void,
+        onMicrophone: @escaping (AVAudioPCMBuffer) -> Void,
+        onMicrophoneLost: @escaping () -> Void,
         onStop: @escaping (Error) -> Void
     ) async throws {
         self.onBuffer = onBuffer
+        self.onMicrophone = onMicrophone
+        self.onMicrophoneLost = onMicrophoneLost
         self.onStop = onStop
-        try await startStream()
+        capturesMicrophone = microphone
+        try await startStreamKeepingSystemAudio()
+    }
+
+    /// Turns the microphone on or off without interrupting the Mac's audio.
+    func setMicrophone(_ on: Bool) async throws {
+        guard on != capturesMicrophone else { return }
+        capturesMicrophone = on
+        guard let stream else { return }
+        do {
+            try await stream.updateConfiguration(configuration())
+        } catch {
+            // Not every change applies to a running stream; a new one picks the setting up.
+            try await restart()
+        }
     }
 
     /// Opens a new stream with the same handlers. Used when the system interrupts capture
@@ -23,7 +48,20 @@ final class SystemAudioCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         let old = stream
         stream = nil
         try? await old?.stopCapture()
-        try await startStream()
+        try await startStreamKeepingSystemAudio()
+    }
+
+    /// A stream that won't start with the microphone (permission revoked, device gone) starts
+    /// without it, so the meeting's captions carry on; `onMicrophoneLost` reports it.
+    private func startStreamKeepingSystemAudio() async throws {
+        do {
+            try await startStream()
+        } catch {
+            guard capturesMicrophone else { throw error }
+            capturesMicrophone = false
+            try await startStream()
+            onMicrophoneLost?()
+        }
     }
 
     private func startStream() async throws {
@@ -32,6 +70,15 @@ final class SystemAudioCapture: NSObject, SCStreamOutput, SCStreamDelegate {
             throw AppError.message(localized("Nenhuma tela encontrada para capturar o áudio."))
         }
 
+        let filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
+        let stream = SCStream(filter: filter, configuration: configuration(), delegate: self)
+        try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: queue)
+        try stream.addStreamOutput(self, type: .microphone, sampleHandlerQueue: microphoneQueue)
+        try await stream.startCapture()
+        self.stream = stream
+    }
+
+    private func configuration() -> SCStreamConfiguration {
         let config = SCStreamConfiguration()
         config.capturesAudio = true
         config.excludesCurrentProcessAudio = true
@@ -41,24 +88,27 @@ final class SystemAudioCapture: NSObject, SCStreamOutput, SCStreamDelegate {
         config.width = 2
         config.height = 2
         config.minimumFrameInterval = CMTime(value: 1, timescale: 1)
-
-        let filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
-        let stream = SCStream(filter: filter, configuration: config, delegate: self)
-        try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: queue)
-        try await stream.startCapture()
-        self.stream = stream
+        // The system default microphone, in its own format (the converter adapts it).
+        config.captureMicrophone = capturesMicrophone
+        return config
     }
 
     func stop() async {
         try? await stream?.stopCapture()
         stream = nil
         onBuffer = nil
+        onMicrophone = nil
+        onMicrophoneLost = nil
         onStop = nil
     }
 
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
-        guard type == .audio, sampleBuffer.isValid, let buffer = Self.pcmBuffer(from: sampleBuffer) else { return }
-        onBuffer?(buffer)
+        guard sampleBuffer.isValid, let buffer = Self.pcmBuffer(from: sampleBuffer) else { return }
+        switch type {
+        case .audio: onBuffer?(buffer)
+        case .microphone: onMicrophone?(buffer)
+        default: break
+        }
     }
 
     func stream(_ stream: SCStream, didStopWithError error: Error) {

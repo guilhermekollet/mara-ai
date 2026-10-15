@@ -525,6 +525,7 @@ private struct GeneralSettings: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             UpdateCard()
+            MicrophoneCard()
             SettingsCard(localized("Atalhos globais"), hint: localized("Funcionam com qualquer aplicativo em primeiro plano, sem tirar o foco da reunião.")) {
                 Toggle(localized("Ativar os atalhos de teclado"), isOn: $model.hotKeysEnabled)
                     .toggleStyle(.switch)
@@ -548,6 +549,43 @@ private struct GeneralSettings: View {
                     present(onboardingWindowID, using: openWindow)
                 }
                 .buttonStyle(PillButtonStyle(prominent: false))
+            }
+        }
+    }
+}
+
+/// Whether what you say goes into the transcript and the summary too.
+private struct MicrophoneCard: View {
+    @EnvironmentObject private var model: CaptionModel
+    @State private var denied = MicrophonePermission.wasDenied
+
+    var body: some View {
+        SettingsCard(
+            localized("Seu microfone"),
+            hint: localized("Ligado, o que você diz entra na transcrição como seu, e o resumo sabe quem disse o quê. A Mara não sabe se você está mudo na reunião: desligue quando não quiser ser transcrito, aqui, na janela de legendas ou com ⌃⌥M. Sem fone, a Mara descarta o eco dos outros saindo pelos alto-falantes.")
+        ) {
+            Toggle(localized("Transcrever o meu microfone"), isOn: Binding(
+                get: { model.microphoneOn },
+                set: { on in Task { await model.setMicrophone(on); denied = MicrophonePermission.wasDenied } }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            if denied {
+                HStack(spacing: 8) {
+                    Text(localized("O macOS não deu acesso ao microfone."))
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.orange)
+                    Spacer()
+                    Button(localized("Abrir Ajustes do Sistema")) { MicrophonePermission.openSystemSettings() }
+                        .buttonStyle(PillButtonStyle(prominent: false))
+                }
+            }
+        }
+        // Granted in System Settings while this is open: the warning goes away on its own.
+        .task {
+            while !Task.isCancelled {
+                denied = MicrophonePermission.wasDenied
+                try? await Task.sleep(for: .seconds(1))
             }
         }
     }
