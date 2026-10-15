@@ -228,32 +228,6 @@ private struct WelcomePage: View {
     }
 }
 
-/// The icon's dot-matrix "M", large, with its lavender dot; the dots pop in from left to right.
-private struct DotMark: View {
-    let shown: Bool
-    /// The same 5 × 5 "M" as the menu bar icon (see `Theme.menuBarImage`).
-    private let dots = ["x...x", "xx.xx", "x.x.x", "x...x", "x...x"].map { $0.map { $0 == "x" } }
-
-    var body: some View {
-        VStack(spacing: 4.5) {
-            ForEach(dots.indices, id: \.self) { row in
-                HStack(spacing: 4.5) {
-                    ForEach(dots[row].indices, id: \.self) { column in
-                        Circle()
-                            .fill(row == 2 && column == 2 ? Theme.accent : Theme.paper)
-                            .frame(width: 8.5, height: 8.5)
-                            .opacity(dots[row][column] && shown ? 1 : 0)
-                            .scaleEffect(shown ? 1 : 0.3)
-                            .animation(.spring(response: 0.42, dampingFraction: 0.62).delay(Double(column) * 0.05 + Double(row) * 0.02), value: shown)
-                    }
-                }
-            }
-        }
-        .accessibilityElement()
-        .accessibilityLabel("Mara")
-    }
-}
-
 private struct PermissionPage: View {
     @State private var granted = ScreenAudioPermission.isGranted
     @State private var asked = false

@@ -126,6 +126,8 @@ struct ContentView: View {
     /// captions stepping back, before it settles at the top in place of the sound bars.
     @State private var standbyIntro = false
     @State private var standbyIntroTimer: Task<Void, Never>?
+    /// The dotted "M" builds itself when the window opens.
+    @State private var markShown = false
     private let bottomID = "bottom"
     private let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
 
@@ -243,13 +245,14 @@ struct ContentView: View {
         }
     }
 
-    /// Before the first utterance: the logo when stopped, the sound bars when listening.
+    /// Before the first utterance: the dotted "M" when stopped, the sound bars when listening.
     private var emptyState: some View {
         Group {
             if !model.isRunning {
-                Text("Mara")
-                    .font(Theme.display(20))
-                    .foregroundStyle(Theme.paper.opacity(0.35))
+                DotMark(shown: markShown, dot: 4, spacing: 1.8)
+                    .opacity(0.45)
+                    .transition(.opacity)
+                    .onAppear { markShown = true }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
