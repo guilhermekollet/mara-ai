@@ -110,3 +110,54 @@ func localizedKeysInSources() -> [String] {
 func normalizedKey(_ key: String) -> String {
     key.replacingOccurrences(of: "%l{0,2}[dfu]", with: "%@", options: .regularExpression)
 }
+
+// MARK: Reading aloud
+
+/// Pushes sentences finalized `ages` seconds ago into a reading queue and returns the order, by
+/// index, in which they come out.
+func readoutOrder(pushedSecondsAgo ages: [Double]) -> [Int] {
+    let now = Date()
+    let items = ages.map { ReadoutQueue.Item(id: UUID(), finalizedAt: now.addingTimeInterval(-$0), gender: nil) }
+    var queue = ReadoutQueue()
+    items.forEach { queue.push($0) }
+    var order: [Int] = []
+    while let next = queue.next(now: now) { order.append(items.firstIndex(of: next)!) }
+    return order
+}
+
+/// A voice-like tone: a fundamental and two overtones, which is what trips up octave detection.
+func voiceTone(_ hertz: Double, seconds: Double = 0.064, sampleRate: Double = 16_000) -> [Float] {
+    (0..<Int(seconds * sampleRate)).map { index in
+        let t = Double(index) / sampleRate
+        return Float(0.3 * sin(2 * .pi * hertz * t) + 0.2 * sin(4 * .pi * hertz * t) + 0.1 * sin(6 * .pi * hertz * t))
+    }
+}
+
+/// Random noise, which has no pitch.
+func noise(count: Int) -> [Float] {
+    (0..<count).map { _ in Float.random(in: -0.3...0.3) }
+}
+
+/// Feeds one second of a tone at `hertz` the way capture does, then takes the sentence's pitch
+/// twice: the second time nothing new was heard.
+func pitchesTaken(afterHearing hertz: Double) -> (first: Double?, second: Double?) {
+    let tracker = SpeakerPitch()
+    let format = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16_000, channels: 1, interleaved: false)!
+    let samples = voiceTone(hertz, seconds: 1)
+    let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count))!
+    buffer.frameLength = AVAudioFrameCount(samples.count)
+    for (index, sample) in samples.enumerated() { buffer.int16ChannelData![0][index] = Int16(sample * 32_767) }
+    tracker.push(buffer)
+    return (tracker.take(), tracker.take())
+}
+
+/// SHA-256 of "mara".
+let maraSHA256 = "c8b6c061e8591dfeaabefdbad7cdacc0ece53900f0bb02160860a0e3ef7d2acc"
+
+/// Writes `contents` to a temporary file and checks it against a manifest entry.
+func verifiesDownload(_ contents: String, size: Int, sha256: String? = nil) -> Bool {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: url) }
+    guard (try? Data(contents.utf8).write(to: url)) != nil else { return false }
+    return (try? VoiceModelStore.verify(url, against: .init("x", size: size, sha256: sha256))) != nil
+}

@@ -242,3 +242,29 @@
 "Transcrever o meu microfone" = "Transcribe my microphone";
 "O macOS não deu acesso ao microfone." = "macOS didn't give access to the microphone.";
 "O microfone parou de responder e foi desligado. As legendas continuam." = "The microphone stopped responding and was turned off. Captions carry on.";
+
+/* Reading aloud */
+"Ler em voz alta" = "Read aloud";
+"Ler as legendas em voz alta" = "Read the captions aloud";
+"A Mara lê cada frase traduzida com uma voz neural que roda no Mac: grátis, sem internet depois do download. A voz acompanha quem fala: voz grave é lida com a voz masculina, aguda com a feminina. Com alto-falantes, o seu microfone pausa enquanto ela fala; com fone, não precisa. ⌃⌥V liga e desliga." = "Mara reads each translated sentence with a neural voice that runs on your Mac: free, no internet after the download. The voice follows the speaker: a deep voice is read with the male voice, a high one with the female voice. On speakers, your microphone pauses while she speaks; with headphones it doesn't need to. ⌃⌥V turns it on and off.";
+"Só lê reuniões traduzidas: agora a reunião e a legenda estão no mesmo idioma." = "Reads only translated meetings: right now the meeting and the captions are in the same language.";
+"Vozes em %@: %lld MB, baixadas uma vez." = "Voices in %@: %lld MB, downloaded once.";
+"Baixar" = "Download";
+"Cancelar" = "Cancel";
+"Vozes em %@ prontas" = "Voices in %@ ready";
+"Apagar" = "Delete";
+"Libera %lld MB. Para ler de novo, as vozes são baixadas outra vez." = "Frees %lld MB. To read again, the voices are downloaded again.";
+"Voz feminina" = "Female voice";
+"Voz masculina" = "Male voice";
+"Feminina %lld" = "Female %lld";
+"Masculina %lld" = "Male %lld";
+"Velocidade" = "Speed";
+"Volume" = "Volume";
+"Ligar ou desligar a leitura em voz alta" = "Turn reading aloud on or off";
+"Leitura em voz alta ligada: a Mara lê as legendas traduzidas (⌃⌥V)" = "Reading aloud on: Mara reads the translated captions (⌃⌥V)";
+"Leitura em voz alta desligada (⌃⌥V)" = "Reading aloud off (⌃⌥V)";
+"A leitura em voz alta começa quando as vozes terminarem de baixar (Ajustes › Tradução)." = "Reading aloud starts once the voices finish downloading (Settings › Translation).";
+"Não foi possível carregar as vozes. Baixe de novo em Ajustes › Tradução." = "Couldn't load the voices. Download them again in Settings › Translation.";
+"O download das vozes falhou (%@). Tente de novo." = "The voices' download failed (%@). Try again.";
+"Um arquivo das vozes chegou incompleto (%@). Tente de novo." = "A voice file arrived incomplete (%@). Try again.";
+"Um arquivo das vozes não confere com o original (%@). Tente de novo." = "A voice file doesn't match the original (%@). Try again.";

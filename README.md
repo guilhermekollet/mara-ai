@@ -16,8 +16,9 @@
 
 Mara listens to the audio your Mac is already playing — Zoom, Google Meet, Teams, a video in the
 browser — transcribes it on-device with Apple's speech recognition and shows a caption in
-Portuguese, English or Spanish that forms word by word while people are still talking. No bot joins the call. When the meeting
-ends, it summarizes the conversation with AI, using your own OpenAI key.
+Portuguese, English or Spanish that forms word by word while people are still talking. No bot joins the call. Prefer to
+listen? Mara can also read each translated sentence aloud with a natural voice that runs on your
+Mac. When the meeting ends, it summarizes the conversation with AI, using your own OpenAI key.
 
 > **Language note:** the app's interface follows your Mac's language: Portuguese (Brazil), English or
 > Spanish, and English on a Mac set to any other language. Code, comments and docs are in English.
@@ -25,6 +26,7 @@ ends, it summarizes the conversation with AI, using your own OpenAI key.
 ## Contents
 
 - [Features](#features)
+- [Reading captions aloud](#reading-captions-aloud)
 - [Requirements](#requirements)
 - [Getting started](#getting-started)
 - [Configuration](#configuration)
@@ -52,6 +54,12 @@ ends, it summarizes the conversation with AI, using your own OpenAI key.
   the meeting app, so you turn it on and off yourself (captions window, <kbd>⌃⌥M</kbd> or
   **Ajustes › Geral**).
 
+**Listen instead of reading** · [details](#reading-captions-aloud)
+- Each translated sentence read aloud by a neural voice that runs on your Mac: free, offline
+  after a one-time download.
+- The voice follows the speaker: deep voices are read with a male voice, high ones with a female voice.
+- <kbd>⌃⌥V</kbd> or the speaker button in the captions window turns it on and off.
+
 **AI summary**
 - When the meeting ends, GPT tells what was talked about, with your own OpenAI key: whether it was
   a conversation between several people or a presentation, an overview, the topics in order and,
@@ -66,15 +74,52 @@ ends, it summarizes the conversation with AI, using your own OpenAI key.
 - Automatic updates: a new version downloads in the background, is checked against the project's
   signature and installs when you quit Mara (or right away, with **Reiniciar agora**).
 - Global shortcuts: <kbd>⌃⌥S</kbd> start/stop, <kbd>⌃⌥L</kbd> show/hide captions,
-  <kbd>⌃⌥M</kbd> microphone on/off.
+  <kbd>⌃⌥M</kbd> microphone on/off, <kbd>⌃⌥V</kbd> reading aloud on/off.
 - A usage ledger with every GPT call and its estimated cost.
 - Transcripts (plain text) and summaries (Markdown) saved in `~/Documents/Mara AI`.
+
+## Reading captions aloud
+
+Turn it on in **Ajustes › Tradução › Ler em voz alta** (off by default). Mara then reads every
+finished sentence of a translated meeting, so you can follow by ear while you look at something else.
+
+```mermaid
+flowchart LR
+    A["🔊 Meeting audio<br/>(Zoom, Meet, Teams…)"] --> B["Apple Speech<br/>transcribes"]
+    B --> C["Apple Translation<br/>(+ GPT, optional)"]
+    C --> D["💬 Caption"]
+    C --> E["🗣️ Neural voice<br/>on your Mac"]
+    A -. "pitch: deep or high" .-> E
+    E --> F["🎧 You"]
+```
+
+| | Portuguese | English and Spanish |
+| --- | --- | --- |
+| Voice model | [Supertonic 3](https://huggingface.co/Supertone/supertonic-3) | [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) |
+| Voices | 5 female, 5 male | Heart, Bella, Michael, Adam · Dora, Alex, Santa |
+| One-time download | about 400 MB | about 333 MB |
+| Time to voice a sentence | about 0.6 s | about 0.25 s |
+
+- **Free and private.** The voices run on the Mac with Core ML. The only network use is the
+  one-time download from Hugging Face, pinned to a fixed version and checked file by file.
+- **A voice for each speaker's pitch.** Mara estimates the pitch of whoever is speaking: deep
+  voices are read with the male voice, high ones with the female voice, and in between it keeps the
+  previous voice. You pick both voices, the speed and the volume in Settings.
+- **It keeps up.** A sentence is never cut off. When people talk faster than Mara can read, she
+  speeds up a little and skips sentences that waited more than 10 seconds.
+- **Only translated meetings.** When the meeting is already in the caption language, you're
+  hearing it anyway, so there's nothing to read.
+- **No echo.** Mara's voice never ends up in the captions: macOS leaves Mara's own sound out of the
+  capture. Your microphone is different: on speakers it would hear her, so it pauses while she speaks.
+  With headphones it stays on, so **headphones work best**.
 
 ## Requirements
 
 - macOS 26 (Tahoe) or later.
 - To build from source: Swift 6.2 or later — Xcode 26, or the matching Command Line Tools.
 - Optional: an [OpenAI API key](https://platform.openai.com/api-keys), for summaries and GPT refinement.
+- Optional: about 400 MB (Portuguese) or 333 MB (English and Spanish) of disk space for the voices
+  that read captions aloud.
 
 ## Getting started
 
@@ -120,7 +165,7 @@ Everything lives in **Ajustes** (Settings), opened from the menu bar panel:
 
 | Tab | What you set |
 | --- | --- |
-| Tradução | Meeting and caption languages, on-device only or Mac + GPT, GPT model |
+| Tradução | Meeting and caption languages, on-device only or Mac + GPT, GPT model, reading aloud (voices, speed, volume) |
 | Resumo | Summary model and the OpenAI key (also used by the GPT translation) |
 | Aparência | Caption size and background opacity, standby and auto-stop timers, sound cues |
 | Consumo | GPT usage per session, day, month and in total |
@@ -138,6 +183,7 @@ API keys are stored in the macOS Keychain, never in files.
 | Transcript text | Sent to OpenAI only when GPT refinement is on, or when you ask for a summary. |
 | API keys | macOS Keychain. |
 | Transcripts and summaries | Text and Markdown files in `~/Documents/Mara AI`. |
+| Voices for reading aloud | Downloaded once from Hugging Face when you turn reading on; after that they run offline. What they read never leaves your Mac. |
 | Update checks | Once a day Mara asks GitHub for the latest release; nothing about you or your meetings is sent. Turn it off in **Ajustes › Geral**. |
 
 Mara has no server of its own: requests go straight from your Mac to OpenAI, and to GitHub for
@@ -160,6 +206,12 @@ From 0.3.0 on, every release is signed with the same certificate and macOS keeps
 **The menu bar icon doesn't show up.** On MacBooks with a notch, icons that don't fit are hidden
 behind it. Remove a few menu bar items (hold <kbd>⌘</kbd> and drag them out) and Mara appears.
 
+**Mara doesn't read aloud.** It reads only translated meetings (the meeting and caption languages
+differ), and only once the voices have downloaded: see **Ajustes › Tradução › Ler em voz alta**.
+
+**What I say goes missing while Mara reads.** On speakers, your microphone pauses while Mara speaks,
+so her voice isn't transcribed as yours. Use headphones and it stays on.
+
 **Something went wrong during a meeting.** The current session is logged, with millisecond timings,
 in `~/Library/Logs/MaraAI/sessao.log`.
 
@@ -170,6 +222,7 @@ swift build                   # debug build
 scripts/test.sh               # tests (works with Xcode or with only the Command Line Tools)
 ./build.sh                    # release build and app bundle
 .build/debug/MaraAI --render-summary /tmp/summary.png   # draw the summary window with a sample
+.build/debug/MaraAI --try-voices pt   # download the Portuguese voices if needed and read a sample
 ```
 
 Useful runtime files:
@@ -220,7 +273,13 @@ Sources/MaraAI/
   SettingsView.swift         Settings window
   OnboardingView.swift       First-launch introduction: permission, language download, OpenAI key
   Localization.swift         Picks the interface language; translations live in Resources/*.lproj
+  CaptionReader.swift        Reads captions aloud: the queue, playback and the microphone pause
+  Synthesizer.swift          The voices offered per language and the model running them
+  SpeakerPitch.swift         The speaker's pitch, to pick the female or the male voice
+  VoiceModels.swift          The voices' pinned download, checked file by file
+  AudioOutput.swift          Speakers or headphones
   …                          Theme, icons, animated captions, sound bars, hot keys, usage ledger
+Sources/Voices/              Kokoro and Supertonic on Core ML, vendored from speech-swift (Apache-2.0, see NOTICE)
 Tests/MaraAITests/           Swift Testing suite
 scripts/                     Icon generation, signing, test runner, release packaging and update signing
 web/                         Website
@@ -234,3 +293,8 @@ Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) to get set up
 ## License
 
 [MIT](LICENSE) © Guilherme Kollet
+
+The voice engines in [`Sources/Voices`](Sources/Voices/NOTICE) come from
+[speech-swift](https://github.com/soniqo/speech-swift) and keep their Apache-2.0 license. The voice
+models are downloaded at runtime, not shipped: Kokoro-82M is Apache-2.0; Supertonic 3 uses the
+OpenRAIL-M license, which forbids some uses, such as impersonating real people.

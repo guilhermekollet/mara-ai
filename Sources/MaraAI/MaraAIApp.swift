@@ -7,6 +7,18 @@ struct MaraAIApp: App {
     @StateObject private var model = CaptionModel()
 
     init() {
+        // Development tool: `MaraAI --try-voices pt` downloads that language's voices if needed,
+        // reads the sample sentence with the female and the male voice and prints the timings.
+        if let flag = CommandLine.arguments.firstIndex(of: "--try-voices"), CommandLine.arguments.count > flag + 1 {
+            let language = CommandLine.arguments[flag + 1]
+            Task { @MainActor in
+                await VoiceTrial.run(language: language)
+                exit(0)
+            }
+            // Without the scenes, so the session model (and its Keychain read) is never created.
+            NSApplication.shared.setActivationPolicy(.accessory)
+            NSApplication.shared.run()
+        }
         // Development tool: `MaraAI --render-summary file.png` draws the summary window with a
         // sample summary and exits, so it can be checked without an OpenAI key or a meeting.
         if let flag = CommandLine.arguments.firstIndex(of: "--render-summary"), CommandLine.arguments.count > flag + 1 {
@@ -168,6 +180,8 @@ struct ContentView: View {
                 .modifier(HoverReveal(shown: hovering, order: 1))
             MicrophoneButton()
                 .modifier(HoverReveal(shown: hovering, order: 2))
+            ReadAloudButton()
+                .modifier(HoverReveal(shown: hovering, order: 3))
             if !model.status.isEmpty {
                 Text(model.status)
                     .font(.system(size: 10))
@@ -175,16 +189,16 @@ struct ContentView: View {
                     .lineLimit(1)
                     .padding(.horizontal, 6)
                     .help(model.status)
-                    .modifier(HoverReveal(shown: hovering, order: 3))
+                    .modifier(HoverReveal(shown: hovering, order: 4))
             }
             Spacer(minLength: 0)
             IconButton(symbol: "doc.on.doc", help: localized("Copiar a transcrição")) { model.copyTranscript() }
                 .disabled(model.segments.isEmpty)
-                .modifier(HoverReveal(shown: hovering, order: 4))
+                .modifier(HoverReveal(shown: hovering, order: 5))
             IconButton(symbol: "gearshape", help: localized("Ajustes")) { present(settingsWindowID, using: openWindow) }
-            .modifier(HoverReveal(shown: hovering, order: 5))
+            .modifier(HoverReveal(shown: hovering, order: 6))
             IconButton(symbol: "xmark", help: localized("Fechar a janela de legendas")) { dismissWindow(id: captionsWindowID) }
-                .modifier(HoverReveal(shown: hovering, order: 6))
+                .modifier(HoverReveal(shown: hovering, order: 7))
         }
         .padding(.horizontal, 6)
         .frame(height: 32)
@@ -432,6 +446,21 @@ struct MicrophoneButton: View {
                 : localized("Microfone desligado: só o áudio do Mac é transcrito (⌃⌥M)"),
             color: model.microphoneOn ? Theme.accent : Theme.paper.opacity(0.7)
         ) { model.toggleMicrophone() }
+    }
+}
+
+/// Reading aloud in the captions window's control bar: lavender while Mara reads the captions.
+struct ReadAloudButton: View {
+    @EnvironmentObject private var model: CaptionModel
+
+    var body: some View {
+        IconButton(
+            symbol: model.readAloud ? "speaker.wave.2.fill" : "speaker.slash",
+            help: model.readAloud
+                ? localized("Leitura em voz alta ligada: a Mara lê as legendas traduzidas (⌃⌥V)")
+                : localized("Leitura em voz alta desligada (⌃⌥V)"),
+            color: model.readAloud ? Theme.accent : Theme.paper.opacity(0.7)
+        ) { model.toggleReadAloud() }
     }
 }
 

@@ -12,6 +12,8 @@ final class CaptionModel: ObservableObject {
         /// True when the translation is already GPT's final version (the local one doesn't overwrite it).
         var refined = false
         var speaker = Speaker.others
+        /// Whether the speaker's voice sounded male or female, by its pitch; nil when it didn't say.
+        var gender: VoiceGender?
     }
 
     @Published var segments: [Segment] = []
@@ -94,6 +96,31 @@ final class CaptionModel: ObservableObject {
         didSet { UserDefaults.standard.set(microphoneOn, forKey: "microphoneOn") }
     }
 
+    /// Reads each finished caption aloud with an on-device voice, in meetings that are translated.
+    @Published private(set) var readAloud: Bool {
+        didSet { UserDefaults.standard.set(readAloud, forKey: "readAloud") }
+    }
+    /// 1 is the voice's natural pace.
+    @Published var readoutSpeed: Double {
+        didSet {
+            UserDefaults.standard.set(readoutSpeed, forKey: "readoutSpeed")
+            reader.speed = readoutSpeed
+        }
+    }
+    @Published var readoutVolume: Double {
+        didSet {
+            UserDefaults.standard.set(readoutVolume, forKey: "readoutVolume")
+            reader.volume = readoutVolume
+        }
+    }
+    /// The chosen voice for each language and gender, keyed "pt.female", "en.male" and so on.
+    @Published private var readoutVoices: [String: String] {
+        didSet { UserDefaults.standard.set(readoutVoices, forKey: "readoutVoices") }
+    }
+    let reader = CaptionReader()
+    let voiceModels = VoiceModelStore.shared
+    private let speakerPitch = SpeakerPitch()
+
     /// Seconds without audio before going on hold and before stopping on its own (0 disables the feature).
     @Published var idleAfter: Double {
         didSet { UserDefaults.standard.set(idleAfter, forKey: "idleAfter") }
@@ -149,6 +176,11 @@ final class CaptionModel: ObservableObject {
         opacity = UserDefaults.standard.object(forKey: "opacity") as? Double ?? 0.55
         // Without the permission (revoked in System Settings, say), it starts off.
         microphoneOn = UserDefaults.standard.bool(forKey: "microphoneOn") && MicrophonePermission.isGranted
+        readAloud = UserDefaults.standard.bool(forKey: "readAloud")
+        readoutSpeed = UserDefaults.standard.object(forKey: "readoutSpeed") as? Double ?? 1
+        readoutVolume = UserDefaults.standard.object(forKey: "readoutVolume") as? Double ?? 0.9
+        readoutVoices = UserDefaults.standard.dictionary(forKey: "readoutVoices") as? [String: String] ?? [:]
+        configureReader()
         applyHotKeys()
         soundCues.enabled = soundCuesEnabled
         Self.forgetLinear()
@@ -228,6 +260,7 @@ final class CaptionModel: ObservableObject {
             }),
             (HotKeys.toggleCaptions, { [weak self] in self?.toggleCaptionsWindow() }),
             (HotKeys.toggleMicrophone, { [weak self] in self?.toggleMicrophone() }),
+            (HotKeys.toggleReadAloud, { [weak self] in self?.toggleReadAloud() }),
         ]
         for (shortcut, action) in bindings where !HotKeys.shared.register(shortcut, action: action) {
             unavailableHotKeys.append(shortcut.keys)
@@ -284,7 +317,10 @@ final class CaptionModel: ObservableObject {
                 gate: gate,
                 microphoneGate: microphoneGate,
                 withMicrophone: withMicrophone,
-                onAudio: { [audioMeter] buffer in audioMeter.push(buffer) },
+                onAudio: { [audioMeter, speakerPitch] buffer in
+                    audioMeter.push(buffer)
+                    speakerPitch.push(buffer)
+                },
                 onStatus: { [weak self] in self?.status = $0 },
                 onResult: { [weak self] text, isFinal, speaker in
                     if speaker == .me {
@@ -317,6 +353,8 @@ final class CaptionModel: ObservableObject {
             } else {
                 status = ""
             }
+            _ = speakerPitch.take()
+            prepareReader()
             startIdleWatch()
         } catch {
             await session.stop()
@@ -338,6 +376,7 @@ final class CaptionModel: ObservableObject {
         microphoneGate = nil
         menuBarAnimator.setActive(false)
         audioMeter.setActive(false)
+        reader.unload()
         await session.stop()
         clearVolatile()
         SessionLog.write("PARADO")
@@ -419,6 +458,7 @@ final class CaptionModel: ObservableObject {
         // Only the others' sentences: what you say doesn't leave the Mac unless you ask for a summary.
         let context = segments.filter { $0.speaker == .others }.suffix(3).map(\.original)
         var segment = Segment(original: trimmed)
+        segment.gender = SpeakerPitch.gender(forPitch: speakerPitch.take())
         guard translates else {
             segment.translation = trimmed
             segment.refined = true
@@ -431,6 +471,9 @@ final class CaptionModel: ObservableObject {
         saveTranscript()
 
         let id = segment.id
+        if readAloud {
+            reader.enqueue(ReadoutQueue.Item(id: id, finalizedAt: finalizedAt, gender: segment.gender))
+        }
 
         if let localFinal {
             Task {
@@ -460,6 +503,95 @@ final class CaptionModel: ObservableObject {
         }
     }
 
+    // MARK: Reading aloud
+
+    /// The engine that reads the current caption language.
+    var readoutEngine: VoiceEngine { VoiceEngine.reading(captionLanguage.code) }
+
+    /// The voice chosen for `gender` in the current caption language.
+    func readoutVoice(_ gender: VoiceGender) -> ReadoutVoice {
+        let language = captionLanguage.code
+        return ReadoutCatalog.voice(for: language, gender: gender, preferred: readoutVoices["\(language).\(gender.rawValue)"])
+    }
+
+    func setReadoutVoice(_ voice: ReadoutVoice) {
+        readoutVoices["\(captionLanguage.code).\(voice.gender.rawValue)"] = voice.id
+    }
+
+    func toggleReadAloud() {
+        setReadAloud(!readAloud)
+    }
+
+    /// Turning it on downloads the voices for the caption language first, if they are missing.
+    func setReadAloud(_ on: Bool) {
+        readAloud = on
+        if on, voiceModels.state(readoutEngine) != .ready {
+            voiceModels.download(readoutEngine)
+        }
+        if on {
+            prepareReader()
+        } else {
+            reader.stop()
+        }
+        SessionLog.write("LEITURA \(on ? "ligada" : "desligada")")
+    }
+
+    /// Plays a sample sentence with `voice`, as it would read the captions.
+    func previewVoice(_ voice: ReadoutVoice) {
+        let language = captionLanguage.code
+        let engine = readoutEngine
+        Task {
+            await reader.preview(ReadoutCatalog.sample(for: language), voice: voice.id, language: language, engine: engine)
+            // Outside a meeting the model doesn't stay in memory.
+            if !isRunning { reader.unload() }
+        }
+    }
+
+    private func configureReader() {
+        reader.speed = readoutSpeed
+        reader.volume = readoutVolume
+        reader.text = { [weak self] id in
+            guard let segment = self?.segments.first(where: { $0.id == id }), let translation = segment.translation else { return nil }
+            return (translation, segment.refined)
+        }
+        reader.voiceFor = { [weak self] gender in
+            self?.readoutVoice(gender ?? .female).id ?? "F1"
+        }
+        // On speakers the microphone would hear Mara and take her voice for yours.
+        reader.onSpeakingChanged = { [weak self] speaking in
+            guard let self else { return }
+            let mute = speaking && self.microphoneOn && AudioOutput.isSpeaker
+            self.microphoneGate?.setMuted(mute)
+            if speaking, self.microphoneOn { SessionLog.write("VOZ microfone \(mute ? "pausado" : "aberto (fone)")") }
+        }
+    }
+
+    /// Gets the voice ready when a session starts or reading is turned on during one. Reads only
+    /// meetings that are translated: otherwise the captions already are what you hear.
+    private func prepareReader() {
+        guard readAloud, isRunning, translates else { return }
+        let engine = readoutEngine
+        reader.language = captionLanguage.code
+        reader.expectsRefinement = gptEnabled
+        Task {
+            // Turned on before the voices finished downloading: starts reading once they're here.
+            if voiceModels.state(engine) != .ready {
+                status = localized("A leitura em voz alta começa quando as vozes terminarem de baixar (Ajustes › Tradução).")
+                while case .downloading = voiceModels.state(engine), isRunning, readAloud {
+                    try? await Task.sleep(for: .seconds(1))
+                }
+                guard voiceModels.state(engine) == .ready, isRunning, readAloud else { return }
+                status = ""
+            }
+            let started = Date()
+            if await reader.load(engine) {
+                SessionLog.write("VOZ pronta (\(engine.rawValue)) em \(SessionLog.ms(since: started))")
+            } else {
+                status = localized("Não foi possível carregar as vozes. Baixe de novo em Ajustes › Tradução.")
+            }
+        }
+    }
+
     // MARK: Microphone
 
     /// What you said, from the microphone. It isn't translated (you know what you said): it goes
@@ -474,6 +606,8 @@ final class CaptionModel: ObservableObject {
         let now = Date()
         var heard = segments.filter { $0.speaker == .others }.suffix(8).map { ($0.original, now.timeIntervalSince($0.date)) }
         if !volatile.isEmpty { heard.append((volatile, 0)) }
+        // On speakers, what Mara read aloud can reach the microphone in the moment it unmutes.
+        heard += reader.recentlySpoken.map { ($0.text, now.timeIntervalSince($0.endedAt)) }
         if EchoFilter.isEcho(trimmed, others: heard) {
             SessionLog.write("MICROFONE eco descartado: \(trimmed)")
             return
