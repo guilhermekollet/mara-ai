@@ -364,16 +364,16 @@ private struct AppearanceSettings: View {
         }
     }
 
-    /// The captions window over a video call, with this window's tint, blur and text shadow, so
-    /// each setting can be judged as it changes.
+    /// The captions window over a wallpaper, with this window's tint, blur and text shadow, so each
+    /// setting can be judged as it changes.
     private var preview: some View {
         let box = RoundedRectangle(cornerRadius: 14, style: .continuous)
-        // The captions window as a strip over the lower part of the call, as it usually sits.
+        // The captions window as a strip over the lower part of the screen, as it usually sits.
         let window = EdgeInsets(top: 58, leading: 14, bottom: 12, trailing: 14)
         return ZStack {
-            PreviewCall()
-            // The call blurred only inside the window, as its frosted glass does.
-            PreviewCall()
+            PreviewWallpaper()
+            // The wallpaper blurred only inside the window, as its frosted glass does.
+            PreviewWallpaper()
                 .blur(radius: 16 * model.blur)
                 .mask { box.padding(window) }
             box.fill(Theme.ink.opacity(model.opacity))
@@ -432,49 +432,28 @@ private struct AppearanceSettings: View {
     }
 }
 
-/// What the appearance preview shows behind the captions window: a video call with four people,
-/// colorful enough for the tint and the blur to show.
-private struct PreviewCall: View {
-    private let tiles: [(background: Color, face: Color)] = [
-        (Color(red: 0.17, green: 0.24, blue: 0.40), Color(red: 0.96, green: 0.78, blue: 0.62)),
-        (Color(red: 0.36, green: 0.54, blue: 0.45), Color(red: 0.55, green: 0.38, blue: 0.27)),
-        (Color(red: 0.63, green: 0.32, blue: 0.18), Color(red: 0.98, green: 0.86, blue: 0.70)),
-        (Color(red: 0.24, green: 0.24, blue: 0.32), Color(red: 0.80, green: 0.62, blue: 0.48)),
-    ]
+/// What the appearance preview shows behind the captions window: a desktop wallpaper, like the one
+/// the window floats over. Without the image, a gradient in its colors.
+private struct PreviewWallpaper: View {
+    private static let image = Interface.resources.url(forResource: "PreviewWallpaper", withExtension: "jpg").flatMap(NSImage.init(contentsOf:))
 
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [Color(red: 0.91, green: 0.89, blue: 0.99), Color(red: 0.72, green: 0.64, blue: 0.97)],
-                startPoint: .topLeading, endPoint: .bottomTrailing
-            )
-            Grid(horizontalSpacing: 6, verticalSpacing: 6) {
-                ForEach(0..<2, id: \.self) { row in
-                    GridRow {
-                        ForEach(0..<2, id: \.self) { column in
-                            tile(tiles[row * 2 + column])
-                        }
-                    }
+        if let image = Self.image {
+            // Filled into exactly the space it is given: on its own, a filling image would grow
+            // past it and push the caption strip off its place.
+            Color.clear
+                .overlay {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFill()
                 }
-            }
-            .padding(8)
+                .clipped()
+        } else {
+            LinearGradient(
+                colors: [Color(red: 0.1, green: 0.35, blue: 0.95), Color(red: 0.95, green: 0.55, blue: 0.2), Color(red: 0.7, green: 0.45, blue: 0.95)],
+                startPoint: .leading, endPoint: .trailing
+            )
         }
-    }
-
-    private func tile(_ colors: (background: Color, face: Color)) -> some View {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .fill(colors.background)
-            .overlay {
-                Circle()
-                    .fill(colors.face)
-                    .frame(width: 30, height: 30)
-            }
-            .overlay(alignment: .bottomLeading) {
-                Capsule()
-                    .fill(.white.opacity(0.75))
-                    .frame(width: 34, height: 6)
-                    .padding(6)
-            }
     }
 }
 
