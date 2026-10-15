@@ -4,10 +4,17 @@ import SwiftUI
 /// Measures the meeting audio's volume. Capture delivers the volume on another queue; a timer on
 /// the main queue reads the latest value about 20 times per second, enough to animate.
 final class AudioMeter: ObservableObject {
-    /// Smoothed volume, from 0 (silence) to 1 (loud speech).
-    @Published private(set) var level = 0.0
-    /// Advances on every read, so the bars keep varying even at a constant volume.
-    @Published private(set) var tick = 0
+    /// The level and the tick change together, so the bars update once per read, not twice.
+    struct Reading: Equatable {
+        /// Smoothed volume, from 0 (silence) to 1 (loud speech).
+        var level = 0.0
+        /// Advances on every read, so the bars keep varying even at a constant volume.
+        var tick = 0
+    }
+
+    @Published private(set) var reading = Reading()
+    var level: Double { reading.level }
+    var tick: Int { reading.tick }
 
     private let lock = NSLock()
     private var latest = 0.0
@@ -36,7 +43,10 @@ final class AudioMeter: ObservableObject {
     func setActive(_ active: Bool) {
         timer?.invalidate()
         timer = nil
-        level = 0
+        reading = Reading()
+        lock.lock()
+        latest = 0
+        lock.unlock()
         guard active else { return }
         timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.read() }
@@ -51,8 +61,7 @@ final class AudioMeter: ObservableObject {
         lock.unlock()
         // Speech sits between 0.02 and 0.2 RMS; the curve spreads that band across the 0 to 1 range.
         let target = min(1, pow(rms * 8, 0.6))
-        level = level * 0.55 + target * 0.45
-        tick += 1
+        reading = Reading(level: reading.level * 0.55 + target * 0.45, tick: reading.tick + 1)
     }
 }
 
