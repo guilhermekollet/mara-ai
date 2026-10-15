@@ -220,7 +220,7 @@ struct MenuBarPanel: View {
                         .font(.caption)
                         .foregroundStyle(Theme.paper.opacity(0.45))
                     HStack(spacing: 14) {
-                        Link(localized("Criar uma chave"), destination: URL(string: "https://platform.openai.com/api-keys")!)
+                        Link(localized("Criar uma chave"), destination: OpenAIKeyField.keysPage)
                         Button(localized("Adicionar em Ajustes")) {
                             UserDefaults.standard.set("summary", forKey: SettingsView.requestedTabKey)
                             open(settingsWindowID)

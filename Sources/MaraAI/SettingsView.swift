@@ -664,7 +664,12 @@ private struct UpdateCard: View {
 /// The OpenAI key, saved to the Keychain when submitted, with a link to create one. Used in
 /// Settings and in the introduction; `missingHint` says what happens without a key.
 struct OpenAIKeyField: View {
+    /// OpenAI's page for creating API keys.
+    static let keysPage = URL(string: "https://platform.openai.com/api-keys")!
+
     let missingHint: String
+    /// Off where the page shows its own, larger way to create a key.
+    var linksToKeysPage = true
     @EnvironmentObject private var model: CaptionModel
     @State private var draft = ""
 
@@ -685,7 +690,10 @@ struct OpenAIKeyField: View {
                 Text(model.apiKey.isEmpty ? missingHint : localized("Chave salva no Keychain."))
                     .foregroundStyle(Theme.muted)
                 Spacer()
-                Link(localized("Criar uma chave"), destination: URL(string: "https://platform.openai.com/api-keys")!)
+                if linksToKeysPage {
+                    Link(localized("Criar uma chave"), destination: Self.keysPage)
+                        .foregroundStyle(Theme.accent)
+                }
             }
             .font(.system(size: 11.5))
         }

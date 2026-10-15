@@ -408,13 +408,29 @@ private struct PreparationStatus: View {
 }
 
 private struct SummaryKeyPage: View {
+    @EnvironmentObject private var model: CaptionModel
+
     var body: some View {
         PageLayout(
             symbol: "sparkles",
             title: localized("Resumo com IA"),
             text: localized("Opcional. No fim da reunião, o GPT resume o que foi conversado, com a sua chave da OpenAI. Só o texto transcrito é enviado; o áudio, nunca.")
         ) {
-            OpenAIKeyField(missingHint: localized("Fica no Keychain do macOS. Dá para adicionar depois, em Ajustes."))
+            VStack(spacing: 18) {
+                // Most people don't have a key yet: getting one comes first, then the field to paste it.
+                if model.apiKey.isEmpty {
+                    Button {
+                        NSWorkspace.shared.open(OpenAIKeyField.keysPage)
+                    } label: {
+                        Label(localized("Criar uma chave na OpenAI"), systemImage: "arrow.up.right")
+                    }
+                    .buttonStyle(PillButtonStyle(prominent: false, large: true))
+                }
+                OpenAIKeyField(
+                    missingHint: localized("Fica no Keychain do macOS. Dá para adicionar depois, em Ajustes."),
+                    linksToKeysPage: false
+                )
+            }
         }
     }
 }

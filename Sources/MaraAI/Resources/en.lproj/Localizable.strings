@@ -243,3 +243,4 @@
 "O microfone parou de responder e foi desligado. As legendas continuam." = "The microphone stopped responding and was turned off. Captions carry on.";
 "O resumo usa o GPT, com a sua chave da OpenAI." = "The summary uses GPT, with your own OpenAI key.";
 "Adicionar em Ajustes" = "Add in Settings";
+"Criar uma chave na OpenAI" = "Create a key at OpenAI";
