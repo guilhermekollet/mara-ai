@@ -12,6 +12,15 @@ struct UpdaterTests {
         #expect(!Updater.isNewer("0.1.9", than: "0.2.0"))
     }
 
+    @Test func acceptsOnlyPlainVersions() {
+        #expect(Updater.isPlainVersion("0.3.0"))
+        #expect(Updater.isPlainVersion("12"))
+        #expect(!Updater.isPlainVersion("../../Documents"))
+        #expect(!Updater.isPlainVersion("0.3.0-beta"))
+        #expect(!Updater.isPlainVersion("0..3"))
+        #expect(!Updater.isPlainVersion(""))
+    }
+
     @Test func acceptsOnlyAnUntouchedSignedArchive() {
         #expect(updateSignatureHolds(afterTampering: false))
         #expect(!updateSignatureHolds(afterTampering: true))

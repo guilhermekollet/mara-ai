@@ -103,8 +103,8 @@ struct MenuBarPanel: View {
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
                 Button("Reiniciar agora") {
-                    updater.installIfReady(relaunch: true)
-                    NSApp.terminate(nil)
+                    // Quits only once the new version is in place; otherwise Settings say why.
+                    if updater.installIfReady(relaunch: true) { NSApp.terminate(nil) }
                 }
                 .buttonStyle(PillButtonStyle())
                 .disabled(model.isRunning || model.isStarting)
