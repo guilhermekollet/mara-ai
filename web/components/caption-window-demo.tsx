@@ -7,8 +7,9 @@ import type { Dictionary } from "@/i18n/dictionaries";
 // video (promo/src/MainPromo.tsx) rebuilt as live DOM. The pointer starts a session, a meeting is
 // captioned word by word, the list is scrolled back and jumps to the new lines, and the window is
 // resized while the captions keep coming. Then the meeting goes quiet and Mara goes on standby, as
-// the app does after a stretch without audio: the sound bars give way to a moon until someone
-// speaks again. Everything is drawn in macOS points and scaled as a whole with one fixed scale per
+// the app does after a stretch without audio: the moon opens large and faint in the middle of the
+// window, then settles at the top in place of the sound bars, and the pointer passes over the
+// window, bringing up the controls, until someone speaks again. Everything is drawn in macOS points and scaled as a whole with one fixed scale per
 // viewport size: animating the scale would make the text shimmer.
 
 type Copy = Dictionary["demo"];
@@ -23,9 +24,9 @@ const FAINT = "rgba(250,250,250,0.38)";
 const system = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif';
 
 const T = { start: 62, scrollFrom: 405, scrollTo: 428, arrow: 430, label: 490, jump: 535, exit: 985 };
-// The standby: it starts after the quiet that follows the seventh line and ends when sound comes
-// back, just before the last line.
-const STANDBY = { on: 772, off: 884 };
+// The standby: it starts after the quiet that follows the seventh line, the moon rises to the top
+// a moment later, and it ends when sound comes back, just before the last line.
+const STANDBY = { on: 772, rise: 812, off: 884 };
 const STARTS = [112, 182, 252, 322, 466, 572, 652, 896];
 const LATE = 4; // the line that arrives while the list is scrolled back
 
@@ -106,9 +107,14 @@ const pointerPath = (w: number) => [
   [650, w / 2, 264],
   [662, w / 2, 264],
   [700, w + 80, 340],
+  // Back once the standby badge has risen: over the window, so the controls come up, and out again.
+  [826, w + 80, 300],
+  [848, w * 0.64, 150],
+  [870, w * 0.64, 150],
+  [894, w + 80, 330],
 ];
 const RESIZING = [570, 664];
-const pointerVisible = (frame: number) => frame >= 26 && frame < 694;
+const pointerVisible = (frame: number) => (frame >= 26 && frame < 694) || (frame >= 826 && frame < 896);
 
 // ——— The component ———
 
@@ -128,8 +134,14 @@ export function CaptionWindowDemo({ copy }: { copy: Copy }) {
   }, []);
 
   // Plays at 30 fps from the still frame onwards, looping; pauses off screen and in background tabs.
+  // In development, ?frame=800 holds the scene on that frame, to review it.
   useEffect(() => {
     const element = stage.current;
+    const pinned = process.env.NODE_ENV === "development" ? new URLSearchParams(location.search).get("frame") : null;
+    if (pinned !== null) {
+      setFrame(Number(pinned) % LOOP);
+      return;
+    }
     if (!element || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     let visible = true;
     const observer = new IntersectionObserver(([entry]) => {
@@ -163,7 +175,9 @@ export function CaptionWindowDemo({ copy }: { copy: Copy }) {
   const exit = progress(frame, T.exit, 24, easeIn);
   const path = pointerPath(w);
   const [px, py] = track(frame, path);
-  const pointer = Math.min(progress(frame, 18, 8), 1 - progress(frame, 694, 8));
+  const pointer = frame < 760
+    ? Math.min(progress(frame, 18, 8), 1 - progress(frame, 694, 8))
+    : Math.min(progress(frame, 826, 8), 1 - progress(frame, 888, 8));
   const resizing = frame >= RESIZING[0] && frame < RESIZING[1];
 
   return (
@@ -220,8 +234,12 @@ function CaptionsWindow({ frame, lines, copy, w }: { frame: number; lines: Line[
   const barsIn = progress(frame, T.start + 2, 12);
   const toTop = progress(frame, lines[0].saidAt[0], 16);
   const speaking = lines.some((line) => frame >= line.saidAt[0] && frame < line.quietAt);
-  // From sound bars to the standby badge and back, crossfading in place.
+  // The standby badge opens in the middle, as the bars do when a session starts, with the captions
+  // stepping back behind it; then it rises to the top in place of the bars, until sound returns.
   const standby = progress(frame, STANDBY.on, 14) * (1 - progress(frame, STANDBY.off, 10));
+  const rise = progress(frame, STANDBY.rise, 18, easeInOut);
+  const centered = standby * (1 - rise);
+  const middle = heightAt(frame) / 2 - 13;
 
   return (
     <div
@@ -261,6 +279,7 @@ function CaptionsWindow({ frame, lines, copy, w }: { frame: number; lines: Line[
           flexDirection: "column",
           justifyContent: "flex-end",
           maskImage: "linear-gradient(to bottom, transparent 0%, #000 28%, #000 100%)",
+          opacity: 1 - 0.88 * centered,
         }}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 10, transform: `translateY(${offset}px)` }}>
@@ -281,16 +300,25 @@ function CaptionsWindow({ frame, lines, copy, w }: { frame: number; lines: Line[
             opacity: barsIn,
           }}
         >
-          <div style={{ display: "grid", placeItems: "center" }}>
-            <div style={{ gridArea: "1 / 1", opacity: 1 - standby, transform: `scale(${1 - 0.15 * standby})` }}>
-              <SoundBars frame={frame} level={speaking ? 0.45 + 0.35 * Math.abs(Math.sin(frame * 0.41)) * (0.6 + 0.4 * Math.sin(frame * 0.13)) : 0} />
-            </div>
-            {standby > 0 && (
-              <div style={{ gridArea: "1 / 1", opacity: standby, transform: `scale(${0.9 + 0.1 * standby})`, filter: standby < 1 ? `blur(${(1 - standby) * 3}px)` : undefined }}>
-                <StandbyBadge label={copy.standby} />
-              </div>
-            )}
+          <div style={{ opacity: 1 - standby, transform: `scale(${1 - 0.15 * standby})` }}>
+            <SoundBars frame={frame} level={speaking ? 0.45 + 0.35 * Math.abs(Math.sin(frame * 0.41)) * (0.6 + 0.4 * Math.sin(frame * 0.13)) : 0} />
           </div>
+        </div>
+      )}
+
+      {standby > 0 && (
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: middle + (3 - middle) * rise,
+            transform: `translateX(-50%) scale(${(1 - 0.5 * rise) * (0.9 + 0.1 * standby)})`,
+            transformOrigin: "center top",
+            opacity: standby,
+            filter: standby < 1 ? `blur(${(1 - standby) * 3}px)` : undefined,
+          }}
+        >
+          <StandbyBadge label={copy.standby} />
         </div>
       )}
 
@@ -379,11 +407,13 @@ function hoverAt(frame: number, w: number) {
 // from the left; when it leaves they fade out together.
 function ControlBar({ frame, running, w }: { frame: number; running: boolean; w: number }) {
   const { now, since } = hoverAt(frame, w);
+  // As in the app: on hover the controls come in one by one, fading in and settling from slightly
+  // above, without scaling; when the pointer leaves they go out together, quickly.
   const item = (index: number): CSSProperties => {
-    const p = now ? progress(since, index * 2.5, 9) : 1 - progress(since, 0, 7);
-    return { opacity: p, transform: `translateY(${(1 - p) * -4}px) scale(${0.85 + 0.15 * p})` };
+    const p = now ? progress(since, index * 1.1, 10) : 1 - progress(since, 0, 4);
+    return { opacity: p, transform: `translateY(${(1 - p) * -3}px)` };
   };
-  const shade = now ? progress(since, 0, 8) : 1 - progress(since, 0, 7);
+  const shade = now ? progress(since, 0, 8) : 1 - progress(since, 0, 5);
   // The play button, as AppKit draws a borderless icon button: a soft circle while the pointer is
   // over it, a darker one while pressed, and the symbol swapping play → stop like SF Symbols'
   // "replace" effect (the old one shrinks away, the new one springs in).
