@@ -15,7 +15,7 @@ import type { Dictionary } from "@/i18n/dictionaries";
 type Copy = Dictionary["demo"];
 
 const FPS = 30;
-const LOOP = 1010; // frames, from the window appearing to it fading out
+const LOOP = 1106; // frames, from the window appearing to it fading out
 const H = 210; // window height in points before it is resized
 const BLOCK = 46; // one caption block (translation, original and gap), in points
 const STILL = 380; // the frame shown without animation (reduced motion, before hydration)
@@ -23,11 +23,11 @@ const ACCENT = "#b8a4f8";
 const FAINT = "rgba(250,250,250,0.38)";
 const system = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif';
 
-const T = { start: 62, scrollFrom: 405, scrollTo: 428, arrow: 430, label: 490, jump: 535, exit: 985 };
+const T = { start: 62, scrollFrom: 405, scrollTo: 428, arrow: 430, label: 490, jump: 535, exit: 1081 };
 // The standby: it starts after the quiet that follows the seventh line, the moon rises to the top
 // a moment later, and it ends when sound comes back, just before the last line.
-const STANDBY = { on: 772, rise: 812, off: 884 };
-const STARTS = [112, 182, 252, 322, 466, 572, 652, 896];
+const STANDBY = { on: 772, rise: 827, off: 980 };
+const STARTS = [112, 182, 252, 322, 466, 572, 652, 992];
 const LATE = 4; // the line that arrives while the list is scrolled back
 
 // ——— Timing helpers ———
@@ -108,13 +108,13 @@ const pointerPath = (w: number) => [
   [662, w / 2, 264],
   [700, w + 80, 340],
   // Back once the standby badge has risen: over the window, so the controls come up, and out again.
-  [826, w + 80, 300],
-  [848, w * 0.64, 150],
-  [870, w * 0.64, 150],
-  [894, w + 80, 330],
+  [851, w + 80, 300],
+  [873, w * 0.64, 150],
+  [899, w * 0.64, 150],
+  [923, w + 80, 330],
 ];
 const RESIZING = [570, 664];
-const pointerVisible = (frame: number) => (frame >= 26 && frame < 694) || (frame >= 826 && frame < 896);
+const pointerVisible = (frame: number) => (frame >= 26 && frame < 694) || (frame >= 851 && frame < 925);
 
 // ——— The component ———
 
@@ -177,7 +177,7 @@ export function CaptionWindowDemo({ copy }: { copy: Copy }) {
   const [px, py] = track(frame, path);
   const pointer = frame < 760
     ? Math.min(progress(frame, 18, 8), 1 - progress(frame, 694, 8))
-    : Math.min(progress(frame, 826, 8), 1 - progress(frame, 888, 8));
+    : Math.min(progress(frame, 851, 8), 1 - progress(frame, 917, 8));
   const resizing = frame >= RESIZING[0] && frame < RESIZING[1];
 
   return (
