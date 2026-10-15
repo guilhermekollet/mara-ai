@@ -15,8 +15,8 @@
 </div>
 
 Mara listens to the audio your Mac is already playing — Zoom, Google Meet, Teams, a video in the
-browser — transcribes it on-device with Apple's speech recognition and shows a Portuguese caption
-that forms word by word while people are still talking. No bot joins the call. When the meeting
+browser — transcribes it on-device with Apple's speech recognition and shows a caption in
+Portuguese, English or Spanish that forms word by word while people are still talking. No bot joins the call. When the meeting
 ends, it summarizes the conversation with AI, using your own OpenAI key.
 
 > **Language note:** the app's interface is in Brazilian Portuguese. Code, comments and docs are in
@@ -41,7 +41,8 @@ ends, it summarizes the conversation with AI, using your own OpenAI key.
 - Live captions in a small floating window; scroll back freely, it follows the conversation again
   when you return to the bottom.
 - On-device transcription and translation (Apple Speech and Translation): free, private, offline.
-  Meetings in English (US), Spanish or Portuguese (Brazil).
+  Meetings in English (US), Spanish or Portuguese (Brazil), captioned in any of the three; a
+  meeting already in the caption language is transcribed without translating.
 - Optional GPT refinement of each finished sentence, with your own OpenAI key.
 - A glossary of names and terms, used by speech recognition and by GPT.
 - Standby after a stretch without audio, and automatic stop after a longer one.
@@ -49,8 +50,8 @@ ends, it summarizes the conversation with AI, using your own OpenAI key.
 **AI summary**
 - When the meeting ends, GPT tells what was talked about, with your own OpenAI key: whether it was
   a conversation between several people or a presentation, an overview, the topics in order and,
-  depending on the kind, the decisions or the key points, plus open questions. Nothing is sent
-  until you ask for it.
+  depending on the kind, the decisions or the key points, plus open questions, written in the
+  caption language. Nothing is sent until you ask for it.
 - Its own window, with copy, save as Markdown and share; also saved next to the transcript.
 - Its own model setting (GPT-6 Luna by default). Long meetings are summarized in parts.
 
@@ -111,7 +112,7 @@ Everything lives in **Ajustes** (Settings), opened from the menu bar panel:
 
 | Tab | What you set |
 | --- | --- |
-| Tradução | Meeting language, on-device only or Mac + GPT, GPT model |
+| Tradução | Meeting and caption languages, on-device only or Mac + GPT, GPT model |
 | Resumo | Summary model and the OpenAI key (also used by the GPT translation) |
 | Aparência | Caption size and background opacity, standby and auto-stop timers, sound cues |
 | Consumo | GPT usage per session, day, month and in total |
@@ -185,6 +186,7 @@ git push origin v0.2.0
 Sources/MaraAI/
   MaraAIApp.swift            App entry point, captions window, menu bar item
   CaptionModel.swift         Session state: capture, transcription, translation, summary
+  CaptionLanguage.swift      The languages captions and summaries are written in
   TranscriptionSession.swift Apple SpeechAnalyzer pipeline and the standby gate
   SystemAudioCapture.swift   System audio through ScreenCaptureKit (restarts if macOS stops it)
   Translator.swift           OpenAI calls (refinement, summary) and Keychain helpers

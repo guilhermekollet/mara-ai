@@ -20,11 +20,50 @@ struct MeetingSummary: Equatable {
     var decisions: [String]
     var keyPoints: [String]
     var openQuestions: [String]
+    /// The code of the language it is written in (the caption language): its labels follow it.
+    var language = "pt"
+
+    var labels: Labels { Labels.for(language) }
 
     var kindLabel: String {
         switch kind {
-        case .conversation: return "Conversa entre várias pessoas"
-        case .presentation: return "Apresentação"
+        case .conversation: return labels.conversation
+        case .presentation: return labels.presentation
+        }
+    }
+
+    /// The summary's own words (its kind and section titles), in the language it is written in,
+    /// so the window and the Markdown read as one document.
+    struct Labels: Equatable {
+        let conversation: String
+        let presentation: String
+        let untitled: String
+        let topics: String
+        let decisions: String
+        let keyPoints: String
+        let openQuestions: String
+
+        static func `for`(_ language: String) -> Labels {
+            switch language {
+            case "en":
+                return Labels(
+                    conversation: "Conversation between several people", presentation: "Presentation",
+                    untitled: "Meeting summary", topics: "Topics", decisions: "Decisions",
+                    keyPoints: "Key points", openQuestions: "Open questions"
+                )
+            case "es":
+                return Labels(
+                    conversation: "Conversación entre varias personas", presentation: "Presentación",
+                    untitled: "Resumen de la reunión", topics: "Temas", decisions: "Decisiones",
+                    keyPoints: "Ideas principales", openQuestions: "Preguntas abiertas"
+                )
+            default:
+                return Labels(
+                    conversation: "Conversa entre várias pessoas", presentation: "Apresentação",
+                    untitled: "Resumo da reunião", topics: "Assuntos", decisions: "Decisões",
+                    keyPoints: "Ideias principais", openQuestions: "Perguntas em aberto"
+                )
+            }
         }
     }
 
@@ -47,9 +86,10 @@ struct MeetingSummary: Equatable {
         var open_questions: [String]?
     }
 
-    /// Reads the model's JSON answer. If it isn't the expected JSON, its text becomes the overview,
-    /// so nothing the model wrote is lost.
-    static func parse(_ raw: String) -> MeetingSummary {
+    /// Reads the model's JSON answer, written in `language`. If it isn't the expected JSON, its
+    /// text becomes the overview, so nothing the model wrote is lost.
+    static func parse(_ raw: String, language: String = "pt") -> MeetingSummary {
+        let untitled = Labels.for(language).untitled
         var body = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if body.hasPrefix("```") {
             body = body.components(separatedBy: "\n").dropFirst().joined(separator: "\n")
@@ -62,8 +102,8 @@ struct MeetingSummary: Equatable {
               let overview = wire.overview?.trimmingCharacters(in: .whitespacesAndNewlines), !overview.isEmpty
         else {
             return MeetingSummary(
-                kind: .conversation, title: "Resumo da reunião", overview: raw.trimmingCharacters(in: .whitespacesAndNewlines),
-                topics: [], decisions: [], keyPoints: [], openQuestions: []
+                kind: .conversation, title: untitled, overview: raw.trimmingCharacters(in: .whitespacesAndNewlines),
+                topics: [], decisions: [], keyPoints: [], openQuestions: [], language: language
             )
         }
         let topics = (wire.topics ?? []).compactMap { topic -> Topic? in
@@ -74,12 +114,13 @@ struct MeetingSummary: Equatable {
         let title = (wire.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         return MeetingSummary(
             kind: Kind(rawValue: wire.kind ?? "") ?? .conversation,
-            title: title.isEmpty ? "Resumo da reunião" : title,
+            title: title.isEmpty ? untitled : title,
             overview: overview,
             topics: topics,
             decisions: clean(wire.decisions),
             keyPoints: clean(wire.key_points),
-            openQuestions: clean(wire.open_questions)
+            openQuestions: clean(wire.open_questions),
+            language: language
         )
     }
 
@@ -121,7 +162,7 @@ struct MeetingSummary: Equatable {
         lines.append("_\(kindLabel)\(details.map { " · \($0)" } ?? "")_")
         lines += ["", overview]
         if !topics.isEmpty {
-            lines += ["", "## Assuntos"]
+            lines += ["", "## \(labels.topics)"]
             for topic in topics {
                 lines += ["", "**\(topic.title)**", topic.summary]
             }
@@ -129,9 +170,9 @@ struct MeetingSummary: Equatable {
         let list = { (heading: String, items: [String]) in
             if !items.isEmpty { lines += ["", "## \(heading)", ""] + items.map { "- \($0)" } }
         }
-        list("Decisões", decisions)
-        list("Ideias principais", keyPoints)
-        list("Perguntas em aberto", openQuestions)
+        list(labels.decisions, decisions)
+        list(labels.keyPoints, keyPoints)
+        list(labels.openQuestions, openQuestions)
         return lines.joined(separator: "\n") + "\n"
     }
 }

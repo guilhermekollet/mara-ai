@@ -269,7 +269,7 @@ private struct SummaryDetails: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if !summary.topics.isEmpty {
-                group("Assuntos", symbol: "text.bubble") {
+                group(summary.labels.topics, symbol: "text.bubble") {
                     ForEach(Array(summary.topics.enumerated()), id: \.offset) { _, topic in
                         VStack(alignment: .leading, spacing: 2) {
                             Text(topic.title)
@@ -286,9 +286,9 @@ private struct SummaryDetails: View {
                     }
                 }
             }
-            bullets("Decisões", symbol: "checkmark.seal", items: summary.decisions)
-            bullets("Ideias principais", symbol: "lightbulb", items: summary.keyPoints)
-            bullets("Perguntas em aberto", symbol: "questionmark.circle", items: summary.openQuestions)
+            bullets(summary.labels.decisions, symbol: "checkmark.seal", items: summary.decisions)
+            bullets(summary.labels.keyPoints, symbol: "lightbulb", items: summary.keyPoints)
+            bullets(summary.labels.openQuestions, symbol: "questionmark.circle", items: summary.openQuestions)
         }
     }
 

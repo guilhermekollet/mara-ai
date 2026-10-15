@@ -24,3 +24,13 @@ final class GateHarness {
         return Double(released.reduce(0) { $0 + Int($1.frameLength) }) / 16_000
     }
 }
+
+/// The caption language a new install picks on a Mac set to `localeID`.
+func preferredCaptionLanguage(onMacIn localeID: String) -> String {
+    CaptionLanguage.preferred(for: Locale(identifier: localeID)).id
+}
+
+/// The caption language that matches a meeting locale, if Mara captions in it.
+func captionLanguageCode(matching localeID: String) -> String? {
+    CaptionLanguage.matching(Locale(identifier: localeID))?.code
+}

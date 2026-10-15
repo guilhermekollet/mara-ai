@@ -59,7 +59,7 @@ struct SummaryView: View {
                     }
 
                     if !summary.topics.isEmpty {
-                        SummarySection(title: "Assuntos", symbol: "text.bubble") {
+                        SummarySection(title: summary.labels.topics, symbol: "text.bubble") {
                             VStack(spacing: 8) {
                                 ForEach(Array(summary.topics.enumerated()), id: \.offset) { _, topic in
                                     VStack(alignment: .leading, spacing: 4) {
@@ -78,9 +78,9 @@ struct SummaryView: View {
                             }
                         }
                     }
-                    BulletSection(title: "Decisões", symbol: "checkmark.seal", items: summary.decisions)
-                    BulletSection(title: "Ideias principais", symbol: "lightbulb", items: summary.keyPoints)
-                    BulletSection(title: "Perguntas em aberto", symbol: "questionmark.circle", items: summary.openQuestions)
+                    BulletSection(title: summary.labels.decisions, symbol: "checkmark.seal", items: summary.decisions)
+                    BulletSection(title: summary.labels.keyPoints, symbol: "lightbulb", items: summary.keyPoints)
+                    BulletSection(title: summary.labels.openQuestions, symbol: "questionmark.circle", items: summary.openQuestions)
                 }
                 .textSelection(.enabled)
                 .padding(24)
