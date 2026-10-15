@@ -4,8 +4,9 @@
 //
 // The caption demos (`demo`) are captioned in the page's language: English speech becomes
 // Portuguese captions on /pt, Spanish speech becomes English on /en, and English speech becomes
-// Spanish on /es. The app itself captions in Brazilian Portuguese for now, which the FAQ answer
-// about languages states in every language; keep it in step with CaptionModel.swift.
+// Spanish on /es. The app captions meetings in English, Spanish or Portuguese into any of the
+// three, as the FAQ answer about languages says in every language; keep it in step with
+// CaptionLanguage.swift. The app's interface is still in Brazilian Portuguese.
 
 export const locales = ["en", "pt", "es"] as const;
 export type Locale = (typeof locales)[number];
@@ -168,7 +169,7 @@ const en = {
       {
         question: "Which languages are supported?",
         answer:
-          "Meetings can be in English or Spanish, and for now the captions are shown in Brazilian Portuguese. Meetings in Portuguese work too: Mara transcribes and summarizes them, without translating. You pick the meeting language before you start.",
+          "Meetings in English, Spanish or Portuguese, with captions in any of the three: Mara translates between them on your Mac. When the meeting is already in the caption language, it transcribes without translating. You pick both languages before you start. The app's own interface is in Brazilian Portuguese for now.",
       },
       {
         question: "How does the summary work?",
@@ -359,7 +360,7 @@ const pt: Dictionary = {
       {
         question: "Quais idiomas são suportados?",
         answer:
-          "Reuniões em inglês ou espanhol, com a legenda em português. Reuniões em português também funcionam: a Mara transcreve e resume, sem traduzir. Você escolhe o idioma da reunião antes de iniciar.",
+          "Reuniões em inglês, espanhol ou português, com a legenda em qualquer um dos três: a Mara traduz entre eles no próprio Mac. Quando a reunião já é no idioma da legenda, ela transcreve sem traduzir. Você escolhe os dois idiomas antes de iniciar.",
       },
       {
         question: "Como funciona o resumo?",
@@ -548,7 +549,7 @@ const es: Dictionary = {
       {
         question: "¿Qué idiomas son compatibles?",
         answer:
-          "Las reuniones pueden ser en inglés o en español y, por ahora, los subtítulos se muestran en portugués de Brasil. Las reuniones en portugués también funcionan: Mara las transcribe y resume, sin traducir. Eliges el idioma de la reunión antes de empezar.",
+          "Reuniones en inglés, español o portugués, con subtítulos en cualquiera de los tres: Mara traduce entre ellos en tu Mac. Cuando la reunión ya está en el idioma del subtítulo, transcribe sin traducir. Eliges los dos idiomas antes de empezar. Por ahora, la interfaz de la app está en portugués de Brasil.",
       },
       {
         question: "¿Cómo funciona el resumen?",

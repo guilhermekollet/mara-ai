@@ -66,7 +66,7 @@ struct PillButtonStyle: ButtonStyle {
     }
 }
 
-/// Language icon that opens the menu for changing the meeting language.
+/// Language icon that opens the menu for the meeting and caption languages.
 struct LanguageMenu: View {
     @EnvironmentObject private var model: CaptionModel
     /// Just the globe, for tight spots like the captions window's control bar; the language is
@@ -78,12 +78,19 @@ struct LanguageMenu: View {
         if iconOnly {
             // A SwiftUI button like its neighbors, so it animates with them (a native Menu ignores
             // the hover entrance's offset and pops in on its own), opening the native menu below it.
-            IconButton(symbol: "globe", help: "Idioma da reunião: \(model.languageCode)") {
-                anchor.show(
-                    title: "Idioma da reunião",
-                    items: model.locales.map { (model.displayName($0), $0.identifier) },
-                    selected: model.localeID
-                ) { model.localeID = $0 }
+            IconButton(symbol: "globe", help: help) {
+                anchor.show([
+                    MenuAnchor.Section(
+                        title: "Reunião em",
+                        items: model.locales.map { (model.displayName($0), $0.identifier) },
+                        selected: model.localeID
+                    ) { model.localeID = $0 },
+                    MenuAnchor.Section(
+                        title: "Legenda em",
+                        items: CaptionLanguage.all.map { ($0.name, $0.id) },
+                        selected: model.captionLanguageID
+                    ) { model.captionLanguageID = $0 },
+                ])
             }
             .background(MenuAnchorView(anchor: anchor))
             .disabled(model.isRunning || model.isStarting)
@@ -94,48 +101,72 @@ struct LanguageMenu: View {
 
     private var menu: some View {
         Menu {
-            Picker("Idioma da reunião", selection: $model.localeID) {
+            Picker("Reunião em", selection: $model.localeID) {
                 ForEach(model.locales, id: \.identifier) { locale in
                     Text(model.displayName(locale)).tag(locale.identifier)
                 }
             }
             .pickerStyle(.inline)
+            Picker("Legenda em", selection: $model.captionLanguageID) {
+                ForEach(CaptionLanguage.all) { language in
+                    Text(language.name).tag(language.id)
+                }
+            }
+            .pickerStyle(.inline)
         } label: {
-            Label(model.languageCode, systemImage: "globe")
+            Label(model.languagePair, systemImage: "globe")
                 .labelStyle(.titleAndIcon)
                 .font(.system(size: 11.5, weight: .medium))
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
-        .help("Idioma da reunião: \(model.languageCode)")
+        .help(help)
         .disabled(model.isRunning || model.isStarting)
+    }
+
+    private var help: String {
+        let meeting = model.locales.first { $0.identifier == model.localeID }.map(model.displayName) ?? model.languageCode
+        return "Reunião em \(meeting.lowercased()), legenda em \(model.captionLanguage.name.lowercased())"
     }
 }
 
 /// Pops up a native menu right below the view it is attached to (see `MenuAnchorView`).
 @MainActor
 final class MenuAnchor {
-    fileprivate weak var view: NSView?
-    private var pick: ((String) -> Void)?
+    /// A titled group of choices, one of them checked.
+    struct Section {
+        let title: String
+        let items: [(title: String, id: String)]
+        let selected: String
+        let pick: (String) -> Void
+    }
 
-    func show(title: String, items: [(title: String, id: String)], selected: String, pick: @escaping (String) -> Void) {
+    fileprivate weak var view: NSView?
+    private var sections: [Section] = []
+
+    func show(_ sections: [Section]) {
         guard let view else { return }
-        self.pick = pick
+        self.sections = sections
         let menu = NSMenu()
-        menu.addItem(.sectionHeader(title: title))
-        for item in items {
-            let entry = NSMenuItem(title: item.title, action: #selector(choose(_:)), keyEquivalent: "")
-            entry.target = self
-            entry.representedObject = item.id
-            entry.state = item.id == selected ? .on : .off
-            menu.addItem(entry)
+        for (index, section) in sections.enumerated() {
+            if index > 0 { menu.addItem(.separator()) }
+            menu.addItem(.sectionHeader(title: section.title))
+            for item in section.items {
+                let entry = NSMenuItem(title: item.title, action: #selector(choose(_:)), keyEquivalent: "")
+                entry.target = self
+                entry.tag = index
+                entry.representedObject = item.id
+                entry.state = item.id == section.selected ? .on : .off
+                menu.addItem(entry)
+            }
         }
         // The view isn't flipped: y = 0 is its bottom edge, and the menu hangs from that point.
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: -4), in: view)
     }
 
     @objc private func choose(_ item: NSMenuItem) {
-        if let id = item.representedObject as? String { pick?(id) }
+        guard let id = item.representedObject as? String, sections.indices.contains(item.tag) else { return }
+        sections[item.tag].pick(id)
     }
 }
 

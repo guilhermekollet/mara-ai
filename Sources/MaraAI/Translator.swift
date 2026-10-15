@@ -34,10 +34,10 @@ struct Translator {
         let reasoningTokens: Int
     }
 
-    func translate(_ text: String, from language: String, context: [String]) async throws -> Result {
+    func translate(_ text: String, from language: String, to target: String, context: [String]) async throws -> Result {
         let system = """
         You are a live interpreter producing subtitles for a meeting. Translate the line under \
-        "Translate" from \(language) to Brazilian Portuguese. The text comes from speech recognition \
+        "Translate" from \(language) to \(target). The text comes from speech recognition \
         and may contain errors: use the context to fix obvious ones. The context lines are earlier \
         speech, for reference only; never translate them. Reply with the translation only.
         """ + glossaryPrompt

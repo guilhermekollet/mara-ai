@@ -30,6 +30,10 @@ final class CaptionModel: ObservableObject {
     @Published var localeID: String {
         didSet { UserDefaults.standard.set(localeID, forKey: "localeID") }
     }
+    /// The language captions and summaries are written in (see `CaptionLanguage`).
+    @Published var captionLanguageID: String {
+        didSet { UserDefaults.standard.set(captionLanguageID, forKey: "captionLanguage") }
+    }
     @Published var model: String {
         didSet { UserDefaults.standard.set(model, forKey: "openaiModel") }
     }
@@ -108,7 +112,6 @@ final class CaptionModel: ObservableObject {
     private var localFinal: TranslationSession?
     private var isTranslatingVolatile = false
     private var volatileGeneration = 0
-    static let targetLanguage = Locale.Language(identifier: "pt-BR")
     private var transcriptURL: URL?
     private var transcriptTitle = ""
 
@@ -118,6 +121,7 @@ final class CaptionModel: ObservableObject {
 
     init() {
         localeID = UserDefaults.standard.string(forKey: "localeID") ?? "en_US"
+        captionLanguageID = UserDefaults.standard.string(forKey: "captionLanguage") ?? CaptionLanguage.preferred().id
         model = UserDefaults.standard.string(forKey: "openaiModel") ?? "gpt-4o-mini"
         summaryModel = UserDefaults.standard.string(forKey: "summaryModel") ?? GPTModel.catalog[0].id
         apiKey = Keychain.loadAPIKey()
@@ -174,8 +178,18 @@ final class CaptionModel: ObservableObject {
         (Locale(identifier: localeID).language.languageCode?.identifier ?? "").uppercased()
     }
 
-    /// A meeting in Portuguese needs no translation: the caption is the transcription itself.
-    private var translates: Bool { !localeID.hasPrefix("pt") }
+    var captionLanguage: CaptionLanguage { CaptionLanguage.with(id: captionLanguageID) }
+
+    /// The languages at a glance: "EN → PT", or just "PT" when the caption needs no translation.
+    var languagePair: String {
+        translates ? "\(languageCode) → \(captionLanguage.code.uppercased())" : languageCode
+    }
+
+    /// A meeting already in the caption language needs no translation: the caption is the
+    /// transcription itself.
+    var translates: Bool {
+        Locale(identifier: localeID).language.languageCode?.identifier != captionLanguage.code
+    }
 
     func saveAPIKey(_ key: String) {
         apiKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -393,9 +407,10 @@ final class CaptionModel: ObservableObject {
 
         let translator = Translator(apiKey: apiKey, model: model, glossary: glossary)
         let language = Locale(identifier: "en").localizedString(forIdentifier: localeID) ?? localeID
+        let target = captionLanguage.englishName
         Task {
             do {
-                let result = try await translator.translate(trimmed, from: language, context: context)
+                let result = try await translator.translate(trimmed, from: language, to: target, context: context)
                 let elapsed = recordUsage(result, model: translator.model, since: finalizedAt)
                 SessionLog.write("GPT \(elapsed)ms in=\(result.inputTokens) out=\(result.outputTokens) \(result.text)")
                 setTranslation(result.text, for: id, refined: true)
@@ -458,13 +473,14 @@ final class CaptionModel: ObservableObject {
             .joined(separator: "\n")
         let translator = Translator(apiKey: apiKey, model: summaryModel, glossary: glossary)
         let destination = summaryURL
+        let language = captionLanguage
         Task {
             defer { isSummarizing = false }
             let startedAt = Date()
             do {
-                let (text, calls) = try await translator.summarize(transcript, language: "Brazilian Portuguese")
+                let (text, calls) = try await translator.summarize(transcript, language: language.englishName)
                 for call in calls { recordUsage(call, model: translator.model, since: startedAt) }
-                summary = MeetingSummary.parse(text)
+                summary = MeetingSummary.parse(text, language: language.code)
                 soundCues.play(.summaryReady)
                 if let destination, let markdown = summaryMarkdown {
                     try? markdown.write(to: destination, atomically: true, encoding: .utf8)
@@ -508,7 +524,8 @@ final class CaptionModel: ObservableObject {
     private func attachPunctuation(_ marks: String) {
         guard let index = segments.indices.last else { return }
         let endsWithPunctuation = { (text: String) in text.last.map { ".,;:!?…".contains($0) } ?? true }
-        // Without translation (meeting in Portuguese), the caption is the original itself: both change together.
+        // Without translation (meeting in the caption language), the caption is the original itself:
+        // both change together.
         let sameText = segments[index].translation == segments[index].original
         if !endsWithPunctuation(segments[index].original) {
             segments[index].original += marks
@@ -565,12 +582,13 @@ final class CaptionModel: ObservableObject {
         localPartial = nil
         localFinal = nil
         let source = Locale(identifier: localeID).language
-        switch await LanguageAvailability().status(from: source, to: Self.targetLanguage) {
+        let target = captionLanguage.language
+        switch await LanguageAvailability().status(from: source, to: target) {
         case .installed:
             makeLocalSessions(from: source)
         case .supported:
             status = "Confirme o download do idioma na janela da Apple para ativar a tradução instantânea."
-            var download = TranslationSession.Configuration(source: source, target: Self.targetLanguage)
+            var download = TranslationSession.Configuration(source: source, target: target)
             if translationDownload == download {
                 download = translationDownload ?? download
                 download.invalidate()
@@ -578,7 +596,7 @@ final class CaptionModel: ObservableObject {
             translationDownload = download
         default:
             if !gptEnabled {
-                status = "A Apple não traduz este idioma para português e o GPT está desligado: só o original aparece."
+                status = "A Apple não traduz do idioma da reunião para o \(captionLanguage.name.lowercased()) e o GPT está desligado: só o original aparece."
             }
         }
     }
@@ -596,8 +614,8 @@ final class CaptionModel: ObservableObject {
     }
 
     private func makeLocalSessions(from source: Locale.Language) {
-        localPartial = TranslationSession(installedSource: source, target: Self.targetLanguage)
-        localFinal = TranslationSession(installedSource: source, target: Self.targetLanguage)
+        localPartial = TranslationSession(installedSource: source, target: captionLanguage.language)
+        localFinal = TranslationSession(installedSource: source, target: captionLanguage.language)
     }
 
     func openTranscriptsFolder() {

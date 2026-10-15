@@ -181,7 +181,7 @@ private struct WelcomePage: View {
     @State private var shown = false
 
     private let features: [(symbol: String, title: String, text: String)] = [
-        ("captions.bubble", "Legenda ao vivo", "Reuniões, aulas e vídeos em inglês ou espanhol viram legenda em português enquanto as pessoas falam."),
+        ("captions.bubble", "Legenda ao vivo", "Reuniões, aulas e vídeos em outro idioma viram legenda em português, inglês ou espanhol enquanto as pessoas falam."),
         ("lock.laptopcomputer", "Grátis e privado", "A Apple transcreve e traduz no próprio Mac. O áudio nunca sai do seu computador."),
         ("sparkles", "Resumo com IA", "No fim, um resumo do que foi conversado, feito pelo GPT com a sua chave da OpenAI."),
     ]
@@ -311,45 +311,54 @@ private struct LanguagePage: View {
     var body: some View {
         PageLayout(
             symbol: "globe",
-            title: "Em que idioma vão falar?",
-            text: "A legenda sai sempre em português. A Mara já baixa o que o Mac precisa para esse idioma, e nada fica esperando na primeira reunião."
+            title: "Quais idiomas?",
+            text: "Em que idioma vão falar e em qual você quer ler a legenda. A Mara já baixa o que o Mac precisa, e nada fica esperando na primeira reunião."
         ) {
             VStack(spacing: 14) {
-                VStack(spacing: 6) {
-                    ForEach(model.locales, id: \.identifier) { locale in
-                        let selected = locale.identifier == model.localeID
-                        Button {
-                            model.localeID = locale.identifier
-                        } label: {
-                            HStack {
-                                Text(model.displayName(locale))
-                                    .font(.system(size: 13.5, weight: selected ? .semibold : .regular))
-                                Spacer()
-                                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(selected ? Theme.accent : Theme.paper.opacity(0.25))
+                VStack(spacing: 12) {
+                    row("Falam em") {
+                        Picker("Falam em", selection: $model.localeID) {
+                            ForEach(model.locales, id: \.identifier) { locale in
+                                Text(CaptionLanguage.matching(locale)?.name ?? model.displayName(locale)).tag(locale.identifier)
                             }
-                            .padding(.horizontal, 14)
-                            .frame(height: 38)
-                            .background(Theme.paper.opacity(selected ? 0.08 : 0.04), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .strokeBorder(selected ? Theme.accent : Theme.paper.opacity(0.08), lineWidth: selected ? 1.5 : 1)
-                            )
-                            .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityAddTraits(selected ? .isSelected : [])
+                    }
+                    Divider().overlay(Theme.paper.opacity(0.08))
+                    row("Legenda em") {
+                        Picker("Legenda em", selection: $model.captionLanguageID) {
+                            ForEach(CaptionLanguage.all) { language in
+                                Text(language.name).tag(language.id)
+                            }
+                        }
                     }
                 }
+                .padding(14)
+                .background(Theme.paper.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .disabled(model.isRunning || model.isStarting)
-                PreparationStatus(preparation: preparation, retry: { preparation.prepare(localeID: model.localeID) })
+                PreparationStatus(preparation: preparation, retry: prepare)
             }
         }
-        .onAppear { preparation.prepare(localeID: model.localeID) }
-        .onChange(of: model.localeID) { _, id in preparation.prepare(localeID: id) }
+        .onAppear(perform: prepare)
+        .onChange(of: model.localeID) { prepare() }
+        .onChange(of: model.captionLanguageID) { prepare() }
         .translationTask(preparation.translationDownload) { session in
             await preparation.finishTranslation(with: session)
         }
+    }
+
+    private func row<Content: View>(_ title: String, @ViewBuilder picker: () -> Content) -> some View {
+        HStack(spacing: 12) {
+            Text(title)
+                .font(.system(size: 13.5, weight: .medium))
+                .frame(width: 84, alignment: .leading)
+            picker()
+                .pickerStyle(.segmented)
+                .labelsHidden()
+        }
+    }
+
+    private func prepare() {
+        preparation.prepare(localeID: model.localeID, caption: model.captionLanguage)
     }
 }
 
@@ -511,7 +520,7 @@ private struct PageDots: View {
 // MARK: Language preparation
 
 /// Downloads, ahead of the first meeting, the speech model for the meeting language and Apple's
-/// translation from it into Portuguese.
+/// translation from it into the caption language.
 @MainActor
 final class LanguagePreparation: ObservableObject {
     enum State: Equatable {
@@ -528,14 +537,15 @@ final class LanguagePreparation: ObservableObject {
     private var task: Task<Void, Never>?
     private var readyText = ""
 
-    func prepare(localeID: String) {
+    func prepare(localeID: String, caption: CaptionLanguage) {
         task?.cancel()
         translationDownload = nil
         state = .checking
         let locale = Locale(identifier: localeID)
-        readyText = localeID.hasPrefix("pt")
-            ? "Pronto para legendar reuniões em português."
-            : "Pronto: fala e tradução para português, no próprio Mac."
+        let translates = CaptionLanguage.matching(locale) != caption
+        readyText = translates
+            ? "Pronto: fala e tradução para o \(caption.name.lowercased()), no próprio Mac."
+            : "Pronto: a legenda é a própria transcrição, sem tradução."
         task = Task {
             do {
                 if let request = try await TranscriptionSession.modelDownload(for: locale) {
@@ -550,12 +560,12 @@ final class LanguagePreparation: ObservableObject {
                     try await request.downloadAndInstall()
                 }
                 guard !Task.isCancelled else { return }
-                guard !localeID.hasPrefix("pt") else {
+                guard translates else {
                     state = .ready(readyText)
                     return
                 }
                 let source = locale.language
-                let availability = await LanguageAvailability().status(from: source, to: CaptionModel.targetLanguage)
+                let availability = await LanguageAvailability().status(from: source, to: caption.language)
                 // Another language may have been picked meanwhile; its own preparation reports.
                 guard !Task.isCancelled else { return }
                 switch availability {
@@ -563,9 +573,9 @@ final class LanguagePreparation: ObservableObject {
                     state = .ready(readyText)
                 case .supported:
                     state = .translating
-                    translationDownload = TranslationSession.Configuration(source: source, target: CaptionModel.targetLanguage)
+                    translationDownload = TranslationSession.Configuration(source: source, target: caption.language)
                 default:
-                    state = .ready("A fala está pronta. A Apple não traduz esse idioma no Mac; a tradução vem do GPT.")
+                    state = .ready("A fala está pronta. A Apple não traduz entre esses idiomas no Mac; a tradução vem do GPT.")
                 }
             } catch {
                 guard !Task.isCancelled else { return }

@@ -57,6 +57,22 @@ struct MeetingSummaryTests {
         #expect(!markdown.contains("Perguntas em aberto"))
     }
 
+    @Test func labelsFollowTheSummarysLanguage() {
+        let raw = """
+        {"kind": "presentation", "title": "", "overview": "A talk on small teams.",
+         "topics": [{"title": "Shipping", "summary": "Every week."}], "decisions": [],
+         "key_points": ["Ship small."], "open_questions": []}
+        """
+        let summary = MeetingSummary.parse(raw, language: "en")
+
+        #expect(summary.title == "Meeting summary")
+        #expect(summary.kindLabel == "Presentation")
+        let markdown = summary.markdown()
+        #expect(markdown.contains("## Topics"))
+        #expect(markdown.contains("## Key points\n\n- Ship small."))
+        #expect(MeetingSummary.parse("not json", language: "es").title == "Resumen de la reunión")
+    }
+
     @Test func splitsLongTranscriptsOnLineBreaks() {
         let lines = (1...10).map { "[10:\($0)] " + String(repeating: "word ", count: 20) }
         let transcript = lines.joined(separator: "\n")

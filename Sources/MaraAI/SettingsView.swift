@@ -175,13 +175,23 @@ private struct TranslationSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SettingsCard("Idioma da reunião", hint: "O idioma que as pessoas vão falar. A legenda sai sempre em português.") {
-                Picker("Idioma", selection: $model.localeID) {
-                    ForEach(model.locales, id: \.identifier) { locale in
-                        Text(model.displayName(locale)).tag(locale.identifier)
+            SettingsCard("Idiomas", hint: "Quando a reunião já é no idioma da legenda, a legenda é a própria transcrição, sem tradução. O resumo sai no idioma da legenda.") {
+                VStack(spacing: 8) {
+                    languageRow("Reunião em") {
+                        Picker("Reunião em", selection: $model.localeID) {
+                            ForEach(model.locales, id: \.identifier) { locale in
+                                Text(model.displayName(locale)).tag(locale.identifier)
+                            }
+                        }
+                    }
+                    languageRow("Legenda em") {
+                        Picker("Legenda em", selection: $model.captionLanguageID) {
+                            ForEach(CaptionLanguage.all) { language in
+                                Text(language.name).tag(language.id)
+                            }
+                        }
                     }
                 }
-                .labelsHidden()
                 .disabled(model.isRunning)
             }
 
@@ -231,6 +241,17 @@ private struct TranslationSettings: View {
                     }
                 }
             }
+        }
+    }
+
+    private func languageRow<Content: View>(_ title: String, @ViewBuilder picker: () -> Content) -> some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 12.5))
+            Spacer()
+            picker()
+                .labelsHidden()
+                .fixedSize()
         }
     }
 
