@@ -74,7 +74,7 @@ const ART = {
       ))}
     </>
   ),
-  // The original speech on top and the translated caption below, with the voice reading it aloud.
+  // The original speech on top and the translated caption below.
   translation: (
     <>
       <rect x="26" y="10" width="88" height="24" rx="6" {...stroke} />
@@ -82,8 +82,6 @@ const ART = {
       <path d="M70 39v8m-4-4 4 4 4-4" {...accent} className="art-bob" />
       <rect x="26" y="52" width="88" height="24" rx="6" {...tinted} />
       <path d="M36 64h56" {...accent} className="art-draw" />
-      <path d="M120 58a8 8 0 0 1 0 12" {...accent} className="art-ripple" />
-      <path d="M126 53a15 15 0 0 1 0 22" {...accent} className="art-ripple" style={{ animationDelay: "0.18s" }} />
     </>
   ),
   // An on/off switch with the GPT sparkle next to it.
