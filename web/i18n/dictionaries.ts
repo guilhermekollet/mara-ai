@@ -51,7 +51,9 @@ const en = {
     label: "Mara's captions window: a meeting in Spanish, captioned in English word by word",
     // The jump-to-latest button's label in the captions window.
     jump: "New captions",
-    // What the hero demo hears and captions, in order.
+    // The badge the captions window shows on standby, after a stretch without audio (as in the app).
+    standby: "On hold",
+    // What the hero demo hears and captions, in order; the last one comes after the standby.
     phrases: [
       { source: "Creo que el plazo de entrega es realista para nuestro equipo.", target: "I think the delivery timeline is realistic for our team." },
       { source: "¿Puedes enviar la propuesta revisada antes del jueves?", target: "Can you send the revised proposal by Thursday?" },
@@ -60,6 +62,7 @@ const en = {
       { source: "Y revisamos los números del trimestre al final.", target: "And we'll go over the quarter's numbers at the end." },
       { source: "Lucía, ¿puedes compartir la presentación en el chat?", target: "Lucía, can you share the slides in the chat?" },
       { source: "Claro, la comparto ahora mismo.", target: "Sure, I'll share it right now." },
+      { source: "Perdón, estaba en silencio. ¿Dónde nos quedamos?", target: "Sorry, I was on mute. Where were we?" },
     ],
     // The still caption in the "incremental translation" band: a confirmed line, a line still
     // forming word by word, and the speech it comes from.
@@ -244,7 +247,9 @@ const pt: Dictionary = {
     label: "Janela de legendas da Mara: uma reunião em inglês legendada em português, palavra a palavra",
     // The jump-to-latest button's label in the captions window.
     jump: "Falas novas",
-    // What the hero demo hears and captions, in order.
+    // The badge the captions window shows on standby, after a stretch without audio (as in the app).
+    standby: "Em espera",
+    // What the hero demo hears and captions, in order; the last one comes after the standby.
     phrases: [
       { source: "I think the delivery timeline is realistic for our team.", target: "Acho que o prazo de entrega é realista para o nosso time." },
       { source: "Can you send the revised proposal by Thursday?", target: "Você pode enviar a proposta revisada até quinta-feira?" },
@@ -253,6 +258,7 @@ const pt: Dictionary = {
       { source: "And we'll go over the quarter's numbers at the end.", target: "E no final revisamos os números do trimestre." },
       { source: "Lucía, can you share the slides in the chat?", target: "Lucía, você pode compartilhar os slides no chat?" },
       { source: "Sure, I'll share it right now.", target: "Claro, vou compartilhar agora mesmo." },
+      { source: "Sorry, I was on mute. Where were we?", target: "Desculpem, eu estava no mudo. Onde a gente parou?" },
     ],
     band: {
       final: "Podemos revisar o contrato na quinta-feira.",
@@ -433,7 +439,9 @@ const es: Dictionary = {
     label: "Ventana de subtítulos de Mara: una reunión en inglés subtitulada en español, palabra por palabra",
     // The jump-to-latest button's label in the captions window.
     jump: "Nuevas frases",
-    // What the hero demo hears and captions, in order.
+    // The badge the captions window shows on standby, after a stretch without audio (as in the app).
+    standby: "En espera",
+    // What the hero demo hears and captions, in order; the last one comes after the standby.
     phrases: [
       { source: "I think the delivery timeline is realistic for our team.", target: "Creo que el plazo de entrega es realista para nuestro equipo." },
       { source: "Can you send the revised proposal by Thursday?", target: "¿Puedes enviar la propuesta revisada antes del jueves?" },
@@ -442,6 +450,7 @@ const es: Dictionary = {
       { source: "And we'll go over the quarter's numbers at the end.", target: "Y al final revisamos los números del trimestre." },
       { source: "Lucía, can you share the slides in the chat?", target: "Lucía, ¿puedes compartir las diapositivas en el chat?" },
       { source: "Sure, I'll share it right now.", target: "Claro, las comparto ahora mismo." },
+      { source: "Sorry, I was on mute. Where were we?", target: "Perdón, estaba en silencio. ¿Dónde nos quedamos?" },
     ],
     band: {
       final: "Podemos revisar el contrato el jueves.",
