@@ -10,10 +10,14 @@ struct MenuBarPanel: View {
     /// …and fade in and out on their own, so the menu bar window never resizes during an animation
     /// (animated window resizing has crashed AppKit on macOS 26; see SettingsView).
     @State private var detailsShown = false
+    @AppStorage(Onboarding.doneKey) private var onboardingDone = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
+            if !onboardingDone && !model.isRunning {
+                setupCard
+            }
             if model.isRunning || !model.segments.isEmpty || !model.status.isEmpty {
                 liveCard
             }
@@ -64,6 +68,22 @@ struct MenuBarPanel: View {
             .buttonStyle(PillButtonStyle(prominent: !model.isRunning))
             .disabled(model.isStarting)
         }
+    }
+
+    /// Shown until the introduction is finished, to pick it up where it stopped.
+    private var setupCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Termine a configuração")
+                .font(.system(size: 13, weight: .semibold))
+            Text("Falta pouco: a permissão de áudio e o idioma da reunião.")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.muted)
+            Button("Continuar") { open(onboardingWindowID) }
+                .buttonStyle(PillButtonStyle())
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.accent.opacity(0.1), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     /// The latest utterance, to follow the meeting without opening the captions window.

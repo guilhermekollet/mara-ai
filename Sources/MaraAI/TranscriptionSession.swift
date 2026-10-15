@@ -12,6 +12,21 @@ final class TranscriptionSession {
         await SpeechTranscriber.supportedLocales
     }
 
+    /// The download that installs the speech model for `locale`, or nil when it is already on the
+    /// Mac. The introduction uses it to fetch the model before the first meeting.
+    static func modelDownload(for locale: Locale) async throws -> AssetInstallationRequest? {
+        guard let supported = await SpeechTranscriber.supportedLocale(equivalentTo: locale) else {
+            throw AppError.message("O Apple Speech não transcreve o idioma \(locale.identifier).")
+        }
+        let transcriber = SpeechTranscriber(
+            locale: supported,
+            transcriptionOptions: [],
+            reportingOptions: [.volatileResults, .fastResults],
+            attributeOptions: []
+        )
+        return try await AssetInventory.assetInstallationRequest(supporting: [transcriber])
+    }
+
     func start(
         locale: Locale,
         vocabulary: [String],

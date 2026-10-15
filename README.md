@@ -55,6 +55,8 @@ ends, it summarizes the conversation with AI, using your own OpenAI key.
 - Its own model setting (GPT-6 Luna by default). Long meetings are summarized in parts.
 
 **Everyday details**
+- A short introduction on first launch: the audio permission, the meeting language downloaded
+  ahead of time and, if you want summaries, your OpenAI key.
 - Global shortcuts: <kbd>⌃⌥S</kbd> start/stop, <kbd>⌃⌥L</kbd> show/hide captions.
 - A usage ledger with every GPT call and its estimated cost.
 - Transcripts (plain text) and summaries (Markdown) saved in `~/Documents/Mara AI`.
@@ -89,9 +91,12 @@ open "build/Mara AI.app"
 
 ### First run
 
-1. Mara lives in the menu bar (the dotted "M"). Click it and press **Iniciar**.
-2. Allow **Screen & System Audio Recording** when macOS asks, then quit and reopen Mara once.
-3. Pick the meeting language with the globe icon and start a call.
+1. A short introduction opens. It asks for **Screen & System Audio Recording** (macOS then needs
+   Mara reopened once, which the introduction does for you), downloads the speech model and
+   Apple's translation for the meeting language, and takes your OpenAI key if you want summaries.
+2. Mara lives in the menu bar (the dotted "M"). Click it and press **Iniciar**, or use ⌃⌥S.
+
+You can see the introduction again in **Ajustes › Atalhos**.
 
 ### Signing
 
@@ -111,7 +116,7 @@ Everything lives in **Ajustes** (Settings), opened from the menu bar panel:
 | Aparência | Caption size and background opacity, standby and auto-stop timers, sound cues |
 | Consumo | GPT usage per session, day, month and in total |
 | Glossário | Names and terms the team uses |
-| Atalhos | Turn the global shortcuts on or off |
+| Atalhos | Turn the global shortcuts on or off, see the introduction again |
 
 API keys are stored in the macOS Keychain, never in files.
 
@@ -187,6 +192,7 @@ Sources/MaraAI/
   SummaryView.swift          Summary window
   MenuBarPanel.swift         Menu bar panel
   SettingsView.swift         Settings window
+  OnboardingView.swift       First-launch introduction: permission, language download, OpenAI key
   …                          Theme, icons, animated captions, sound bars, hot keys, usage ledger
 Tests/MaraAITests/           Swift Testing suite
 scripts/                     Icon generation, signing certificate, test runner, release packaging

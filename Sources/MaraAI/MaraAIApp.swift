@@ -34,6 +34,12 @@ struct MaraAIApp: App {
         }
         .windowResizability(.contentSize)
 
+        Window("Boas-vindas à Mara", id: onboardingWindowID) {
+            OnboardingView().environmentObject(model)
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
+
         MenuBarExtra {
             MenuBarPanel().environmentObject(model)
         } label: {
@@ -68,17 +74,24 @@ func present(_ id: String, using openWindow: OpenWindowAction) {
 }
 
 /// Menu bar icon. Since it is always alive, it is the one that hands the model the action that
-/// opens the captions window, used by the global shortcuts.
+/// opens the captions window, used by the global shortcuts, and that opens the introduction on
+/// first launch.
 struct MenuBarLabel: View {
     @EnvironmentObject private var model: CaptionModel
     @ObservedObject var animator: MenuBarAnimator
     @Environment(\.openWindow) private var openWindow
+    /// The introduction opens once per launch, even if the menu bar redraws the icon.
+    @State private var offeredIntroduction = false
 
     var body: some View {
         // When stopped, the icon is static; while listening, a shimmer wave runs across the dots of the "M".
         Image(nsImage: animator.image)
             .onAppear {
                 model.openCaptions = { openWindow(id: captionsWindowID) }
+                if !Onboarding.isDone && !offeredIntroduction {
+                    offeredIntroduction = true
+                    DispatchQueue.main.async { present(onboardingWindowID, using: openWindow) }
+                }
             }
     }
 }

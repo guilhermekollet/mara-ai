@@ -258,7 +258,6 @@ private struct TranslationSettings: View {
 
 private struct SummarySettings: View {
     @EnvironmentObject private var model: CaptionModel
-    @State private var keyDraft = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -273,32 +272,9 @@ private struct SummarySettings: View {
             }
 
             SettingsCard("Chave da OpenAI", hint: "Fica guardada no Keychain do macOS. Só o texto transcrito é enviado; o áudio nunca sai do Mac.") {
-                HStack(spacing: 8) {
-                    SecureField("sk-…", text: $keyDraft)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit(saveKey)
-                    if keyDraft != model.apiKey {
-                        Button("Salvar", action: saveKey)
-                            .buttonStyle(PillButtonStyle())
-                    }
-                }
-                HStack(spacing: 6) {
-                    Image(systemName: model.apiKey.isEmpty ? "exclamationmark.circle" : "checkmark.circle.fill")
-                        .foregroundStyle(model.apiKey.isEmpty ? Theme.muted : Theme.accent)
-                    Text(model.apiKey.isEmpty ? "Sem chave, a tradução fica só no Mac e não há resumo." : "Chave salva.")
-                        .foregroundStyle(Theme.muted)
-                    Spacer()
-                    Link("Criar uma chave", destination: URL(string: "https://platform.openai.com/api-keys")!)
-                }
-                .font(.system(size: 11.5))
+                OpenAIKeyField(missingHint: "Sem chave, a tradução fica só no Mac e não há resumo.")
             }
         }
-        .onAppear { keyDraft = model.apiKey }
-    }
-
-    private func saveKey() {
-        model.saveAPIKey(keyDraft)
-        keyDraft = model.apiKey
     }
 }
 
@@ -518,6 +494,7 @@ private struct GlossarySettings: View {
 
 private struct ShortcutSettings: View {
     @EnvironmentObject private var model: CaptionModel
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -527,22 +504,8 @@ private struct ShortcutSettings: View {
                     .controlSize(.small)
             }
             SettingsCard("Teclas") {
-                VStack(spacing: 0) {
-                    ForEach(HotKeys.all, id: \.id) { shortcut in
-                        HStack {
-                            Text(shortcut.title)
-                                .font(.system(size: 13))
-                            Spacer()
-                            Text(shortcut.keys)
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .background(Theme.paper.opacity(0.1), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                        }
-                        .padding(.vertical, 7)
-                        .opacity(model.hotKeysEnabled ? 1 : 0.4)
-                    }
-                }
+                ShortcutList()
+                    .opacity(model.hotKeysEnabled ? 1 : 0.4)
             }
             if !model.unavailableHotKeys.isEmpty {
                 Label(
@@ -552,11 +515,76 @@ private struct ShortcutSettings: View {
                 .font(.system(size: 11.5))
                 .foregroundStyle(.orange)
             }
+            SettingsCard("Introdução", hint: "A apresentação da primeira vez: a permissão de áudio, o idioma da reunião e a chave para o resumo.") {
+                Button("Ver a introdução") {
+                    UserDefaults.standard.set(0, forKey: Onboarding.stepKey)
+                    present(onboardingWindowID, using: openWindow)
+                }
+                .buttonStyle(PillButtonStyle(prominent: false))
+            }
         }
     }
 }
 
 // MARK: Components
+
+/// The OpenAI key, saved to the Keychain when submitted, with a link to create one. Used in
+/// Settings and in the introduction; `missingHint` says what happens without a key.
+struct OpenAIKeyField: View {
+    let missingHint: String
+    @EnvironmentObject private var model: CaptionModel
+    @State private var draft = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                SecureField("sk-…", text: $draft)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(save)
+                if draft != model.apiKey {
+                    Button("Salvar", action: save)
+                        .buttonStyle(PillButtonStyle())
+                }
+            }
+            HStack(spacing: 6) {
+                Image(systemName: model.apiKey.isEmpty ? "exclamationmark.circle" : "checkmark.circle.fill")
+                    .foregroundStyle(model.apiKey.isEmpty ? Theme.muted : Theme.accent)
+                Text(model.apiKey.isEmpty ? missingHint : "Chave salva no Keychain.")
+                    .foregroundStyle(Theme.muted)
+                Spacer()
+                Link("Criar uma chave", destination: URL(string: "https://platform.openai.com/api-keys")!)
+            }
+            .font(.system(size: 11.5))
+        }
+        .onAppear { draft = model.apiKey }
+    }
+
+    private func save() {
+        model.saveAPIKey(draft)
+        draft = model.apiKey
+    }
+}
+
+/// The global shortcuts, each with its keys in a key cap.
+struct ShortcutList: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(HotKeys.all, id: \.id) { shortcut in
+                HStack {
+                    Text(shortcut.title)
+                        .font(.system(size: 13))
+                    Spacer()
+                    Text(shortcut.keys)
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Theme.paper.opacity(0.1), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                .padding(.vertical, 7)
+            }
+        }
+    }
+}
 
 /// Block with a title, content and a short explanation underneath.
 private struct SettingsCard<Content: View>: View {

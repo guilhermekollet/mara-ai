@@ -49,16 +49,17 @@ enum Theme {
     }
 }
 
-/// Primary button: a lavender pill with dark text.
+/// Primary button: a lavender pill with dark text. `large` is the introduction's size.
 struct PillButtonStyle: ButtonStyle {
     var prominent = true
+    var large = false
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 12, weight: .medium))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 5)
+            .font(.system(size: large ? 13.5 : 12, weight: large ? .semibold : .medium))
+            .padding(.horizontal, large ? 20 : 12)
+            .padding(.vertical, large ? 8 : 5)
             .foregroundStyle(prominent ? Theme.ink : Theme.paper)
             .background(prominent ? Theme.accent : Theme.paper.opacity(0.12), in: Capsule())
             .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.4)
