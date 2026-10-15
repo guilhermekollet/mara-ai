@@ -136,23 +136,26 @@ export function CaptionWindowDemo({ copy }: { copy: Copy }) {
   }, []);
 
   // Plays at 30 fps from the still frame onwards, looping; pauses off screen and in background tabs.
-  // In development, ?frame=800 holds the scene on that frame, to review it.
+  // In development, ?frame=800 holds the scene on that frame and ?start=800 plays it from there, to
+  // review a moment without waiting for the loop to reach it.
   useEffect(() => {
     const element = stage.current;
-    const pinned = process.env.NODE_ENV === "development" ? new URLSearchParams(location.search).get("frame") : null;
-    if (pinned !== null) {
+    const review = process.env.NODE_ENV === "development" ? new URLSearchParams(location.search) : null;
+    const pinned = review?.get("frame");
+    if (pinned) {
       setFrame(Number(pinned) % LOOP);
       return;
     }
+    const first = Number(review?.get("start") ?? STILL) % LOOP;
     if (!element || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     let visible = true;
     const observer = new IntersectionObserver(([entry]) => {
       visible = entry.isIntersecting;
     });
     observer.observe(element);
-    let elapsed = (STILL / FPS) * 1000;
+    let elapsed = (first / FPS) * 1000;
     let previous = performance.now();
-    let shown = STILL;
+    let shown = first;
     let raf = requestAnimationFrame(function tick(now) {
       const delta = Math.min(now - previous, 100);
       previous = now;
