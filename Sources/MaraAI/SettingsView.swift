@@ -324,31 +324,19 @@ private struct AppearanceSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            // Live preview: shows how the caption looks over a meeting.
-            ZStack {
-                LinearGradient(colors: [Color(red: 0.91, green: 0.89, blue: 0.99), Color(red: 0.72, green: 0.64, blue: 0.97)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                VStack(spacing: 3) {
-                    Text(localized("Podemos revisar o contrato na quinta."))
-                        .foregroundStyle(Theme.paper)
-                    Text(localized("E acho que o prazo de entrega"))
-                        .foregroundStyle(Theme.accent)
-                }
-                .font(.system(size: model.fontSize, weight: .medium))
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(Theme.ink.opacity(model.opacity), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .padding(14)
-            }
-            .frame(height: 150)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            preview
 
             SettingsCard(localized("Tamanho da legenda")) {
                 sliderRow(value: $model.fontSize, range: 12...40, step: 1, label: "\(Int(model.fontSize)) pt")
             }
-            SettingsCard(localized("Opacidade do fundo"), hint: localized("Mais baixa deixa ver melhor o que está atrás da janela.")) {
-                sliderRow(value: $model.opacity, range: 0.2...1, step: 0.05, label: "\(Int(model.opacity * 100))%")
+            SettingsCard(
+                localized("Fundo da janela"),
+                hint: localized("Com pouca opacidade e sem desfoque, a reunião aparece nítida atrás da legenda; a sombra mantém o texto legível.")
+            ) {
+                labeledSlider(localized("Opacidade"), value: $model.opacity)
+                labeledSlider(localized("Desfoque"), value: $model.blur)
+                Toggle(localized("Sombra nas letras"), isOn: $model.textShadow)
+                    .font(.system(size: 12.5))
             }
             SettingsCard(
                 localized("Quando não há áudio"),
@@ -376,6 +364,48 @@ private struct AppearanceSettings: View {
         }
     }
 
+    /// The captions window over a video call, with this window's tint, blur and text shadow, so
+    /// each setting can be judged as it changes.
+    private var preview: some View {
+        let box = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        // The captions window as a strip over the lower part of the call, as it usually sits.
+        let window = EdgeInsets(top: 58, leading: 14, bottom: 12, trailing: 14)
+        return ZStack {
+            PreviewCall()
+            // The call blurred only inside the window, as its frosted glass does.
+            PreviewCall()
+                .blur(radius: 16 * model.blur)
+                .mask { box.padding(window) }
+            box.fill(Theme.ink.opacity(model.opacity))
+                .padding(window)
+            VStack(spacing: 3) {
+                Text(localized("Podemos revisar o contrato na quinta."))
+                    .foregroundStyle(Theme.paper)
+                Text(localized("E acho que o prazo de entrega"))
+                    .foregroundStyle(Theme.accent)
+            }
+            .font(.system(size: model.fontSize, weight: .medium))
+            .multilineTextAlignment(.center)
+            .lineLimit(2)
+            .minimumScaleFactor(0.5)
+            .modifier(CaptionShadow(on: model.textShadow))
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(window)
+        }
+        .frame(height: 170)
+        .clipShape(box)
+    }
+
+    private func labeledSlider(_ title: String, value: Binding<Double>) -> some View {
+        HStack(spacing: 10) {
+            Text(title)
+                .font(.system(size: 12.5))
+                .frame(width: 74, alignment: .leading)
+            sliderRow(value: value, range: 0...1, step: 0.05, label: "\(Int((value.wrappedValue * 100).rounded()))%")
+        }
+    }
+
     private func durationPicker(_ title: String, selection: Binding<Double>, options: [(Double, String)]) -> some View {
         HStack {
             Text(title)
@@ -399,6 +429,52 @@ private struct AppearanceSettings: View {
                 .foregroundStyle(Theme.muted)
                 .frame(width: 44, alignment: .trailing)
         }
+    }
+}
+
+/// What the appearance preview shows behind the captions window: a video call with four people,
+/// colorful enough for the tint and the blur to show.
+private struct PreviewCall: View {
+    private let tiles: [(background: Color, face: Color)] = [
+        (Color(red: 0.17, green: 0.24, blue: 0.40), Color(red: 0.96, green: 0.78, blue: 0.62)),
+        (Color(red: 0.36, green: 0.54, blue: 0.45), Color(red: 0.55, green: 0.38, blue: 0.27)),
+        (Color(red: 0.63, green: 0.32, blue: 0.18), Color(red: 0.98, green: 0.86, blue: 0.70)),
+        (Color(red: 0.24, green: 0.24, blue: 0.32), Color(red: 0.80, green: 0.62, blue: 0.48)),
+    ]
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(red: 0.91, green: 0.89, blue: 0.99), Color(red: 0.72, green: 0.64, blue: 0.97)],
+                startPoint: .topLeading, endPoint: .bottomTrailing
+            )
+            Grid(horizontalSpacing: 6, verticalSpacing: 6) {
+                ForEach(0..<2, id: \.self) { row in
+                    GridRow {
+                        ForEach(0..<2, id: \.self) { column in
+                            tile(tiles[row * 2 + column])
+                        }
+                    }
+                }
+            }
+            .padding(8)
+        }
+    }
+
+    private func tile(_ colors: (background: Color, face: Color)) -> some View {
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .fill(colors.background)
+            .overlay {
+                Circle()
+                    .fill(colors.face)
+                    .frame(width: 30, height: 30)
+            }
+            .overlay(alignment: .bottomLeading) {
+                Capsule()
+                    .fill(.white.opacity(0.75))
+                    .frame(width: 34, height: 6)
+                    .padding(6)
+            }
     }
 }
 

@@ -122,7 +122,7 @@ Everything lives in **Ajustes** (Settings), opened from the menu bar panel:
 | --- | --- |
 | Tradução | Meeting and caption languages, on-device only or Mac + GPT, GPT model |
 | Resumo | Summary model and the OpenAI key (also used by the GPT translation) |
-| Aparência | Caption size and background opacity, standby and auto-stop timers, sound cues |
+| Aparência | Caption size, the window's background (opacity, blur, text shadow), standby and auto-stop timers, sound cues |
 | Consumo | GPT usage per session, day, month and in total |
 | Glossário | Names and terms the team uses |
 | Geral | Automatic updates, your microphone, the global shortcuts, the introduction again |

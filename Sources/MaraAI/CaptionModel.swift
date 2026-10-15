@@ -110,8 +110,18 @@ final class CaptionModel: ObservableObject {
     @Published var fontSize: Double {
         didSet { UserDefaults.standard.set(fontSize, forKey: "fontSize") }
     }
+    /// The captions window's dark tint, from 0 (none) to 1 (solid).
     @Published var opacity: Double {
         didSet { UserDefaults.standard.set(opacity, forKey: "opacity") }
+    }
+    /// How much the desktop behind the captions window is blurred: 0 shows it sharp, 1 is the full
+    /// frosted glass.
+    @Published var blur: Double {
+        didSet { UserDefaults.standard.set(blur, forKey: "blur") }
+    }
+    /// A soft shadow under the caption text, so it stays readable over a see-through background.
+    @Published var textShadow: Bool {
+        didSet { UserDefaults.standard.set(textShadow, forKey: "textShadow") }
     }
 
     private var session: TranscriptionSession?
@@ -147,6 +157,8 @@ final class CaptionModel: ObservableObject {
         soundCuesEnabled = UserDefaults.standard.object(forKey: "soundCues") as? Bool ?? true
         fontSize = UserDefaults.standard.object(forKey: "fontSize") as? Double ?? 17
         opacity = UserDefaults.standard.object(forKey: "opacity") as? Double ?? 0.55
+        blur = UserDefaults.standard.object(forKey: "blur") as? Double ?? 1
+        textShadow = UserDefaults.standard.object(forKey: "textShadow") as? Bool ?? true
         // Without the permission (revoked in System Settings, say), it starts off.
         microphoneOn = UserDefaults.standard.bool(forKey: "microphoneOn") && MicrophonePermission.isGranted
         applyHotKeys()
