@@ -77,6 +77,10 @@ struct OnboardingView: View {
         .tint(Theme.accent)
         .preferredColorScheme(.dark)
         .onAppear { step = Step(rawValue: savedStep) ?? .welcome }
+        // "Ver a introdução" in Settings starts over even when this window is already open.
+        .onChange(of: savedStep) { _, saved in
+            if saved != step.rawValue { go(to: Step(rawValue: saved)) }
+        }
         .task { await model.loadLocales() }
     }
 
@@ -104,7 +108,7 @@ struct OnboardingView: View {
             Button(primaryTitle) {
                 step == .ready ? finish() : go(to: Step(rawValue: step.rawValue + 1))
             }
-            .buttonStyle(LargePillButtonStyle())
+            .buttonStyle(PillButtonStyle(large: true))
             .keyboardShortcut(.defaultAction)
         }
         .padding(.horizontal, 28)
@@ -131,7 +135,6 @@ struct OnboardingView: View {
 
     private func finish() {
         done = true
-        savedStep = 0
         dismissWindow(id: onboardingWindowID)
         model.showCaptions()
     }
@@ -228,24 +231,26 @@ private struct WelcomePage: View {
 /// The icon's dot-matrix "M", large, with its lavender dot; the dots pop in from left to right.
 private struct DotMark: View {
     let shown: Bool
-    private let glyph = ["x...x", "xx.xx", "x.x.x", "x...x", "x...x"]
+    /// The same 5 × 5 "M" as the menu bar icon (see `Theme.menuBarImage`).
+    private let dots = ["x...x", "xx.xx", "x.x.x", "x...x", "x...x"].map { $0.map { $0 == "x" } }
 
     var body: some View {
         VStack(spacing: 4.5) {
-            ForEach(0..<5, id: \.self) { row in
+            ForEach(dots.indices, id: \.self) { row in
                 HStack(spacing: 4.5) {
-                    ForEach(0..<5, id: \.self) { column in
-                        let on = Array(glyph[row])[column] == "x"
+                    ForEach(dots[row].indices, id: \.self) { column in
                         Circle()
                             .fill(row == 2 && column == 2 ? Theme.accent : Theme.paper)
                             .frame(width: 8.5, height: 8.5)
-                            .opacity(on ? (shown ? 1 : 0) : 0)
+                            .opacity(dots[row][column] && shown ? 1 : 0)
                             .scaleEffect(shown ? 1 : 0.3)
                             .animation(.spring(response: 0.42, dampingFraction: 0.62).delay(Double(column) * 0.05 + Double(row) * 0.02), value: shown)
                     }
                 }
             }
         }
+        .accessibilityElement()
+        .accessibilityLabel("Mara")
     }
 }
 
@@ -267,7 +272,7 @@ private struct PermissionPage: View {
                         asked = true
                         granted = ScreenAudioPermission.request()
                     }
-                    .buttonStyle(LargePillButtonStyle())
+                    .buttonStyle(PillButtonStyle(large: true))
                 } else {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Ative a Mara em Ajustes do Sistema › Privacidade e Segurança › Gravação de Tela e Áudio do Sistema. Depois, reabra a Mara para o macOS aplicar a permissão.")
@@ -333,6 +338,7 @@ private struct LanguagePage: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .accessibilityAddTraits(selected ? .isSelected : [])
                     }
                 }
                 .disabled(model.isRunning || model.isStarting)
@@ -393,42 +399,14 @@ private struct PreparationStatus: View {
 }
 
 private struct SummaryKeyPage: View {
-    @EnvironmentObject private var model: CaptionModel
-    @State private var keyDraft = ""
-
     var body: some View {
         PageLayout(
             symbol: "sparkles",
             title: "Resumo com IA",
             text: "Opcional. No fim da reunião, o GPT resume o que foi conversado, com a sua chave da OpenAI. Só o texto transcrito é enviado; o áudio, nunca."
         ) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) {
-                    SecureField("sk-…", text: $keyDraft)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit(save)
-                    if keyDraft != model.apiKey {
-                        Button("Salvar", action: save)
-                            .buttonStyle(PillButtonStyle())
-                    }
-                }
-                HStack(spacing: 6) {
-                    Image(systemName: model.apiKey.isEmpty ? "key" : "checkmark.circle.fill")
-                        .foregroundStyle(model.apiKey.isEmpty ? Theme.muted : Theme.accent)
-                    Text(model.apiKey.isEmpty ? "Fica no Keychain do macOS. Dá para adicionar depois, em Ajustes." : "Chave salva no Keychain.")
-                        .foregroundStyle(Theme.muted)
-                    Spacer()
-                    Link("Criar uma chave", destination: URL(string: "https://platform.openai.com/api-keys")!)
-                }
-                .font(.system(size: 12))
-            }
+            OpenAIKeyField(missingHint: "Fica no Keychain do macOS. Dá para adicionar depois, em Ajustes.")
         }
-        .onAppear { keyDraft = model.apiKey }
-    }
-
-    private func save() {
-        model.saveAPIKey(keyDraft)
-        keyDraft = model.apiKey
     }
 }
 
@@ -441,22 +419,8 @@ private struct ReadyPage: View {
         ) {
             VStack(spacing: 18) {
                 MenuBarPreview()
-                VStack(spacing: 0) {
-                    ForEach(HotKeys.all, id: \.id) { shortcut in
-                        HStack {
-                            Text(shortcut.title)
-                                .font(.system(size: 13))
-                            Spacer()
-                            Text(shortcut.keys)
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .background(Theme.paper.opacity(0.1), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                        }
-                        .padding(.vertical, 7)
-                    }
-                }
-                .padding(.horizontal, 14)
+                ShortcutList()
+                    .padding(.horizontal, 14)
                 .padding(.vertical, 4)
                 .background(Theme.paper.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
@@ -539,21 +503,8 @@ private struct PageDots: View {
             }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: current)
-    }
-}
-
-/// The introduction's main button: the app's lavender pill, a size up.
-private struct LargePillButtonStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var isEnabled
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 13.5, weight: .semibold))
-            .padding(.horizontal, 20)
-            .padding(.vertical, 8)
-            .foregroundStyle(Theme.ink)
-            .background(Theme.accent, in: Capsule())
-            .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.4)
+        .accessibilityElement()
+        .accessibilityLabel("Etapa \(current + 1) de \(count)")
     }
 }
 
@@ -604,7 +555,10 @@ final class LanguagePreparation: ObservableObject {
                     return
                 }
                 let source = locale.language
-                switch await LanguageAvailability().status(from: source, to: CaptionModel.targetLanguage) {
+                let availability = await LanguageAvailability().status(from: source, to: CaptionModel.targetLanguage)
+                // Another language may have been picked meanwhile; its own preparation reports.
+                guard !Task.isCancelled else { return }
+                switch availability {
                 case .installed:
                     state = .ready(readyText)
                 case .supported:

@@ -80,13 +80,16 @@ struct MenuBarLabel: View {
     @EnvironmentObject private var model: CaptionModel
     @ObservedObject var animator: MenuBarAnimator
     @Environment(\.openWindow) private var openWindow
+    /// The introduction opens once per launch, even if the menu bar redraws the icon.
+    @State private var offeredIntroduction = false
 
     var body: some View {
         // When stopped, the icon is static; while listening, a shimmer wave runs across the dots of the "M".
         Image(nsImage: animator.image)
             .onAppear {
                 model.openCaptions = { openWindow(id: captionsWindowID) }
-                if !Onboarding.isDone {
+                if !Onboarding.isDone && !offeredIntroduction {
+                    offeredIntroduction = true
                     DispatchQueue.main.async { present(onboardingWindowID, using: openWindow) }
                 }
             }

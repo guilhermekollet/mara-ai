@@ -55,6 +55,8 @@ ends, it summarizes the conversation with AI, using your own OpenAI key.
 - Its own model setting (GPT-6 Luna by default). Long meetings are summarized in parts.
 
 **Everyday details**
+- A short introduction on first launch: the audio permission, the meeting language downloaded
+  ahead of time and, if you want summaries, your OpenAI key.
 - Global shortcuts: <kbd>⌃⌥S</kbd> start/stop, <kbd>⌃⌥L</kbd> show/hide captions.
 - A usage ledger with every GPT call and its estimated cost.
 - Transcripts (plain text) and summaries (Markdown) saved in `~/Documents/Mara AI`.
@@ -114,7 +116,7 @@ Everything lives in **Ajustes** (Settings), opened from the menu bar panel:
 | Aparência | Caption size and background opacity, standby and auto-stop timers, sound cues |
 | Consumo | GPT usage per session, day, month and in total |
 | Glossário | Names and terms the team uses |
-| Atalhos | Turn the global shortcuts on or off |
+| Atalhos | Turn the global shortcuts on or off, see the introduction again |
 
 API keys are stored in the macOS Keychain, never in files.
 
