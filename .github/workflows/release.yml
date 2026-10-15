@@ -1,7 +1,9 @@
 name: Release
 
 # Pushing a version tag (v0.1.0, v0.2.0, ...) builds the app, packages it and publishes a GitHub
-# release with the zip and its checksum. The version in the app comes from the tag.
+# release with the zip, its checksum and the signature the in-app updater checks. The version in
+# the app comes from the tag. The app is signed with the project's self-signed certificate, so
+# macOS keeps the recording permission from one version to the next.
 on:
   push:
     tags: ["v*"]
@@ -18,14 +20,33 @@ jobs:
       - uses: actions/checkout@v7
       - name: Test
         run: swift test
+      - name: Import the signing certificate
+        env:
+          MARA_SIGNING_P12: ${{ secrets.MARA_SIGNING_P12 }}
+          MARA_SIGNING_P12_PASSWORD: ${{ secrets.MARA_SIGNING_P12_PASSWORD }}
+        # A throwaway keychain, unlocked for codesign and searched before the login keychain.
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          PASSWORD="$(openssl rand -hex 16)"
+          security create-keychain -p "$PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$PASSWORD" "$KEYCHAIN"
+          echo "$MARA_SIGNING_P12" | base64 --decode > "$RUNNER_TEMP/identity.p12"
+          security import "$RUNNER_TEMP/identity.p12" -k "$KEYCHAIN" -P "$MARA_SIGNING_P12_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/identity.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$PASSWORD" "$KEYCHAIN" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
       - name: Package
+        env:
+          MARA_SIGNING_IDENTITY: Mara AI Release Signing
+          MARA_UPDATE_PRIVATE_KEY: ${{ secrets.MARA_UPDATE_PRIVATE_KEY }}
         run: scripts/package-release.sh "${GITHUB_REF_NAME#v}"
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         # The install notes come first, then the notes GitHub generates from the merged PRs.
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/*.zip dist/*.sha256 \
+          gh release create "$GITHUB_REF_NAME" dist/*.zip dist/*.sha256 dist/*.sig \
             --title "Mara AI ${GITHUB_REF_NAME#v}" \
             --notes-file .github/release-notes.md \
             --generate-notes \

@@ -33,7 +33,7 @@ struct SettingsView: View {
         case appearance = "Aparência"
         case usage = "Consumo"
         case glossary = "Glossário"
-        case shortcuts = "Atalhos"
+        case general = "Geral"
         var id: String { rawValue }
 
         var symbol: String {
@@ -43,7 +43,7 @@ struct SettingsView: View {
             case .appearance: return "paintbrush"
             case .usage: return "chart.bar"
             case .glossary: return "text.book.closed"
-            case .shortcuts: return "keyboard"
+            case .general: return "gearshape"
             }
         }
     }
@@ -144,7 +144,7 @@ struct SettingsView: View {
             case .appearance: AppearanceSettings()
             case .usage: UsageSettings(ledger: model.usage)
             case .glossary: GlossarySettings()
-            case .shortcuts: ShortcutSettings()
+            case .general: GeneralSettings()
         }
     }
 }
@@ -513,12 +513,13 @@ private struct GlossarySettings: View {
 
 // MARK: Shortcuts
 
-private struct ShortcutSettings: View {
+private struct GeneralSettings: View {
     @EnvironmentObject private var model: CaptionModel
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            UpdateCard()
             SettingsCard("Atalhos globais", hint: "Funcionam com qualquer aplicativo em primeiro plano, sem tirar o foco da reunião.") {
                 Toggle("Ativar os atalhos de teclado", isOn: $model.hotKeysEnabled)
                     .toggleStyle(.switch)
@@ -543,6 +544,60 @@ private struct ShortcutSettings: View {
                 }
                 .buttonStyle(PillButtonStyle(prominent: false))
             }
+        }
+    }
+}
+
+/// Automatic updates: on or off, where they stand, and a way to check right away.
+private struct UpdateCard: View {
+    @ObservedObject private var updater = Updater.shared
+
+    var body: some View {
+        SettingsCard(
+            "Atualizações",
+            hint: "Uma vez por dia, a Mara procura uma versão nova no GitHub. Ela é baixada em segundo plano, conferida pela assinatura do projeto e instalada quando você fecha a Mara."
+        ) {
+            Toggle("Baixar e instalar atualizações automaticamente", isOn: $updater.automatic)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .disabled(!updater.isAvailable)
+                .onChange(of: updater.automatic) { _, on in
+                    if on { Task { await updater.check() } }
+                }
+            HStack(spacing: 8) {
+                Text(status)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Theme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 4)
+                Button("Verificar agora") { Task { await updater.check() } }
+                    .buttonStyle(PillButtonStyle(prominent: false))
+                    .disabled(!updater.isAvailable || busy)
+            }
+        }
+    }
+
+    private var busy: Bool {
+        switch updater.state {
+        case .checking, .downloading, .ready: return true
+        default: return false
+        }
+    }
+
+    private var status: String {
+        guard updater.isAvailable else {
+            return "As atualizações automáticas valem para o app baixado das releases."
+        }
+        let version = "Versão \(updater.currentVersion)"
+        switch updater.state {
+        case .idle: return "\(version)."
+        case .checking: return "Procurando atualizações…"
+        case .upToDate:
+            let when = updater.lastCheck.map { " Verificado \($0.formatted(.relative(presentation: .named)))." } ?? ""
+            return "\(version), a mais recente.\(when)"
+        case .downloading(let next): return "Baixando a versão \(next)…"
+        case .ready(let next, _): return "A versão \(next) instala quando você fechar a Mara."
+        case .failed(let message): return "Não foi possível atualizar: \(message)"
         }
     }
 }

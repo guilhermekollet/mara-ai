@@ -3,6 +3,7 @@
 // Foundation fails because the `_Testing_Foundation` overlay is missing. Test files import just
 // Testing and MaraAI and talk to these helpers through plain values.
 import AVFoundation
+import CryptoKit
 import Foundation
 @testable import MaraAI
 
@@ -33,4 +34,14 @@ func preferredCaptionLanguage(onMacIn localeID: String) -> String {
 /// The caption language that matches a meeting locale, if Mara captions in it.
 func captionLanguageCode(matching localeID: String) -> String? {
     CaptionLanguage.matching(Locale(identifier: localeID))?.code
+}
+
+/// Signs a sample with a fresh Ed25519 key, as scripts/sign-update.swift does, and checks it the
+/// way the updater does, optionally after changing one byte of the sample.
+func updateSignatureHolds(afterTampering tamper: Bool) -> Bool {
+    let key = Curve25519.Signing.PrivateKey()
+    var archive = Data("Mara AI.app".utf8)
+    let signature = try! key.signature(for: archive)
+    if tamper { archive[0] ^= 1 }
+    return Updater.isSigned(archive, signature: signature, publicKey: key.publicKey.rawRepresentation.base64EncodedString())
 }
