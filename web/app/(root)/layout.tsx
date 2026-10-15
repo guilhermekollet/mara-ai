@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   title: "Mara AI",
 };
 
-const redirectScript = `location.replace(${JSON.stringify(basePath)}+"/"+${detectLocaleExpression}+location.hash)`;
+const redirectScript = `location.replace(${JSON.stringify(basePath)}+"/"+${detectLocaleExpression}+"/"+location.hash)`;
 
 // The root URL only sends visitors to their language, so it has its own bare layout.
 export default function RootLayout({ children }: LayoutProps<"/">) {

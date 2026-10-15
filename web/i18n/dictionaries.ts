@@ -25,7 +25,7 @@ const en = {
   meta: {
     title: "Mara AI — Meetings in any language",
     description:
-      "Mara AI captions and translates your meetings in real time, right on your Mac, reads them aloud if you like, and summarizes them with AI using your own OpenAI key.",
+      "Mara AI captions and translates your meetings in real time, right on your Mac, and summarizes them with AI using your own OpenAI key.",
   },
   a11y: {
     sections: "Sections",
@@ -36,7 +36,6 @@ const en = {
     howItWorks: "How it works",
     modules: "Modules",
     summary: "Summary",
-    voice: "Voice",
     privacy: "Privacy",
     faq: "FAQ",
   },
@@ -93,7 +92,6 @@ const en = {
     title: "Built for developers",
     text: "From the English stand-up with the team abroad to the summary when the call ends: Mara follows the meeting from start to finish.",
     available: "Available",
-    new: "New",
     items: [
       {
         title: "Meetings in other languages",
@@ -104,11 +102,6 @@ const en = {
         title: "AI summaries",
         text: "When the call ends, GPT reads the transcript and sums up what was talked about, with your own OpenAI key.",
         points: ["Tells a conversation from a talk", "Overview and the topics discussed", "Saved as a file on your Mac"],
-      },
-      {
-        title: "Captions read aloud",
-        text: "Mara reads each translated caption aloud with a voice that runs on your Mac, so you can listen instead of reading.",
-        points: ["Neural voices on your Mac", "Follows each speaker's voice", "Free, offline after one download"],
       },
     ],
   },
@@ -148,34 +141,12 @@ const en = {
       open: "Open file",
     },
   },
-  voice: {
-    eyebrow: "Read aloud",
-    title: "Listen instead of reading.",
-    text: "If you'd rather not keep your eyes on the captions, Mara reads each translated sentence aloud with a neural voice that runs on your Mac: free, and with no internet after a one-time download. It starts off; you turn it on.",
-    points: [
-      { title: "The voice follows the speaker", text: "A deep voice is read with a male voice, a high one with a female voice, judged from the pitch on your Mac. You pick both voices for each language, plus the speed and volume." },
-      { title: "Right after the sentence", text: "Less than a second after each sentence ends. It never cuts a sentence off, skips the ones that went stale and speeds up a little when it falls behind." },
-      { title: "Never in your captions", text: "With speakers, your microphone pauses while Mara speaks, so her voice isn't transcribed as yours; with headphones it doesn't need to." },
-      { title: "One shortcut away", text: "⌃⌥V turns it on and off, and so does the speaker button in the captions window. The voices are in Settings › Translation." },
-    ],
-    // The captions window illustrated next to the copy, reading the latest caption aloud.
-    mock: {
-      label: "Reading aloud",
-      lines: [
-        { text: "Can you send the revised proposal by Thursday?", pitch: "Deep voice", voice: "Male voice" },
-        { text: "Sure, I'll share it right now.", pitch: "High voice", voice: "Female voice" },
-      ],
-      speed: "Speed",
-      volume: "Volume",
-      local: "On your Mac, offline",
-    },
-  },
   privacy: {
     title: "Your audio stays on your Mac.",
     text: "Mara was designed to work locally. The cloud is optional, and you see exactly how much you use.",
     items: [
       { title: "Local transcription", text: "Done by Apple's speech recognition, on the device." },
-      { title: "Local translation and voice", text: "Apple's translator produces the caption without using the internet, and the voice that reads it aloud runs on your Mac too." },
+      { title: "Local translation", text: "Apple's translator produces the caption without using the internet." },
       { title: "Optional GPT", text: "When on, only the transcribed text is sent. When off, nothing leaves your Mac." },
       { title: "Key in the Keychain", text: "Your OpenAI key lives in the macOS vault, never in a file." },
       { title: "Your files", text: "Transcripts and summaries are saved as files on your Mac." },
@@ -193,7 +164,7 @@ const en = {
       {
         question: "Do I need an OpenAI key?",
         answer:
-          "No. Apple's local translation works without a key and at no cost, and so does reading the captions aloud. The key is only needed for the AI summary and, if you want it, GPT refinement of each sentence.",
+          "No. Apple's local translation works without a key and at no cost. The key is only needed for the AI summary and, if you want it, GPT refinement of each sentence.",
       },
       {
         question: "Which languages are supported?",
@@ -204,11 +175,6 @@ const en = {
         question: "How does the summary work?",
         answer:
           "When the meeting ends you ask for the summary. The transcript goes to OpenAI with your key, and GPT works out whether it was a conversation between several people or a talk, then tells you what was said: an overview, the topics and the decisions. Nothing is sent unless you ask.",
-      },
-      {
-        question: "Can Mara read the captions aloud?",
-        answer:
-          "Yes, when you turn it on with ⌃⌥V, the speaker button in the captions window or Settings › Translation. It reads the captions while Mara is translating, that is, when the meeting is in a different language from the captions. The voices are neural and run on your Mac: Kokoro-82M reads English and Spanish, and Supertonic 3 reads Portuguese. The first time, Mara itself downloads them from Hugging Face (about 333 MB for English and Spanish, 400 MB for Portuguese); after that, it works with no internet and nothing is sent anywhere.",
       },
       {
         question: "Is Mara open source?",
@@ -252,7 +218,7 @@ const pt: Dictionary = {
   meta: {
     title: "Mara AI — Reuniões em qualquer idioma",
     description:
-      "Mara AI legenda e traduz suas reuniões em tempo real, direto no Mac, lê as legendas em voz alta se você quiser e resume a conversa com IA usando a sua chave da OpenAI.",
+      "Mara AI legenda e traduz suas reuniões em tempo real, direto no Mac, e resume a conversa com IA usando a sua chave da OpenAI.",
   },
   a11y: {
     sections: "Seções",
@@ -263,7 +229,6 @@ const pt: Dictionary = {
     howItWorks: "Como funciona",
     modules: "Módulos",
     summary: "Resumo",
-    voice: "Voz",
     privacy: "Privacidade",
     faq: "Perguntas",
   },
@@ -318,7 +283,6 @@ const pt: Dictionary = {
     title: "Feito para quem desenvolve",
     text: "Da daily em inglês com o time de fora ao resumo pronto quando a chamada termina: a Mara acompanha a reunião do começo ao fim.",
     available: "Disponível",
-    new: "Novo",
     items: [
       {
         title: "Reuniões em outros idiomas",
@@ -329,11 +293,6 @@ const pt: Dictionary = {
         title: "Resumo com IA",
         text: "Quando a chamada termina, o GPT lê a transcrição e resume o que foi conversado, com a sua chave da OpenAI.",
         points: ["Entende se foi conversa ou apresentação", "Visão geral e assuntos discutidos", "Salvo como arquivo no seu Mac"],
-      },
-      {
-        title: "Legendas em voz alta",
-        text: "A Mara lê cada legenda traduzida em voz alta, com uma voz que roda no seu Mac, para você ouvir em vez de ler.",
-        points: ["Vozes neurais no próprio Mac", "A voz acompanha quem fala", "Grátis e offline depois do download"],
       },
     ],
   },
@@ -373,34 +332,12 @@ const pt: Dictionary = {
       open: "Abrir arquivo",
     },
   },
-  voice: {
-    eyebrow: "Leitura em voz alta",
-    title: "Ouça em vez de ler.",
-    text: "Se você preferir não ficar de olho nas legendas, a Mara lê cada frase traduzida em voz alta, com uma voz neural que roda no seu Mac: grátis e sem internet depois de um único download. Vem desligada; você liga quando quiser.",
-    points: [
-      { title: "A voz acompanha quem fala", text: "Uma voz grave é lida com a voz masculina, uma aguda com a feminina, pelo tom estimado no próprio Mac. Você escolhe as duas vozes de cada idioma, a velocidade e o volume." },
-      { title: "Logo depois da frase", text: "Menos de um segundo depois que a frase termina. Nunca corta uma frase no meio, pula as que ficaram para trás e acelera um pouco quando atrasa." },
-      { title: "Fora das suas legendas", text: "Com alto-falantes, o seu microfone pausa enquanto a Mara fala, para a voz dela não ser transcrita como sua; com fone, não precisa." },
-      { title: "A um atalho de distância", text: "⌃⌥V liga e desliga, assim como o botão de alto-falante na janela de legendas. As vozes ficam em Ajustes › Tradução." },
-    ],
-    // The captions window illustrated next to the copy, reading the latest caption aloud.
-    mock: {
-      label: "Lendo em voz alta",
-      lines: [
-        { text: "Você pode enviar a proposta revisada até quinta-feira?", pitch: "Voz grave", voice: "Voz masculina" },
-        { text: "Claro, vou compartilhar agora mesmo.", pitch: "Voz aguda", voice: "Voz feminina" },
-      ],
-      speed: "Velocidade",
-      volume: "Volume",
-      local: "No seu Mac, sem internet",
-    },
-  },
   privacy: {
     title: "Seu áudio fica no seu Mac.",
     text: "A Mara foi desenhada para funcionar localmente. A nuvem é opcional, e você vê exatamente quanto usa.",
     items: [
       { title: "Transcrição local", text: "Feita pelo reconhecimento de fala da Apple, no aparelho." },
-      { title: "Tradução e voz locais", text: "O tradutor da Apple gera a legenda sem usar a internet, e a voz que a lê em voz alta também roda no seu Mac." },
+      { title: "Tradução local", text: "O tradutor da Apple gera a legenda sem usar a internet." },
       { title: "GPT opcional", text: "Ligado, só o texto transcrito é enviado. Desligado, nada sai do Mac." },
       { title: "Chave no Keychain", text: "Sua chave da OpenAI fica no cofre do macOS, nunca em arquivo." },
       { title: "Arquivos seus", text: "Transcrições e resumos ficam salvos como arquivos no seu Mac." },
@@ -418,7 +355,7 @@ const pt: Dictionary = {
       {
         question: "Preciso de uma chave da OpenAI?",
         answer:
-          "Não. A tradução local da Apple funciona sem chave e sem custo, assim como a leitura das legendas em voz alta. A chave só é necessária para o resumo com IA e, se você quiser, para o refinamento de cada frase pelo GPT.",
+          "Não. A tradução local da Apple funciona sem chave e sem custo. A chave só é necessária para o resumo com IA e, se você quiser, para o refinamento de cada frase pelo GPT.",
       },
       {
         question: "Quais idiomas são suportados?",
@@ -429,11 +366,6 @@ const pt: Dictionary = {
         question: "Como funciona o resumo?",
         answer:
           "Quando a reunião termina, você pede o resumo. A transcrição vai para a OpenAI com a sua chave, e o GPT identifica se foi uma conversa entre várias pessoas ou uma apresentação e conta o que foi falado: visão geral, assuntos e decisões. Nada é enviado sem você pedir.",
-      },
-      {
-        question: "A Mara lê as legendas em voz alta?",
-        answer:
-          "Sim, quando você liga com ⌃⌥V, o botão de alto-falante na janela de legendas ou Ajustes › Tradução. Ela lê as legendas enquanto está traduzindo, ou seja, quando a reunião é num idioma diferente do da legenda. As vozes são neurais e rodam no Mac: o Kokoro-82M lê inglês e espanhol, e o Supertonic 3 lê português. Na primeira vez, a própria Mara baixa as vozes do Hugging Face (cerca de 333 MB para inglês e espanhol, 400 MB para português); depois, funciona sem internet e nada é enviado.",
       },
       {
         question: "A Mara é de código aberto?",
@@ -475,7 +407,7 @@ const es: Dictionary = {
   meta: {
     title: "Mara AI — Reuniones en cualquier idioma",
     description:
-      "Mara AI subtitula y traduce tus reuniones en tiempo real, directamente en tu Mac, lee los subtítulos en voz alta si quieres y las resume con IA usando tu propia clave de OpenAI.",
+      "Mara AI subtitula y traduce tus reuniones en tiempo real, directamente en tu Mac, y las resume con IA usando tu propia clave de OpenAI.",
   },
   a11y: {
     sections: "Secciones",
@@ -486,7 +418,6 @@ const es: Dictionary = {
     howItWorks: "Cómo funciona",
     modules: "Módulos",
     summary: "Resumen",
-    voice: "Voz",
     privacy: "Privacidad",
     faq: "Preguntas",
   },
@@ -541,7 +472,6 @@ const es: Dictionary = {
     title: "Hecho para quienes desarrollan",
     text: "De la daily en inglés con el equipo de fuera al resumen listo cuando termina la llamada: Mara acompaña la reunión de principio a fin.",
     available: "Disponible",
-    new: "Nuevo",
     items: [
       {
         title: "Reuniones en otros idiomas",
@@ -552,11 +482,6 @@ const es: Dictionary = {
         title: "Resumen con IA",
         text: "Cuando termina la llamada, GPT lee la transcripción y resume de qué se habló, con tu propia clave de OpenAI.",
         points: ["Distingue una conversación de una charla", "Visión general y temas tratados", "Guardado como archivo en tu Mac"],
-      },
-      {
-        title: "Subtítulos en voz alta",
-        text: "Mara lee cada subtítulo traducido en voz alta, con una voz que funciona en tu Mac, para que escuches en lugar de leer.",
-        points: ["Voces neuronales en tu propio Mac", "La voz sigue a quien habla", "Gratis y sin conexión tras una descarga"],
       },
     ],
   },
@@ -596,34 +521,12 @@ const es: Dictionary = {
       open: "Abrir archivo",
     },
   },
-  voice: {
-    eyebrow: "Lectura en voz alta",
-    title: "Escucha en lugar de leer.",
-    text: "Si prefieres no estar pendiente de los subtítulos, Mara lee cada frase traducida en voz alta, con una voz neuronal que funciona en tu Mac: gratis y sin internet después de una única descarga. Viene desactivada; la activas cuando quieras.",
-    points: [
-      { title: "La voz sigue a quien habla", text: "Una voz grave se lee con la voz masculina y una aguda con la femenina, según el tono estimado en tu propio Mac. Eliges las dos voces de cada idioma, la velocidad y el volumen." },
-      { title: "Justo después de la frase", text: "Menos de un segundo después de que termina la frase. Nunca corta una frase a la mitad, salta las que quedaron atrás y acelera un poco cuando se retrasa." },
-      { title: "Fuera de tus subtítulos", text: "Con altavoces, tu micrófono se pausa mientras Mara habla, para que su voz no se transcriba como tuya; con auriculares no hace falta." },
-      { title: "A un atajo de distancia", text: "⌃⌥V la activa y desactiva, igual que el botón de altavoz en la ventana de subtítulos. Las voces están en Ajustes › Traducción." },
-    ],
-    // The captions window illustrated next to the copy, reading the latest caption aloud.
-    mock: {
-      label: "Leyendo en voz alta",
-      lines: [
-        { text: "¿Puedes enviar la propuesta revisada antes del jueves?", pitch: "Voz grave", voice: "Voz masculina" },
-        { text: "Claro, las comparto ahora mismo.", pitch: "Voz aguda", voice: "Voz femenina" },
-      ],
-      speed: "Velocidad",
-      volume: "Volumen",
-      local: "En tu Mac, sin internet",
-    },
-  },
   privacy: {
     title: "Tu audio se queda en tu Mac.",
     text: "Mara fue diseñada para funcionar localmente. La nube es opcional, y ves exactamente cuánto usas.",
     items: [
       { title: "Transcripción local", text: "La hace el reconocimiento de voz de Apple, en el dispositivo." },
-      { title: "Traducción y voz locales", text: "El traductor de Apple genera el subtítulo sin usar internet, y la voz que lo lee en voz alta también funciona en tu Mac." },
+      { title: "Traducción local", text: "El traductor de Apple genera el subtítulo sin usar internet." },
       { title: "GPT opcional", text: "Activado, solo se envía el texto transcrito. Desactivado, nada sale del Mac." },
       { title: "Clave en el Llavero", text: "Tu clave de OpenAI se guarda en la bóveda de macOS, nunca en un archivo." },
       { title: "Tus archivos", text: "Las transcripciones y los resúmenes se guardan como archivos en tu Mac." },
@@ -641,7 +544,7 @@ const es: Dictionary = {
       {
         question: "¿Necesito una clave de OpenAI?",
         answer:
-          "No. La traducción local de Apple funciona sin clave y sin costo, igual que la lectura de los subtítulos en voz alta. La clave solo es necesaria para el resumen con IA y, si quieres, para el refinamiento de cada frase con GPT.",
+          "No. La traducción local de Apple funciona sin clave y sin costo. La clave solo es necesaria para el resumen con IA y, si quieres, para el refinamiento de cada frase con GPT.",
       },
       {
         question: "¿Qué idiomas son compatibles?",
@@ -652,11 +555,6 @@ const es: Dictionary = {
         question: "¿Cómo funciona el resumen?",
         answer:
           "Cuando termina la reunión, pides el resumen. La transcripción va a OpenAI con tu clave, y GPT identifica si fue una conversación entre varias personas o una presentación y cuenta lo que se habló: visión general, temas y decisiones. No se envía nada sin que lo pidas.",
-      },
-      {
-        question: "¿Mara lee los subtítulos en voz alta?",
-        answer:
-          "Sí, cuando la activas con ⌃⌥V, el botón de altavoz en la ventana de subtítulos o Ajustes › Traducción. Lee los subtítulos mientras está traduciendo, es decir, cuando la reunión es en un idioma distinto al del subtítulo. Las voces son neuronales y funcionan en tu Mac: Kokoro-82M lee inglés y español, y Supertonic 3 lee portugués. La primera vez, la propia Mara descarga las voces de Hugging Face (unos 333 MB para inglés y español, 400 MB para portugués); después, funciona sin internet y no se envía nada.",
       },
       {
         question: "¿Mara es de código abierto?",

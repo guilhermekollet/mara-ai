@@ -22,16 +22,13 @@ const NAV: { href: string; key: keyof Dictionary["nav"] }[] = [
   { href: "#como-funciona", key: "howItWorks" },
   { href: "#modulos", key: "modules" },
   { href: "#resumo", key: "summary" },
-  { href: "#voz", key: "voice" },
   { href: "#privacidade", key: "privacy" },
   { href: "#faq", key: "faq" },
 ];
 
 // Illustrations, in the order of the matching items in the dictionary.
 const STEP_ART: PrivacyArtName[] = ["listen", "transcribe", "subtitle"];
-const MODULE_ICONS = ["captions", "summary", "voice"];
-// Modules that came out recently get a "New" badge instead of "Available".
-const NEW_MODULES = new Set(["voice"]);
+const MODULE_ICONS = ["captions", "summary"];
 const PRIVACY_ART: PrivacyArtName[] = ["transcription", "translation", "optional", "keychain", "files", "usage"];
 
 // Public repository address. While it is empty, the "Contribute" section shows no GitHub button.
@@ -71,13 +68,6 @@ function ModuleIcon({ name }: { name: string }) {
         <path d="M17 1.5v3M15.5 3h3" />
       </>
     ),
-    // A speaker with sound coming out of it: the captions read aloud.
-    voice: (
-      <>
-        <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" />
-        <path d="M15.5 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11" />
-      </>
-    ),
   };
   return (
     <svg
@@ -113,7 +103,6 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
   if (!hasLocale(lang)) notFound();
   const t = getDictionary(lang);
   const mock = t.summary.mock;
-  const voice = t.voice.mock;
 
   return (
     <>
@@ -181,22 +170,16 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
 
         <section id="modulos" className="mx-auto max-w-[1120px] px-6 py-16 md:py-24">
           <SectionHead title={t.modules.title} text={t.modules.text} />
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="mx-auto grid max-w-[880px] gap-4 md:grid-cols-2">
             {t.modules.items.map((module, index) => (
               <article key={module.title} data-reveal style={after(index * 90)} className={`${card} md:min-h-[250px]`}>
                 <div className="mb-5 flex items-center justify-between">
                   <span className="grid size-10 place-items-center rounded-xl bg-accent-soft text-(--accent-line)">
                     <ModuleIcon name={MODULE_ICONS[index]} />
                   </span>
-                  {NEW_MODULES.has(MODULE_ICONS[index]) ? (
-                    <span className="inline-block rounded-full bg-pill px-2.5 py-1 text-xs font-medium text-pill-fg">
-                      {t.modules.new}
-                    </span>
-                  ) : (
-                    <span className="inline-block rounded-full bg-accent px-2.5 py-1 text-xs font-medium text-ink-soft">
-                      {t.modules.available}
-                    </span>
-                  )}
+                  <span className="inline-block rounded-full bg-accent px-2.5 py-1 text-xs font-medium text-ink-soft">
+                    {t.modules.available}
+                  </span>
                 </div>
                 <h3 className="text-[19px] font-semibold tracking-tight">{module.title}</h3>
                 <p className="mt-2 text-fg/70">{module.text}</p>
@@ -300,89 +283,6 @@ export default async function Home({ params }: PageProps<"/[lang]">) {
                   </div>
                 ))}
               </dl>
-            </div>
-          </div>
-        </section>
-
-        <section id="voz" className="bg-mist px-6 py-16 md:py-24">
-          <div className="mx-auto grid max-w-[1120px] items-center gap-14 md:grid-cols-2">
-            <div data-reveal>
-              <p className="mb-5 text-sm font-medium text-fg/70">{t.voice.eyebrow}</p>
-              <h2 className={sectionTitle}>{t.voice.title}</h2>
-              <p className="mt-4 text-lg text-fg/70">{t.voice.text}</p>
-              <dl className="mt-7 grid gap-3.5">
-                {t.voice.points.map((point) => (
-                  <div key={point.title}>
-                    <dt className="font-semibold">{point.title}</dt>
-                    <dd className="mt-0.5 text-fg/70">{point.text}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-            {/* The captions window reading aloud: the last caption was read with a male voice, the one
-                being read now with a female voice, each picked from the speaker's pitch. */}
-            <div data-reveal style={after(120)} aria-hidden="true" className="rounded-[32px] bg-linear-160 from-stage-from to-stage-to p-5 sm:p-10">
-              <div className="rounded-2xl bg-ink/90 p-4 text-left shadow-[0_20px_50px_rgba(0,0,0,0.35)]">
-                <div className="flex items-center gap-2">
-                  {/* The speaker button in the control bar, lavender while Mara reads. */}
-                  <span className="grid size-[26px] place-items-center rounded-full bg-accent/15 text-accent">
-                    <svg viewBox="0 0 24 24" className="size-[15px]" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" />
-                      <path d="M15.5 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11" />
-                    </svg>
-                  </span>
-                  <p className="text-[13px] font-medium text-paper">{voice.label}</p>
-                  <kbd className="ml-auto rounded-md bg-paper/[0.12] px-2 py-0.5 font-sans text-[11px] text-paper/70">⌃⌥V</kbd>
-                </div>
-                <ul className="mt-4 grid gap-2">
-                  {voice.lines.map((line, index) => {
-                    const reading = index === voice.lines.length - 1;
-                    return (
-                      <li key={line.text} className={`rounded-xl px-3 py-2.5 ${reading ? "bg-white/[0.07]" : ""}`}>
-                        <p className={`text-[clamp(15px,1.8vw,18px)] leading-[1.35] font-medium ${reading ? "text-paper" : "text-paper/45"}`}>
-                          {line.text}
-                        </p>
-                        <p className={`mt-1.5 flex items-center gap-1.5 text-[11.5px] ${reading ? "text-accent" : "text-paper/40"}`}>
-                          {reading ? (
-                            <span className="flex h-3 items-center gap-[2px]">
-                              {[0.6, 1, 0.75, 0.9, 0.5].map((height, bar) => (
-                                <i
-                                  key={bar}
-                                  className="voice-bar w-[2px] rounded-full bg-accent"
-                                  style={{ height: `${height * 12}px`, animationDelay: `${bar * 0.12}s` }}
-                                />
-                              ))}
-                            </span>
-                          ) : (
-                            <svg viewBox="0 0 12 12" className="size-3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M2.5 6.5 5 9l4.5-6" />
-                            </svg>
-                          )}
-                          {line.pitch} → {line.voice}
-                        </p>
-                      </li>
-                    );
-                  })}
-                </ul>
-                <div className="mt-4 grid grid-cols-2 gap-4 border-t border-paper/10 pt-3.5">
-                  {[
-                    { label: voice.speed, value: "1.0×", fill: "50%" },
-                    { label: voice.volume, value: "80%", fill: "80%" },
-                  ].map((slider) => (
-                    <div key={slider.label}>
-                      <p className="flex justify-between text-[11.5px] text-paper/55">
-                        <span>{slider.label}</span>
-                        <span className="text-paper/80">{slider.value}</span>
-                      </p>
-                      <div className="relative mt-2 h-1 rounded-full bg-paper/15">
-                        <div className="h-full rounded-full bg-accent" style={{ width: slider.fill }} />
-                        <i className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-paper" style={{ left: slider.fill }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <p className="mt-3.5 text-[11.5px] text-paper/45">{voice.local}</p>
-              </div>
             </div>
           </div>
         </section>
