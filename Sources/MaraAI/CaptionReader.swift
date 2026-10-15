@@ -242,30 +242,7 @@ final class CaptionReader {
 enum VoiceTrial {
     static func run(language: String) async {
         let engine = VoiceEngine.reading(language)
-        let store = VoiceModelStore.shared
-        if store.state(engine.model) != .ready {
-            print("Downloading \(engine.rawValue) (\(engine.model.manifest.totalBytes / 1_000_000) MB)…")
-            store.download(engine.model)
-            var last = -1
-            while true {
-                switch store.state(engine.model) {
-                case .downloading(let fraction):
-                    let percent = Int(fraction * 100)
-                    if percent / 10 != last / 10 { print("  \(percent)%") }
-                    last = percent
-                case .ready:
-                    print("  downloaded and checked")
-                case .failed(let message):
-                    print("  failed: \(message)")
-                    return
-                case .missing:
-                    print("  cancelled")
-                    return
-                }
-                if store.state(engine.model) == .ready { break }
-                try? await Task.sleep(for: .milliseconds(250))
-            }
-        }
+        guard await download(engine.model) else { return }
         let reader = CaptionReader()
         var started = Date()
         guard await reader.load(engine) else {
@@ -278,6 +255,64 @@ enum VoiceTrial {
             started = Date()
             await reader.preview(ReadoutCatalog.sample(for: language), voice: voice.id, language: language, engine: engine)
             print("\(gender.rawValue) \(voice.id): synthesized and played in \(SessionLog.ms(since: started))")
+        }
+    }
+
+    /// Feeds the folder's sentences, in a shuffled order, to the speaker tracker and prints who
+    /// each one was given to, next to who really said it.
+    static func runSpeakers(folder: URL) async {
+        guard await download(.speakers) else { return }
+        var started = Date()
+        guard let tracker = try? await SpeakerTracker.load() else {
+            print("could not load the speaker model")
+            return
+        }
+        print("loaded and warmed up in \(SessionLog.ms(since: started))")
+        let files = ((try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? [])
+            .filter { $0.pathExtension == "wav" }.shuffled()
+        var given: [String: [Int]] = [:]
+        for file in files {
+            guard let audio = try? AVAudioFile(forReading: file, commonFormat: .pcmFormatFloat32, interleaved: false),
+                  let buffer = AVAudioPCMBuffer(pcmFormat: audio.processingFormat, frameCapacity: AVAudioFrameCount(audio.length)),
+                  (try? audio.read(into: buffer)) != nil else { continue }
+            let samples = Array(UnsafeBufferPointer(start: buffer.floatChannelData![0], count: Int(buffer.frameLength)))
+            // A caption sentence lasts a few seconds.
+            let clip = Array(samples.prefix(Int(audio.processingFormat.sampleRate * 4)))
+            let pitch = SpeakerPitch()
+            pitch.push(buffer)
+            started = Date()
+            let info = await tracker.identify(clip, sampleRate: audio.processingFormat.sampleRate, pitch: pitch.take())
+            let speaker = String(file.lastPathComponent.split(separator: "_")[0])
+            given[speaker, default: []].append(info?.person ?? 0)
+            print("\(speaker) -> person \(info?.person ?? 0) \(info?.gender?.rawValue ?? "?") slot \(info?.slot ?? 0) in \(SessionLog.ms(since: started))")
+        }
+        print("\nwho really spoke -> the person numbers given:")
+        for (speaker, people) in given.sorted(by: { $0.key < $1.key }) { print("  \(speaker): \(people)") }
+    }
+
+    private static func download(_ model: VoiceModel) async -> Bool {
+        let store = VoiceModelStore.shared
+        guard store.state(model) != .ready else { return true }
+        print("Downloading \(model.rawValue) (\(model.megabytes) MB)…")
+        store.download(model)
+        var last = -1
+        while true {
+            switch store.state(model) {
+            case .downloading(let fraction):
+                let percent = Int(fraction * 100)
+                if percent / 10 != last / 10 { print("  \(percent)%") }
+                last = percent
+            case .ready:
+                print("  downloaded and checked")
+                return true
+            case .failed(let message):
+                print("  failed: \(message)")
+                return false
+            case .missing:
+                print("  cancelled")
+                return false
+            }
+            try? await Task.sleep(for: .milliseconds(250))
         }
     }
 }

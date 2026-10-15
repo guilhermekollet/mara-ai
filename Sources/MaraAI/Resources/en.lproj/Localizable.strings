@@ -276,3 +276,5 @@
 "Modelo de vozes: %lld MB, baixado uma vez." = "Voice model: %lld MB, downloaded once.";
 "Modelo de vozes pronto" = "Voice model ready";
 "Libera %lld MB. Para identificar de novo, o modelo é baixado outra vez." = "Frees %lld MB. To identify people again, the model is downloaded again.";
+"Pessoa %lld" = "Person %lld";
+"Pessoa %lld: %@" = "Person %lld: %@";

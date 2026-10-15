@@ -305,7 +305,14 @@ final class CaptionModel: ObservableObject {
     func copyTranscript() {
         let text = segments
             .map { segment in
-                let original = segment.speaker == .me ? localized("Você: \(segment.original)") : segment.original
+                let original: String
+                if segment.speaker == .me {
+                    original = localized("Você: \(segment.original)")
+                } else if let person = segment.person {
+                    original = localized("Pessoa \(person): \(segment.original)")
+                } else {
+                    original = segment.original
+                }
                 return [segment.translation == segment.original ? nil : segment.translation, original].compactMap { $0 }.joined(separator: "\n")
             }
             .joined(separator: "\n\n")
@@ -827,7 +834,7 @@ final class CaptionModel: ObservableObject {
             let startedAt = Date()
             do {
                 let (text, calls) = try await translator.summarize(
-                    transcript, language: language.englishName, withSpeakers: segments.contains { $0.speaker == .me }
+                    transcript, language: language.englishName, withSpeakers: Self.namesSpeakers(segments)
                 )
                 for call in calls { recordUsage(call, model: translator.model, since: startedAt) }
                 summary = MeetingSummary.parse(text, language: language.code)
@@ -845,16 +852,23 @@ final class CaptionModel: ObservableObject {
 
     /// The transcript the summary is written from. The original is more faithful than the
     /// translation, and the timestamp helps the model follow the conversation. When the microphone
-    /// was on, each line says whose it is ("Me" for the person the summary is for).
+    /// was on or speakers were told apart, each line says whose it is: "Me" for the person the
+    /// summary is for, "Person 1", "Person 2"… for the others, "Others" when it wasn't told.
     static func summaryTranscript(_ segments: [Segment]) -> String {
-        let speakers = segments.contains { $0.speaker == .me }
+        let speakers = namesSpeakers(segments)
         return segments
             .map { segment in
                 let time = "[\(segment.date.formatted(date: .omitted, time: .shortened))]"
                 guard speakers else { return "\(time) \(segment.original)" }
-                return "\(time) \(segment.speaker == .me ? "Me" : "Others"): \(segment.original)"
+                let who = segment.speaker == .me ? "Me" : segment.person.map { "Person \($0)" } ?? "Others"
+                return "\(time) \(who): \(segment.original)"
             }
             .joined(separator: "\n")
+    }
+
+    /// Whether the transcript can say who spoke: the microphone was on, or the others were told apart.
+    static func namesSpeakers(_ segments: [Segment]) -> Bool {
+        segments.contains { $0.speaker == .me || $0.person != nil }
     }
 
     /// Saves the summary as Markdown wherever the user picks.
@@ -1007,7 +1021,14 @@ final class CaptionModel: ObservableObject {
         let body = segments.map { segment in
             let time = segment.date.formatted(date: .omitted, time: .standard)
             let translation = segment.translation == segment.original ? nil : segment.translation
-            let stamp = segment.speaker == .me ? "[\(time)] \(localized("Você"))" : "[\(time)]"
+            let stamp: String
+            if segment.speaker == .me {
+                stamp = "[\(time)] \(localized("Você"))"
+            } else if let person = segment.person {
+                stamp = "[\(time)] \(localized("Pessoa \(person)"))"
+            } else {
+                stamp = "[\(time)]"
+            }
             return ([stamp, translation, segment.original].compactMap { $0 }).joined(separator: "\n")
         }
         let text = transcriptTitle + "\n\n" + body.joined(separator: "\n\n") + "\n"

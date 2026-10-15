@@ -58,6 +58,8 @@ Mac. When the meeting ends, it summarizes the conversation with AI, using your o
 - Each translated sentence read aloud by a neural voice that runs on your Mac: free, offline
   after a one-time download.
 - The voice follows the speaker: deep voices are read with a male voice, high ones with a female voice.
+- Optional: Mara tells the participants apart by their voices, so each one gets a voice of their
+  own and shows up as Person 1, Person 2… in the transcript and the summary.
 - <kbd>⌃⌥V</kbd> or the speaker button in the captions window turns it on and off.
 
 **AI summary**
@@ -99,12 +101,19 @@ flowchart LR
 | Voices | 5 female, 5 male | Heart, Bella, Michael, Adam · Dora, Alex, Santa |
 | One-time download | about 400 MB | about 333 MB |
 | Time to voice a sentence | about 0.6 s | about 0.25 s |
+| Telling people apart (optional) | [ReDimNet2-B6](https://huggingface.co/aufklarer/ReDimNet2-B6-CoreML), about 29 MB, any language | same |
 
 - **Free and private.** The voices run on the Mac with Core ML. The only network use is the
   one-time download from Hugging Face, pinned to a fixed version and checked file by file.
 - **A voice for each speaker's pitch.** Mara estimates the pitch of whoever is speaking: deep
   voices are read with the male voice, high ones with the female voice, and in between it keeps the
   previous voice. You pick both voices, the speed and the volume in Settings.
+- **A voice of their own for each person** (optional, **Ajustes › Geral › Identificar quem fala**).
+  Mara turns each sentence into a voice fingerprint and groups the sentences by person, then
+  gives each person their own voice for the whole meeting: up to two voices per gender, so every
+  voice stays a good one. The transcript and the summary say Person 1, Person 2…; the summary uses
+  people's names when they come up. On recorded speech it kept the right person for 95–100% of the
+  sentences with 2 to 6 people; poor call audio, crosstalk or similar voices make it miss more.
 - **It keeps up.** A sentence is never cut off. When people talk faster than Mara can read, she
   speeds up a little and skips sentences that waited more than 10 seconds.
 - **Only translated meetings.** When the meeting is already in the caption language, you're
@@ -170,7 +179,7 @@ Everything lives in **Ajustes** (Settings), opened from the menu bar panel:
 | Aparência | Caption size and background opacity, standby and auto-stop timers, sound cues |
 | Consumo | GPT usage per session, day, month and in total |
 | Glossário | Names and terms the team uses |
-| Geral | Automatic updates, your microphone, the global shortcuts, the introduction again |
+| Geral | Automatic updates, your microphone, telling the speakers apart, the global shortcuts, the introduction again |
 
 API keys are stored in the macOS Keychain, never in files.
 
@@ -183,7 +192,7 @@ API keys are stored in the macOS Keychain, never in files.
 | Transcript text | Sent to OpenAI only when GPT refinement is on, or when you ask for a summary. |
 | API keys | macOS Keychain. |
 | Transcripts and summaries | Text and Markdown files in `~/Documents/Mara AI`. |
-| Voices for reading aloud | Downloaded once from Hugging Face when you turn reading on; after that they run offline. What they read never leaves your Mac. |
+| Voices for reading aloud, and the model that tells people apart | Downloaded once from Hugging Face when you turn them on; after that they run offline. What they read and the voices they compare never leave your Mac. |
 | Update checks | Once a day Mara asks GitHub for the latest release; nothing about you or your meetings is sent. Turn it off in **Ajustes › Geral**. |
 
 Mara has no server of its own: requests go straight from your Mac to OpenAI, and to GitHub for
@@ -223,6 +232,7 @@ scripts/test.sh               # tests (works with Xcode or with only the Command
 ./build.sh                    # release build and app bundle
 .build/debug/MaraAI --render-summary /tmp/summary.png   # draw the summary window with a sample
 .build/debug/MaraAI --try-voices pt   # download the Portuguese voices if needed and read a sample
+.build/debug/MaraAI --try-speakers <folder>   # group <speaker>_<n>.wav sentences by voice
 ```
 
 Useful runtime files:
@@ -276,10 +286,11 @@ Sources/MaraAI/
   CaptionReader.swift        Reads captions aloud: the queue, playback and the microphone pause
   Synthesizer.swift          The voices offered per language and the model running them
   SpeakerPitch.swift         The speaker's pitch, to pick the female or the male voice
+  SpeakerTracker.swift       Tells the speakers apart by their voices and casts a voice for each
   VoiceModels.swift          The voices' pinned download, checked file by file
   AudioOutput.swift          Speakers or headphones
   …                          Theme, icons, animated captions, sound bars, hot keys, usage ledger
-Sources/Voices/              Kokoro and Supertonic on Core ML, vendored from speech-swift (Apache-2.0, see NOTICE)
+Sources/Voices/              Kokoro, Supertonic and ReDimNet2 on Core ML, vendored from speech-swift (Apache-2.0, see NOTICE)
 Tests/MaraAITests/           Swift Testing suite
 scripts/                     Icon generation, signing, test runner, release packaging and update signing
 web/                         Website
@@ -295,6 +306,6 @@ Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) to get set up
 [MIT](LICENSE) © Guilherme Kollet
 
 The voice engines in [`Sources/Voices`](Sources/Voices/NOTICE) come from
-[speech-swift](https://github.com/soniqo/speech-swift) and keep their Apache-2.0 license. The voice
-models are downloaded at runtime, not shipped: Kokoro-82M is Apache-2.0; Supertonic 3 uses the
-OpenRAIL-M license, which forbids some uses, such as impersonating real people.
+[speech-swift](https://github.com/soniqo/speech-swift) and keep their Apache-2.0 license. The
+models are downloaded at runtime, not shipped: Kokoro-82M is Apache-2.0, ReDimNet2-B6 is MIT, and
+Supertonic 3 uses the OpenRAIL-M license, which forbids some uses, such as impersonating real people.

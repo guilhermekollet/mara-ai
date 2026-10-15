@@ -54,3 +54,24 @@ struct SpeakerTests {
         }
     }
 }
+
+@Suite("People in the summary")
+@MainActor
+struct PeopleTranscriptTests {
+    @Test func toldApartEachLineSaysWhichPerson() {
+        var first = CaptionModel.Segment(original: "Can you send the proposal?")
+        first.person = 1
+        var second = CaptionModel.Segment(original: "Sure, by Friday.")
+        second.person = 2
+        let unknown = CaptionModel.Segment(original: "Ok.")
+        let lines = CaptionModel.summaryTranscript([first, second, unknown]).split(separator: "\n")
+        #expect(lines[0].hasSuffix("] Person 1: Can you send the proposal?"))
+        #expect(lines[1].hasSuffix("] Person 2: Sure, by Friday."))
+        #expect(lines[2].hasSuffix("] Others: Ok."))
+        #expect(CaptionModel.namesSpeakers([first]))
+    }
+
+    @Test func withoutPeopleOrMicrophoneTheSummaryDoesntNameSpeakers() {
+        #expect(!CaptionModel.namesSpeakers([CaptionModel.Segment(original: "Hello.")]))
+    }
+}

@@ -276,3 +276,5 @@
 "Modelo de vozes: %lld MB, baixado uma vez." = "Modelo de voces: %lld MB, se descarga una vez.";
 "Modelo de vozes pronto" = "Modelo de voces listo";
 "Libera %lld MB. Para identificar de novo, o modelo é baixado outra vez." = "Libera %lld MB. Para volver a identificar, el modelo se descarga otra vez.";
+"Pessoa %lld" = "Persona %lld";
+"Pessoa %lld: %@" = "Persona %lld: %@";
