@@ -6,13 +6,15 @@ import type { Dictionary } from "@/i18n/dictionaries";
 // The hero demo: Mara's floating captions window, used by a pointer, the same scene as the promo
 // video (promo/src/MainPromo.tsx) rebuilt as live DOM. The pointer starts a session, a meeting is
 // captioned word by word, the list is scrolled back and jumps to the new lines, and the window is
-// resized while the captions keep coming. Everything is drawn in macOS points and scaled as a whole
-// with one fixed scale per viewport size: animating the scale would make the text shimmer.
+// resized while the captions keep coming. Then the meeting goes quiet and Mara goes on standby, as
+// the app does after a stretch without audio: the sound bars give way to a moon until someone
+// speaks again. Everything is drawn in macOS points and scaled as a whole with one fixed scale per
+// viewport size: animating the scale would make the text shimmer.
 
 type Copy = Dictionary["demo"];
 
 const FPS = 30;
-const LOOP = 790; // frames, from the window appearing to it fading out
+const LOOP = 1010; // frames, from the window appearing to it fading out
 const H = 210; // window height in points before it is resized
 const BLOCK = 46; // one caption block (translation, original and gap), in points
 const STILL = 380; // the frame shown without animation (reduced motion, before hydration)
@@ -20,8 +22,11 @@ const ACCENT = "#b8a4f8";
 const FAINT = "rgba(250,250,250,0.38)";
 const system = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif';
 
-const T = { start: 62, scrollFrom: 405, scrollTo: 428, arrow: 430, label: 490, jump: 535, exit: 764 };
-const STARTS = [112, 182, 252, 322, 466, 572, 652];
+const T = { start: 62, scrollFrom: 405, scrollTo: 428, arrow: 430, label: 490, jump: 535, exit: 985 };
+// The standby: it starts after the quiet that follows the seventh line and ends when sound comes
+// back, just before the last line.
+const STANDBY = { on: 772, off: 884 };
+const STARTS = [112, 182, 252, 322, 466, 572, 652, 896];
 const LATE = 4; // the line that arrives while the list is scrolled back
 
 // ——— Timing helpers ———
@@ -215,6 +220,8 @@ function CaptionsWindow({ frame, lines, copy, w }: { frame: number; lines: Line[
   const barsIn = progress(frame, T.start + 2, 12);
   const toTop = progress(frame, lines[0].saidAt[0], 16);
   const speaking = lines.some((line) => frame >= line.saidAt[0] && frame < line.quietAt);
+  // From sound bars to the standby badge and back, crossfading in place.
+  const standby = progress(frame, STANDBY.on, 14) * (1 - progress(frame, STANDBY.off, 10));
 
   return (
     <div
@@ -274,7 +281,16 @@ function CaptionsWindow({ frame, lines, copy, w }: { frame: number; lines: Line[
             opacity: barsIn,
           }}
         >
-          <SoundBars frame={frame} level={speaking ? 0.45 + 0.35 * Math.abs(Math.sin(frame * 0.41)) * (0.6 + 0.4 * Math.sin(frame * 0.13)) : 0} />
+          <div style={{ display: "grid", placeItems: "center" }}>
+            <div style={{ gridArea: "1 / 1", opacity: 1 - standby, transform: `scale(${1 - 0.15 * standby})` }}>
+              <SoundBars frame={frame} level={speaking ? 0.45 + 0.35 * Math.abs(Math.sin(frame * 0.41)) * (0.6 + 0.4 * Math.sin(frame * 0.13)) : 0} />
+            </div>
+            {standby > 0 && (
+              <div style={{ gridArea: "1 / 1", opacity: standby, transform: `scale(${0.9 + 0.1 * standby})`, filter: standby < 1 ? `blur(${(1 - standby) * 3}px)` : undefined }}>
+                <StandbyBadge label={copy.standby} />
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -311,6 +327,20 @@ function CaptionBlock({ frame, line, next }: { frame: number; line: Line; next?:
           <span key={index} style={{ opacity: progress(frame, line.saidAt[index], 6) }}>{`${word} `}</span>
         ))}
       </div>
+    </div>
+  );
+}
+
+// The app's standby badge (IdleBadge, large): the moon.zzz.fill symbol and its label, dimmed.
+function StandbyBadge({ label }: { label: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 5, height: 26, whiteSpace: "nowrap", color: "rgba(250,250,250,0.45)" }}>
+      <svg viewBox="0 0 20 18" style={{ width: 17, height: 15 }} fill="currentColor">
+        <path d="M8.6 4.2a6.4 6.4 0 1 0 7.6 7.9 5.2 5.2 0 0 1-7.6-7.9z" />
+        <path d="M12.2 1.5h3.4v.9l-2.1 2.4h2.2v1h-3.6v-.9l2.1-2.4h-2z" />
+        <path d="M16.8 5.6h2.3v.7l-1.3 1.6h1.4v.8h-2.5v-.7l1.3-1.6h-1.2z" />
+      </svg>
+      <span style={{ fontSize: 13, fontWeight: 500 }}>{label}</span>
     </div>
   );
 }
