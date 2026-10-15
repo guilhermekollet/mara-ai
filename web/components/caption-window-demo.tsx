@@ -253,19 +253,8 @@ function CaptionsWindow({ frame, lines, copy, w }: { frame: number; lines: Line[
         boxShadow: "0 40px 90px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(250,250,250,0.09)",
       }}
     >
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          display: "grid",
-          placeItems: "center",
-          fontSize: 17.2,
-          fontWeight: 600,
-          color: "rgba(250,250,250,0.35)",
-          opacity: 1 - progress(frame, T.start, 10),
-        }}
-      >
-        Mara
+      <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", opacity: 0.45 * (1 - progress(frame, T.start, 10)) }}>
+        <DotMark frame={frame} />
       </div>
 
       <div
@@ -355,6 +344,34 @@ function CaptionBlock({ frame, line, next }: { frame: number; line: Line; next?:
           <span key={index} style={{ opacity: progress(frame, line.saidAt[index], 6) }}>{`${word} `}</span>
         ))}
       </div>
+    </div>
+  );
+}
+
+// The app's dotted "M" in the empty window, with its lavender dot: the dots pop in from left to
+// right as the window appears, as in the app.
+const M_DOTS = ["x...x", "xx.xx", "x.x.x", "x...x", "x...x"];
+function DotMark({ frame }: { frame: number }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 4px)", gap: 1.8 }}>
+      {M_DOTS.flatMap((row, r) =>
+        [...row].map((mark, c) => {
+          const p = progress(frame, 6 + c * 1.5 + r * 0.6, 10, easeOutBack);
+          return (
+            <i
+              key={`${r}-${c}`}
+              style={{
+                width: 4,
+                height: 4,
+                borderRadius: 2,
+                background: r === 2 && c === 2 ? ACCENT : "#fafafa",
+                opacity: mark === "x" ? Math.min(1, p) : 0,
+                transform: `scale(${0.3 + 0.7 * p})`,
+              }}
+            />
+          );
+        }),
+      )}
     </div>
   );
 }
