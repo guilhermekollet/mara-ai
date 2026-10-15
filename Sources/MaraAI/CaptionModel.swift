@@ -121,7 +121,11 @@ final class CaptionModel: ObservableObject {
 
     init() {
         localeID = UserDefaults.standard.string(forKey: "localeID") ?? "en_US"
-        captionLanguageID = UserDefaults.standard.string(forKey: "captionLanguage") ?? CaptionLanguage.preferred().id
+        // Earlier versions captioned only in Portuguese, so an install that already picked a
+        // meeting language keeps it; a new one starts in the Mac's language.
+        let existingInstall = UserDefaults.standard.object(forKey: "localeID") != nil
+        captionLanguageID = UserDefaults.standard.string(forKey: "captionLanguage")
+            ?? (existingInstall ? "pt-BR" : CaptionLanguage.preferred().id)
         model = UserDefaults.standard.string(forKey: "openaiModel") ?? "gpt-4o-mini"
         summaryModel = UserDefaults.standard.string(forKey: "summaryModel") ?? GPTModel.catalog[0].id
         apiKey = Keychain.loadAPIKey()
