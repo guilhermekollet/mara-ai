@@ -15,7 +15,6 @@
 "Mostrar os assuntos, as decisões e as perguntas em aberto" = "Show the topics, decisions and open questions";
 "Resumindo a reunião…" = "Summarizing the meeting…";
 "Resumir reunião" = "Summarize meeting";
-"O resumo usa o GPT: adicione sua chave da OpenAI em Ajustes." = "The summary uses GPT: add your OpenAI key in Settings.";
 "Envia a transcrição desta sessão à OpenAI." = "Sends this session's transcript to OpenAI.";
 "Não foi possível resumir: %@" = "Couldn't summarize: %@";
 "Legendas" = "Captions";
@@ -242,3 +241,6 @@
 "Transcrever o meu microfone" = "Transcribe my microphone";
 "O macOS não deu acesso ao microfone." = "macOS didn't give access to the microphone.";
 "O microfone parou de responder e foi desligado. As legendas continuam." = "The microphone stopped responding and was turned off. Captions carry on.";
+"O resumo usa o GPT, com a sua chave da OpenAI." = "The summary uses GPT, with your own OpenAI key.";
+"Adicionar em Ajustes" = "Add in Settings";
+"Criar uma chave na OpenAI" = "Create a key at OpenAI";
