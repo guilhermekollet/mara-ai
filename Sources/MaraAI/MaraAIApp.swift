@@ -122,10 +122,6 @@ struct ContentView: View {
     /// left still for a while, so it doesn't cover captions while someone is rereading.
     @State private var showsJumpLabel = false
     @State private var jumpLabelTimer: Task<Void, Never>?
-    /// Going on standby, the moon opens in the middle of the window for a moment, with the
-    /// captions stepping back, before it settles at the top in place of the sound bars.
-    @State private var standbyIntro = false
-    @State private var standbyIntroTimer: Task<Void, Never>?
     /// The dotted "M" builds itself when the window opens.
     @State private var markShown = false
     private let bottomID = "bottom"
@@ -134,14 +130,13 @@ struct ContentView: View {
     var body: some View {
         ZStack(alignment: .top) {
             captions
-                .opacity(standbyIntro ? 0.12 : 1)
-                .animation(.easeInOut(duration: 0.4), value: standbyIntro)
+                .opacity(standbyCentered ? 0.12 : 1)
+                .animation(.easeInOut(duration: 0.4), value: standbyCentered)
             // The controls only appear on hover, so the window is nothing but captions.
             controlBar
         }
         .overlay { listeningIndicator }
         .animation(.spring(response: 0.6, dampingFraction: 0.86), value: indicatorInHeader)
-        .onChange(of: model.isIdle) { _, idle in showStandbyIntro(idle) }
         .frame(minWidth: 300, minHeight: 96)
         .background {
             ZStack {
@@ -205,22 +200,13 @@ struct ContentView: View {
 
     private var isEmpty: Bool { model.segments.isEmpty && model.volatile.isEmpty }
 
-    private func showStandbyIntro(_ idle: Bool) {
-        standbyIntroTimer?.cancel()
-        guard idle, !isEmpty else {
-            standbyIntro = false
-            return
-        }
-        standbyIntro = true
-        standbyIntroTimer = Task {
-            try? await Task.sleep(for: .seconds(1.4))
-            guard !Task.isCancelled else { return }
-            standbyIntro = false
-        }
-    }
+    /// On standby the moon sits large in the middle of the window, with the captions stepped back;
+    /// with the pointer over the window it shrinks to the top, where the controls are, and the
+    /// captions come back.
+    private var standbyCentered: Bool { model.isRunning && model.isIdle && !isEmpty && !hovering }
 
     /// On the first utterance, the indicator moves from the middle of the window to the top center.
-    private var indicatorInHeader: Bool { !isEmpty && !standbyIntro }
+    private var indicatorInHeader: Bool { !isEmpty && !standbyCentered }
 
     /// The sound bars (or the moon, when idle). It is a single piece that changes position and size
     /// with a spring, instead of two pieces that appear and disappear.
