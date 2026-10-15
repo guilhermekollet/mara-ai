@@ -47,7 +47,9 @@ struct MenuBarPanel: View {
         HStack(spacing: 6) {
             Image(nsImage: Theme.menuBarIcon)
                 .renderingMode(.template)
-            // During a session the name gives way to the timer, so everything fits on one row.
+            // During a session the name gives way to the timer, and the language pair, locked until
+            // the session ends, to its globe (the pair stays in the tooltip), so everything fits on
+            // one row. Labels keep their width: squeezed, they wrap ("Inici / ar").
             if !model.isRunning {
                 Text("Mara")
                     .font(Theme.display(19))
@@ -56,20 +58,23 @@ struct MenuBarPanel: View {
                 Text(start, style: .timer)
                     .font(.system(size: 11.5).monospacedDigit())
                     .foregroundStyle(Theme.muted)
+                    .fixedSize()
                 if model.isIdle {
                     IdleBadge()
+                        .fixedSize()
                 } else {
                     SoundBars(meter: model.audioMeter, height: 11)
                 }
             }
             Spacer(minLength: 4)
-            LanguageMenu()
+            LanguageMenu(iconOnly: model.isRunning)
             ChipToggle(symbol: "sparkles", help: localized("Refinar a tradução com o GPT"), isOn: $model.useGPT)
             Button(model.isRunning ? localized("Parar") : localized("Iniciar")) {
                 if !model.isRunning { showCaptions() }
                 model.toggle()
             }
             .buttonStyle(PillButtonStyle(prominent: !model.isRunning))
+            .fixedSize()
             .disabled(model.isStarting)
         }
     }
@@ -165,6 +170,23 @@ struct MenuBarPanel: View {
                     .foregroundStyle(Theme.paper.opacity(0.8))
                     .lineLimit(summaryExpanded ? nil : 4)
                     .fixedSize(horizontal: false, vertical: true)
+                // On its own line, under the text it expands, so the buttons below fit on one row
+                // in every language; it stays put when the details open below it.
+                Button {
+                    setSummaryExpanded(!summaryExpanded)
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(summaryExpanded ? localized("Mostrar menos") : localized("Mostrar mais"))
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 9, weight: .semibold))
+                            .rotationEffect(.degrees(detailsShown ? 180 : 0))
+                    }
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(Theme.muted)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(summaryExpanded ? localized("Ocultar os detalhes do resumo") : localized("Mostrar os assuntos, as decisões e as perguntas em aberto"))
                 if summaryExpanded {
                     SummaryDetails(summary: summary)
                         .opacity(detailsShown ? 1 : 0)
@@ -173,24 +195,10 @@ struct MenuBarPanel: View {
                 HStack(spacing: 8) {
                     Button(localized("Abrir resumo")) { open(summaryWindowID) }
                         .buttonStyle(PillButtonStyle())
+                        .fixedSize()
                     Button(localized("Copiar")) { model.copySummary() }
                         .buttonStyle(PillButtonStyle(prominent: false))
-                    Spacer(minLength: 0)
-                    Button {
-                        setSummaryExpanded(!summaryExpanded)
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text(summaryExpanded ? localized("Mostrar menos") : localized("Mostrar mais"))
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 9, weight: .semibold))
-                                .rotationEffect(.degrees(detailsShown ? 180 : 0))
-                        }
-                        .font(.system(size: 11.5, weight: .medium))
-                        .foregroundStyle(Theme.muted)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .help(summaryExpanded ? localized("Ocultar os detalhes do resumo") : localized("Mostrar os assuntos, as decisões e as perguntas em aberto"))
+                        .fixedSize()
                 }
             } else if model.isSummarizing {
                 HStack(spacing: 8) {
@@ -240,24 +248,43 @@ struct MenuBarPanel: View {
         }
     }
 
+    /// The links on one row, with the day's GPT cost before "Sair" when it fits; otherwise (a long
+    /// translation, a big day) the cost moves to its own line rather than wrapping a label.
     private var footer: some View {
-        HStack(spacing: 14) {
-            link(localized("Legendas")) { showCaptions() }
-            link(localized("Arquivos")) { model.openTranscriptsFolder() }
-            link(localized("Ajustes")) { open(settingsWindowID) }
-            Spacer()
-            if model.gptEnabled {
-                UsageLine(ledger: model.usage)
+        ViewThatFits(in: .horizontal) {
+            footerRow(cost: true)
+            VStack(alignment: .trailing, spacing: 6) {
+                footerRow(cost: false)
+                if model.gptEnabled {
+                    UsageLine(ledger: model.usage)
+                }
             }
-            link(localized("Sair")) { NSApp.terminate(nil) }
         }
         .font(.system(size: 11.5))
+    }
+
+    private func footerRow(cost: Bool) -> some View {
+        HStack(spacing: 0) {
+            HStack(spacing: 12) {
+                link(localized("Legendas")) { showCaptions() }
+                link(localized("Arquivos")) { model.openTranscriptsFolder() }
+                link(localized("Ajustes")) { open(settingsWindowID) }
+            }
+            Spacer(minLength: 12)
+            HStack(spacing: 10) {
+                if cost && model.gptEnabled {
+                    UsageLine(ledger: model.usage)
+                }
+                link(localized("Sair")) { NSApp.terminate(nil) }
+            }
+        }
     }
 
     private func link(_ title: String, action: @escaping () -> Void) -> some View {
         Button(title, action: action)
             .buttonStyle(.plain)
             .foregroundStyle(Theme.muted)
+            .fixedSize()
     }
 
     private func open(_ window: String) {
@@ -367,6 +394,7 @@ private struct UsageLine: View {
         Text("US$ \(String(format: "%.3f", today.costUSD))")
             .monospacedDigit()
             .foregroundStyle(Theme.paper.opacity(0.45))
+            .fixedSize()
             .help(localized("Custo estimado do GPT hoje, em \(today.calls) chamadas"))
     }
 }
