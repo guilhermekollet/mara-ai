@@ -4,7 +4,9 @@ import Translation
 @main
 struct MaraAIApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    @StateObject private var model = CaptionModel()
+    /// Kept, not observed: observing it here re-evaluated every scene, menu bar icon included, on
+    /// each change to the model, such as every partial caption. Each window observes it itself.
+    @State private var model = CaptionModel()
 
     init() {
         // Development tool: `MaraAI --render-summary file.png` draws the summary window with a
@@ -44,7 +46,7 @@ struct MaraAIApp: App {
         MenuBarExtra {
             MenuBarPanel().environmentObject(model)
         } label: {
-            MenuBarLabel(animator: model.menuBarAnimator).environmentObject(model)
+            MenuBarLabel(model: model, animator: model.menuBarAnimator)
         }
         .menuBarExtraStyle(.window)
     }
@@ -90,7 +92,9 @@ func present(_ id: String, using openWindow: OpenWindowAction) {
 /// opens the captions window, used by the global shortcuts, and that opens the introduction on
 /// first launch.
 struct MenuBarLabel: View {
-    @EnvironmentObject private var model: CaptionModel
+    /// Held, not observed: the icon redraws only when its animation changes. Observing the model
+    /// redrew it (in every display's menu bar) on each partial caption.
+    let model: CaptionModel
     @ObservedObject var animator: MenuBarAnimator
     @Environment(\.openWindow) private var openWindow
     /// The introduction opens once per launch, even if the menu bar redraws the icon.
@@ -124,7 +128,13 @@ struct ContentView: View {
     @State private var jumpLabelTimer: Task<Void, Never>?
     /// The dotted "M" builds itself when the window opens.
     @State private var markShown = false
-    private let bottomID = "bottom"
+    /// Where the captions list is scrolled; following the latest line means scrolling to its bottom
+    /// edge, which costs the same however long the meeting is (scrolling to a row of a lazy list
+    /// makes it place every row before it).
+    @State private var scrollPosition = ScrollPosition(edge: .bottom)
+    /// The window shows the latest lines; the whole meeting stays in the transcript file, Copy and
+    /// the summary. This keeps a meeting of hours as light as one of minutes.
+    private static let shownLines = 300
     private let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
 
     var body: some View {
@@ -245,13 +255,16 @@ struct ContentView: View {
     }
 
     /// Scrollable history: the current utterance highlighted and earlier ones fading out upwards.
+    /// Only follows new utterances while scrolled to the bottom.
+    private func follow() {
+        if followsLatest && !userScrolling { scrollPosition.scrollTo(edge: .bottom) }
+    }
+
     private var captions: some View {
-        ScrollViewReader { proxy in
-            // Only follows new utterances while scrolled to the bottom.
-            let follow = { if followsLatest && !userScrolling { proxy.scrollTo(bottomID, anchor: .bottom) } }
+        Group {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 10) {
-                    ForEach(model.segments) { segment in
+                    ForEach(model.segments.suffix(Self.shownLines)) { segment in
                         let isLatest = segment.id == model.segments.last?.id && model.volatile.isEmpty
                         VStack(alignment: .leading, spacing: 1) {
                             if segment.speaker == .me {
@@ -286,13 +299,13 @@ struct ContentView: View {
                         }
                         .modifier(CaptionShadow(on: model.textShadow))
                     }
-                    Color.clear.frame(height: 1).id(bottomID)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 16)
                 .padding(.top, 28)
                 .padding(.bottom, 10)
             }
+            .scrollPosition($scrollPosition)
             .scrollIndicators(.hidden)
             // Older utterances fade out smoothly at the top instead of being clipped.
             .mask(
@@ -324,13 +337,13 @@ struct ContentView: View {
             }
             .onAppear {
                 followsLatest = true
-                proxy.scrollTo(bottomID, anchor: .bottom)
+                scrollPosition.scrollTo(edge: .bottom)
             }
             // A new session always starts following the bottom.
             .onChange(of: model.isRunning) {
                 if model.isRunning {
                     followsLatest = true
-                    proxy.scrollTo(bottomID, anchor: .bottom)
+                    scrollPosition.scrollTo(edge: .bottom)
                 }
             }
             // Back to the latest captions: just the arrow in the bottom right corner; after 5 s
@@ -340,7 +353,7 @@ struct ContentView: View {
                     Button {
                         followsLatest = true
                         hideJumpLabel()
-                        withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(bottomID, anchor: .bottom) }
+                        withAnimation(.easeOut(duration: 0.25)) { scrollPosition.scrollTo(edge: .bottom) }
                     } label: {
                         HStack(spacing: 5) {
                             if showsJumpLabel {
@@ -369,10 +382,9 @@ struct ContentView: View {
             .animation(.spring(response: 0.45, dampingFraction: 0.82), value: showsJumpLabel)
             // Back at the bottom, the next time the button appears it starts as just the arrow.
             .onChange(of: followsLatest) { if followsLatest { hideJumpLabel() } }
-            .onChange(of: model.segments.count) { follow() }
-            .onChange(of: model.volatile) { follow() }
-            .onChange(of: model.volatileTranslation) { follow() }
-            .onChange(of: model.segments.last?.translation) { follow() }
+            // Follows when the content grows or shrinks (a new line, a caption wrapping onto another
+            // line), not on every partial caption: while the height is the same it is already there.
+            .onScrollGeometryChange(for: CGFloat.self) { $0.contentSize.height } action: { _, _ in follow() }
         }
     }
 }

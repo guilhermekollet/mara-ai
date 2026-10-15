@@ -4,14 +4,25 @@ import Translation
 
 @MainActor
 final class CaptionModel: ObservableObject {
-    struct Segment: Identifiable {
+    struct Segment: Identifiable, Sendable {
         let id = UUID()
-        let date = Date()
+        let date: Date
+        /// When it was said, formatted once for the transcript file instead of on every save.
+        let clock: String
         var original: String
         var translation: String?
         /// True when the translation is already GPT's final version (the local one doesn't overwrite it).
         var refined = false
         var speaker = Speaker.others
+
+        init(original: String, translation: String? = nil, refined: Bool = false) {
+            let now = Date()
+            date = now
+            clock = now.formatted(date: .omitted, time: .standard)
+            self.original = original
+            self.translation = translation
+            self.refined = refined
+        }
     }
 
     @Published var segments: [Segment] = []
@@ -131,6 +142,7 @@ final class CaptionModel: ObservableObject {
     private var isTranslatingVolatile = false
     private var volatileGeneration = 0
     private var transcriptURL: URL?
+    private var transcriptSave: Task<Void, Never>?
     private var transcriptTitle = ""
 
     static let transcriptsFolder = FileManager.default
@@ -352,7 +364,9 @@ final class CaptionModel: ObservableObject {
         audioMeter.setActive(false)
         await session.stop()
         clearVolatile()
+        await writeTranscript()
         SessionLog.write("PARADO")
+        SessionLog.flush()
         if !keepStatus {
             status = segments.isEmpty ? localized("Parado.") : localized("Parado. Transcrição salva em Documentos/Mara AI.")
         }
@@ -380,6 +394,7 @@ final class CaptionModel: ObservableObject {
                         gate.setPaused(false)
                         self.microphoneGate?.setPaused(false)
                         self.menuBarAnimator.setActive(true)
+                        self.audioMeter.setActive(true)
                         SessionLog.write("VOLTOU da espera")
                     }
                     try? await Task.sleep(for: .seconds(2))
@@ -390,6 +405,8 @@ final class CaptionModel: ObservableObject {
                         gate.setPaused(true)
                         self.microphoneGate?.setPaused(true)
                         self.menuBarAnimator.setActive(false)
+                        // Nothing shows the sound bars on standby: the meter stops until sound returns.
+                        self.audioMeter.setActive(false)
                         self.clearVolatile()
                         SessionLog.write("ESPERA após \(Int(quiet))s sem áudio")
                     }
@@ -401,6 +418,12 @@ final class CaptionModel: ObservableObject {
 
     /// Apple Speech sometimes delivers the previous sentence's punctuation at the start of the next
     /// one (". Coisa linda…"). Returns those marks apart, to go back where they belong.
+    /// Whether a result says anything: recognition sometimes returns only punctuation (", , , ,")
+    /// out of noise or music, which isn't a caption.
+    nonisolated static func hasWords(_ text: String) -> Bool {
+        text.contains { $0.isLetter || $0.isNumber }
+    }
+
     private static func splitLeadingPunctuation(_ text: String) -> (marks: String, text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let marks = String(trimmed.prefix { ".,;:!?…".contains($0) })
@@ -411,6 +434,7 @@ final class CaptionModel: ObservableObject {
         let (leading, trimmed) = Self.splitLeadingPunctuation(text)
         if isFinal && !leading.isEmpty { attachPunctuation(leading, speaker: .others) }
         guard isFinal else {
+            guard Self.hasWords(trimmed) else { return }
             volatile = trimmed
             SessionLog.write("PARCIAL \(trimmed)")
             if translates {
@@ -423,13 +447,14 @@ final class CaptionModel: ObservableObject {
         // The provisional translation becomes the sentence's starting point, so the caption doesn't flicker.
         let draft = volatileTranslation
         clearVolatile()
-        guard !trimmed.isEmpty else { return }
+        guard Self.hasWords(trimmed) else { return }
         SessionLog.write("FINAL \(trimmed)")
         let finalizedAt = Date()
 
         dropEchoes(of: trimmed)
         // Only the others' sentences: what you say doesn't leave the Mac unless you ask for a summary.
-        let context = segments.filter { $0.speaker == .others }.suffix(3).map(\.original)
+        // The last few lines from the others, read from the end so it doesn't scan a long meeting.
+        let context = Array(segments.lazy.reversed().filter { $0.speaker == .others }.prefix(3).map(\.original).reversed())
         var segment = Segment(original: trimmed)
         guard translates else {
             segment.translation = trimmed
@@ -482,9 +507,9 @@ final class CaptionModel: ObservableObject {
         guard isFinal, microphoneOn else { return }
         let (leading, trimmed) = Self.splitLeadingPunctuation(text)
         if !leading.isEmpty { attachPunctuation(leading, speaker: .me) }
-        guard !trimmed.isEmpty else { return }
+        guard Self.hasWords(trimmed) else { return }
         let now = Date()
-        var heard = segments.filter { $0.speaker == .others }.suffix(8).map { ($0.original, now.timeIntervalSince($0.date)) }
+        var heard = Array(segments.lazy.reversed().filter { $0.speaker == .others }.prefix(8).map { ($0.original, now.timeIntervalSince($0.date)) }.reversed())
         if !volatile.isEmpty { heard.append((volatile, 0)) }
         if EchoFilter.isEcho(trimmed, others: heard) {
             SessionLog.write("MICROFONE eco descartado: \(trimmed)")
@@ -786,21 +811,43 @@ final class CaptionModel: ObservableObject {
         transcriptURL = Self.transcriptsFolder.appendingPathComponent("\(fileStamp) \(language).txt")
     }
 
-    /// Rewrites the file on every sentence, so nothing is lost if the app closes mid-meeting.
+    /// Saves the transcript a moment after it changes, off the main actor: a long meeting would
+    /// otherwise rewrite a growing file on every sentence and every translation. At most the last
+    /// two seconds are lost if the app closes mid-meeting; stopping writes it right away.
     private func saveTranscript() {
-        guard let transcriptURL, !segments.isEmpty else { return }
-        let body = segments.map { segment in
-            let time = segment.date.formatted(date: .omitted, time: .standard)
-            let translation = segment.translation == segment.original ? nil : segment.translation
-            let stamp = segment.speaker == .me ? "[\(time)] \(localized("Você"))" : "[\(time)]"
-            return ([stamp, translation, segment.original].compactMap { $0 }).joined(separator: "\n")
+        guard transcriptSave == nil else { return }
+        transcriptSave = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, let self else { return }
+            self.transcriptSave = nil
+            await self.writeTranscript()
         }
-        let text = transcriptTitle + "\n\n" + body.joined(separator: "\n\n") + "\n"
-        do {
-            try FileManager.default.createDirectory(at: Self.transcriptsFolder, withIntermediateDirectories: true)
-            try text.write(to: transcriptURL, atomically: true, encoding: .utf8)
-        } catch {
-            status = localized("Não foi possível salvar a transcrição: \(error.localizedDescription)")
+    }
+
+    private func writeTranscript() async {
+        transcriptSave?.cancel()
+        transcriptSave = nil
+        guard let transcriptURL, !segments.isEmpty else { return }
+        let segments = segments
+        let title = transcriptTitle
+        let you = localized("Você")
+        let failure = await Task.detached(priority: .utility) { () -> String? in
+            let body = segments.map { segment in
+                let translation = segment.translation == segment.original ? nil : segment.translation
+                let stamp = segment.speaker == .me ? "[\(segment.clock)] \(you)" : "[\(segment.clock)]"
+                return ([stamp, translation, segment.original].compactMap { $0 }).joined(separator: "\n")
+            }
+            let text = title + "\n\n" + body.joined(separator: "\n\n") + "\n"
+            do {
+                try FileManager.default.createDirectory(at: transcriptURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try text.write(to: transcriptURL, atomically: true, encoding: .utf8)
+                return nil
+            } catch {
+                return error.localizedDescription
+            }
+        }.value
+        if let failure {
+            status = localized("Não foi possível salvar a transcrição: \(failure)")
         }
     }
 }
@@ -818,14 +865,42 @@ enum SessionLog {
         return formatter
     }()
 
+    /// Lines wait here and go to disk together, about once a second, instead of one write per
+    /// partial caption.
+    private static var pending = Data()
+    private static var lastFlush = Date()
+    private static let lock = NSLock()
+
     static func begin() {
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         FileManager.default.createFile(atPath: url.path, contents: nil)
+        lock.lock()
         handle = try? FileHandle(forWritingTo: url)
+        pending.removeAll()
+        lastFlush = Date()
+        lock.unlock()
     }
 
     static func write(_ message: String) {
-        try? handle?.write(contentsOf: Data("\(clock.string(from: Date())) \(message)\n".utf8))
+        let now = Date()
+        lock.lock()
+        defer { lock.unlock() }
+        pending.append(Data("\(clock.string(from: now)) \(message)\n".utf8))
+        if pending.count > 16_384 || now.timeIntervalSince(lastFlush) >= 1 { flushLocked() }
+    }
+
+    /// Writes whatever is waiting; called when a session stops.
+    static func flush() {
+        lock.lock()
+        flushLocked()
+        lock.unlock()
+    }
+
+    private static func flushLocked() {
+        guard !pending.isEmpty else { return }
+        try? handle?.write(contentsOf: pending)
+        pending.removeAll(keepingCapacity: true)
+        lastFlush = Date()
     }
 
     static func ms(since date: Date) -> String {

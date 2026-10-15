@@ -225,6 +225,9 @@ final class MenuBarAnimator: ObservableObject {
     /// Wave strength, from 0 (static icon) to 1.
     private var depth = 0.0
     private var active = false
+    /// At full strength the wave repeats every 16 steps, so those frames are drawn once and reused
+    /// for the rest of the session; only the fades in and out are drawn on the fly.
+    private var fullStrength: [Int: NSImage] = [:]
 
     func setActive(_ active: Bool) {
         self.active = active
@@ -242,6 +245,15 @@ final class MenuBarAnimator: ObservableObject {
             timer?.invalidate()
             timer = nil
             image = Theme.menuBarIcon
+        } else if depth >= 1 {
+            let step = Int((phase * 16).rounded()) % 16
+            if let frame = fullStrength[step] {
+                image = frame
+            } else {
+                let frame = Theme.menuBarImage(phase: phase, depth: 1)
+                fullStrength[step] = frame
+                image = frame
+            }
         } else {
             image = Theme.menuBarImage(phase: phase, depth: depth)
         }
