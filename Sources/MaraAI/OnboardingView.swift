@@ -100,7 +100,7 @@ struct OnboardingView: View {
             PageDots(count: Step.allCases.count, current: step.rawValue)
             Spacer()
             if step != .welcome {
-                Button("Voltar") { go(to: Step(rawValue: step.rawValue - 1)) }
+                Button(localized("Voltar")) { go(to: Step(rawValue: step.rawValue - 1)) }
                     .buttonStyle(.plain)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Theme.muted)
@@ -117,9 +117,9 @@ struct OnboardingView: View {
 
     private var primaryTitle: String {
         switch step {
-        case .summary: return model.apiKey.isEmpty ? "Agora não" : "Continuar"
-        case .ready: return "Abrir legendas"
-        default: return "Continuar"
+        case .summary: return model.apiKey.isEmpty ? localized("Agora não") : localized("Continuar")
+        case .ready: return localized("Abrir legendas")
+        default: return localized("Continuar")
         }
     }
 
@@ -181,16 +181,16 @@ private struct WelcomePage: View {
     @State private var shown = false
 
     private let features: [(symbol: String, title: String, text: String)] = [
-        ("captions.bubble", "Legenda ao vivo", "Reuniões, aulas e vídeos em outro idioma viram legenda em português, inglês ou espanhol enquanto as pessoas falam."),
-        ("lock.laptopcomputer", "Grátis e privado", "A Apple transcreve e traduz no próprio Mac. O áudio nunca sai do seu computador."),
-        ("sparkles", "Resumo com IA", "No fim, um resumo do que foi conversado, feito pelo GPT com a sua chave da OpenAI."),
+        ("captions.bubble", localized("Legenda ao vivo"), localized("Reuniões, aulas e vídeos em outro idioma viram legenda em português, inglês ou espanhol enquanto as pessoas falam.")),
+        ("lock.laptopcomputer", localized("Grátis e privado"), localized("A Apple transcreve e traduz no próprio Mac. O áudio nunca sai do seu computador.")),
+        ("sparkles", localized("Resumo com IA"), localized("No fim, um resumo do que foi conversado, feito pelo GPT com a sua chave da OpenAI.")),
     ]
 
     var body: some View {
         VStack(spacing: 0) {
             DotMark(shown: shown)
                 .frame(height: 64)
-            Text("Boas-vindas à Mara")
+            Text(localized("Boas-vindas à Mara"))
                 .font(Theme.display(32))
                 .padding(.top, 22)
                 .opacity(shown ? 1 : 0)
@@ -261,28 +261,28 @@ private struct PermissionPage: View {
     var body: some View {
         PageLayout(
             symbol: "waveform.badge.mic",
-            title: "Deixe a Mara ouvir o Mac",
-            text: "Para legendar, a Mara precisa do áudio que sai do Mac: Zoom, Meet, Teams ou o navegador. O macOS chama isso de Gravação de Tela e Áudio do Sistema. A Mara usa só o som: não guarda imagens da tela e não usa o seu microfone."
+            title: localized("Deixe a Mara ouvir o Mac"),
+            text: localized("Para legendar, a Mara precisa do áudio que sai do Mac: Zoom, Meet, Teams ou o navegador. O macOS chama isso de Gravação de Tela e Áudio do Sistema. A Mara usa só o som: não guarda imagens da tela e não usa o seu microfone.")
         ) {
             Group {
                 if granted {
-                    StatusCard(symbol: "checkmark.circle.fill", title: "Permissão concedida", text: "A Mara já pode ouvir as suas reuniões.")
+                    StatusCard(symbol: "checkmark.circle.fill", title: localized("Permissão concedida"), text: localized("A Mara já pode ouvir as suas reuniões."))
                 } else if !asked {
-                    Button("Permitir") {
+                    Button(localized("Permitir")) {
                         asked = true
                         granted = ScreenAudioPermission.request()
                     }
                     .buttonStyle(PillButtonStyle(large: true))
                 } else {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Ative a Mara em Ajustes do Sistema › Privacidade e Segurança › Gravação de Tela e Áudio do Sistema. Depois, reabra a Mara para o macOS aplicar a permissão.")
+                        Text(localized("Ative a Mara em Ajustes do Sistema › Privacidade e Segurança › Gravação de Tela e Áudio do Sistema. Depois, reabra a Mara para o macOS aplicar a permissão."))
                             .font(.system(size: 12.5))
                             .foregroundStyle(Theme.paper.opacity(0.8))
                             .fixedSize(horizontal: false, vertical: true)
                         HStack(spacing: 8) {
-                            Button("Abrir Ajustes do Sistema") { ScreenAudioPermission.openSystemSettings() }
+                            Button(localized("Abrir Ajustes do Sistema")) { ScreenAudioPermission.openSystemSettings() }
                                 .buttonStyle(PillButtonStyle(prominent: false))
-                            Button("Reabrir a Mara") { Onboarding.relaunch() }
+                            Button(localized("Reabrir a Mara")) { Onboarding.relaunch() }
                                 .buttonStyle(PillButtonStyle())
                         }
                     }
@@ -311,21 +311,21 @@ private struct LanguagePage: View {
     var body: some View {
         PageLayout(
             symbol: "globe",
-            title: "Quais idiomas?",
-            text: "Em que idioma vão falar e em qual você quer ler a legenda. A Mara já baixa o que o Mac precisa, e nada fica esperando na primeira reunião."
+            title: localized("Quais idiomas?"),
+            text: localized("Em que idioma vão falar e em qual você quer ler a legenda. A Mara já baixa o que o Mac precisa, e nada fica esperando na primeira reunião.")
         ) {
             VStack(spacing: 14) {
                 VStack(spacing: 12) {
-                    row("Falam em") {
-                        Picker("Falam em", selection: $model.localeID) {
+                    row(localized("Falam em")) {
+                        Picker(localized("Falam em"), selection: $model.localeID) {
                             ForEach(model.locales, id: \.identifier) { locale in
                                 Text(CaptionLanguage.matching(locale)?.name ?? model.displayName(locale)).tag(locale.identifier)
                             }
                         }
                     }
                     Divider().overlay(Theme.paper.opacity(0.08))
-                    row("Legenda em") {
-                        Picker("Legenda em", selection: $model.captionLanguageID) {
+                    row(localized("Legenda em")) {
+                        Picker(localized("Legenda em"), selection: $model.captionLanguageID) {
                             ForEach(CaptionLanguage.all) { language in
                                 Text(language.name).tag(language.id)
                             }
@@ -350,7 +350,7 @@ private struct LanguagePage: View {
         HStack(spacing: 12) {
             Text(title)
                 .font(.system(size: 13.5, weight: .medium))
-                .frame(width: 84, alignment: .leading)
+                .frame(width: 100, alignment: .leading)
             picker()
                 .pickerStyle(.segmented)
                 .labelsHidden()
@@ -371,16 +371,16 @@ private struct PreparationStatus: View {
             switch preparation.state {
             case .checking:
                 ProgressView().controlSize(.small)
-                label("Conferindo o que o Mac já tem…")
+                label(localized("Conferindo o que o Mac já tem…"))
             case .downloading(let fraction):
                 VStack(alignment: .leading, spacing: 6) {
-                    label("Baixando o modelo de fala… \(Int(fraction * 100))%")
+                    label(localized("Baixando o modelo de fala… \(Int(fraction * 100))%"))
                     ProgressView(value: fraction)
                         .progressViewStyle(.linear)
                 }
             case .translating:
                 ProgressView().controlSize(.small)
-                label("Confirme o download da tradução na janela da Apple.")
+                label(localized("Confirme o download da tradução na janela da Apple."))
             case .ready(let text):
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(Theme.accent)
@@ -390,7 +390,7 @@ private struct PreparationStatus: View {
                     .foregroundStyle(.orange)
                 label(text)
                 Spacer(minLength: 4)
-                Button("Tentar de novo", action: retry)
+                Button(localized("Tentar de novo"), action: retry)
                     .buttonStyle(PillButtonStyle(prominent: false))
             }
             Spacer(minLength: 0)
@@ -411,10 +411,10 @@ private struct SummaryKeyPage: View {
     var body: some View {
         PageLayout(
             symbol: "sparkles",
-            title: "Resumo com IA",
-            text: "Opcional. No fim da reunião, o GPT resume o que foi conversado, com a sua chave da OpenAI. Só o texto transcrito é enviado; o áudio, nunca."
+            title: localized("Resumo com IA"),
+            text: localized("Opcional. No fim da reunião, o GPT resume o que foi conversado, com a sua chave da OpenAI. Só o texto transcrito é enviado; o áudio, nunca.")
         ) {
-            OpenAIKeyField(missingHint: "Fica no Keychain do macOS. Dá para adicionar depois, em Ajustes.")
+            OpenAIKeyField(missingHint: localized("Fica no Keychain do macOS. Dá para adicionar depois, em Ajustes."))
         }
     }
 }
@@ -423,8 +423,8 @@ private struct ReadyPage: View {
     var body: some View {
         PageLayout(
             symbol: "checkmark.seal",
-            title: "Tudo pronto",
-            text: "A Mara fica na barra de menus, no M de pontinhos. Clique nele para começar uma sessão, ou use os atalhos de qualquer app."
+            title: localized("Tudo pronto"),
+            text: localized("A Mara fica na barra de menus, no M de pontinhos. Clique nele para começar uma sessão, ou use os atalhos de qualquer app.")
         ) {
             VStack(spacing: 18) {
                 MenuBarPreview()
@@ -458,7 +458,7 @@ private struct MenuBarPreview: View {
             }
             Image(systemName: "wifi")
             Image(systemName: "battery.75percent")
-            Text("Qua 10:24")
+            Text(localized("Qua 10:24"))
                 .font(.system(size: 12.5, weight: .medium))
         }
         .font(.system(size: 13))
@@ -513,7 +513,7 @@ private struct PageDots: View {
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: current)
         .accessibilityElement()
-        .accessibilityLabel("Etapa \(current + 1) de \(count)")
+        .accessibilityLabel(localized("Etapa \(current + 1) de \(count)"))
     }
 }
 
@@ -544,8 +544,8 @@ final class LanguagePreparation: ObservableObject {
         let locale = Locale(identifier: localeID)
         let translates = CaptionLanguage.matching(locale) != caption
         readyText = translates
-            ? "Pronto: fala e tradução para o \(caption.name.lowercased()), no próprio Mac."
-            : "Pronto: a legenda é a própria transcrição, sem tradução."
+            ? localized("Pronto: fala e tradução para o \(caption.inlineName), no próprio Mac.")
+            : localized("Pronto: a legenda é a própria transcrição, sem tradução.")
         task = Task {
             do {
                 if let request = try await TranscriptionSession.modelDownload(for: locale) {
@@ -575,11 +575,11 @@ final class LanguagePreparation: ObservableObject {
                     state = .translating
                     translationDownload = TranslationSession.Configuration(source: source, target: caption.language)
                 default:
-                    state = .ready("A fala está pronta. A Apple não traduz entre esses idiomas no Mac; a tradução vem do GPT.")
+                    state = .ready(localized("A fala está pronta. A Apple não traduz entre esses idiomas no Mac; a tradução vem do GPT."))
                 }
             } catch {
                 guard !Task.isCancelled else { return }
-                state = .failed("Não foi possível preparar o idioma: \(error.localizedDescription)")
+                state = .failed(localized("Não foi possível preparar o idioma: \(error.localizedDescription)"))
             }
         }
     }
@@ -589,7 +589,7 @@ final class LanguagePreparation: ObservableObject {
             try await session.prepareTranslation()
             state = .ready(readyText)
         } catch {
-            state = .failed("A tradução não foi baixada: \(error.localizedDescription)")
+            state = .failed(localized("A tradução não foi baixada: \(error.localizedDescription)"))
         }
     }
 }

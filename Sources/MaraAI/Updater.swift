@@ -111,7 +111,7 @@ final class Updater: ObservableObject {
             _ = try FileManager.default.replaceItemAt(app, withItemAt: staged)
         } catch {
             installing = false
-            state = .failed("A versão \(version) não foi instalada: \(error.localizedDescription)")
+            state = .failed(localized("A versão \(version) não foi instalada: \(error.localizedDescription)"))
             return false
         }
         if relaunch {
@@ -144,12 +144,12 @@ final class Updater: ObservableObject {
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         let (data, response) = try await URLSession.shared.data(for: request)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-            throw AppError.message("O GitHub não respondeu como esperado.")
+            throw AppError.message(localized("O GitHub não respondeu como esperado."))
         }
         let release = try JSONDecoder().decode(Release.self, from: data)
         // The version names a folder below, so it must be plain numbers and dots.
         guard isPlainVersion(release.version) else {
-            throw AppError.message("A última release tem uma versão inesperada (\(release.tag_name)).")
+            throw AppError.message(localized("A última release tem uma versão inesperada (\(release.tag_name))."))
         }
         return release
     }
@@ -159,7 +159,7 @@ final class Updater: ObservableObject {
     nonisolated private static func download(_ release: Release, into updates: URL) async throws -> URL {
         guard let zip = release.assets.first(where: { $0.name.hasSuffix("-macOS-arm64.zip") }),
               let signature = release.assets.first(where: { $0.name == zip.name + ".sig" })
-        else { throw AppError.message("A versão \(release.version) não tem o pacote assinado para este Mac.") }
+        else { throw AppError.message(localized("A versão \(release.version) não tem o pacote assinado para este Mac.")) }
 
         let (zipFile, _) = try await URLSession.shared.download(from: zip.browser_download_url)
         let (signatureData, _) = try await URLSession.shared.data(from: signature.browser_download_url)
@@ -167,7 +167,7 @@ final class Updater: ObservableObject {
         guard let signatureText = String(data: signatureData, encoding: .utf8),
               let signatureBytes = Data(base64Encoded: signatureText.trimmingCharacters(in: .whitespacesAndNewlines)),
               isSigned(archive, signature: signatureBytes, publicKey: publicKey)
-        else { throw AppError.message("A assinatura da versão \(release.version) não confere; ela não foi instalada.") }
+        else { throw AppError.message(localized("A assinatura da versão \(release.version) não confere; ela não foi instalada.")) }
 
         let folder = updates.appendingPathComponent(release.version, isDirectory: true)
         try? FileManager.default.removeItem(at: folder)
@@ -188,15 +188,15 @@ final class Updater: ObservableObject {
         guard let info = try PropertyListSerialization.propertyList(from: infoData, format: nil) as? [String: Any],
               info["CFBundleIdentifier"] as? String == Bundle.main.bundleIdentifier,
               info["CFBundleShortVersionString"] as? String == version
-        else { throw AppError.message("O pacote da versão \(version) não é o esperado.") }
+        else { throw AppError.message(localized("O pacote da versão \(version) não é o esperado.")) }
 
         var downloaded: SecStaticCode?
         guard SecStaticCodeCreateWithPath(app as CFURL, [], &downloaded) == errSecSuccess, let downloaded else {
-            throw AppError.message("Não foi possível conferir a assinatura do app baixado.")
+            throw AppError.message(localized("Não foi possível conferir a assinatura do app baixado."))
         }
         let flags = SecCSFlags(rawValue: kSecCSCheckAllArchitectures | kSecCSStrictValidate)
         guard SecStaticCodeCheckValidity(downloaded, flags, try projectRequirement()) == errSecSuccess else {
-            throw AppError.message("O app da versão \(version) não tem a assinatura do projeto.")
+            throw AppError.message(localized("O app da versão \(version) não tem a assinatura do projeto."))
         }
     }
 
@@ -211,11 +211,11 @@ final class Updater: ObservableObject {
               SecCodeCopyStaticCode(current, [], &running) == errSecSuccess, let running,
               SecCodeCopySigningInformation(running, SecCSFlags(rawValue: kSecCSSigningInformation), &information) == errSecSuccess,
               let flags = (information as NSDictionary?)?[kSecCodeInfoFlags] as? NSNumber
-        else { throw AppError.message("Não foi possível ler a assinatura desta versão da Mara.") }
+        else { throw AppError.message(localized("Não foi possível ler a assinatura desta versão da Mara.")) }
         if flags.uint32Value & SecCodeSignatureFlags.adhoc.rawValue != 0 { return nil }
         var requirement: SecRequirement?
         guard SecCodeCopyDesignatedRequirement(running, [], &requirement) == errSecSuccess, let requirement else {
-            throw AppError.message("Não foi possível ler a assinatura desta versão da Mara.")
+            throw AppError.message(localized("Não foi possível ler a assinatura desta versão da Mara."))
         }
         return requirement
     }
@@ -226,7 +226,7 @@ final class Updater: ObservableObject {
         process.arguments = arguments
         try process.run()
         process.waitUntilExit()
-        guard process.terminationStatus == 0 else { throw AppError.message("Não foi possível abrir o pacote da atualização.") }
+        guard process.terminationStatus == 0 else { throw AppError.message(localized("Não foi possível abrir o pacote da atualização.")) }
     }
 
     // MARK: Pure helpers

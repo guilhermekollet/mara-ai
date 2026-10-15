@@ -170,10 +170,10 @@ final class CaptionModel: ObservableObject {
 
     func displayName(_ locale: Locale) -> String {
         switch locale.language.languageCode?.identifier {
-        case "pt": return "Português (Brasil)"
-        case "en": return "Inglês (Estados Unidos)"
-        case "es": return "Espanhol"
-        default: return Locale.current.localizedString(forIdentifier: locale.identifier) ?? locale.identifier
+        case "pt": return localized("Português (Brasil)")
+        case "en": return localized("Inglês (Estados Unidos)")
+        case "es": return localized("Espanhol")
+        default: return Interface.locale.localizedString(forIdentifier: locale.identifier) ?? locale.identifier
         }
     }
 
@@ -255,7 +255,7 @@ final class CaptionModel: ObservableObject {
         guard !isStarting else { return }
         isStarting = true
         defer { isStarting = false }
-        status = "Preparando a transcrição…"
+        status = localized("Preparando a transcrição…")
 
         let session = TranscriptionSession()
         let gate = ActivityGate()
@@ -270,7 +270,7 @@ final class CaptionModel: ObservableObject {
                 onResult: { [weak self] text, isFinal in self?.handle(text, isFinal: isFinal) },
                 onError: { [weak self] error in
                     SessionLog.write("ERRO \(error.localizedDescription)")
-                    self?.status = "Erro: \(error.localizedDescription)"
+                    self?.status = localized("Erro: \(error.localizedDescription)")
                     Task { await self?.stop(keepStatus: true, cue: .failure) }
                 }
             )
@@ -294,8 +294,7 @@ final class CaptionModel: ObservableObject {
             await session.stop()
             soundCues.play(.failure)
             SessionLog.write("ERRO ao iniciar: \(error.localizedDescription)")
-            status = "Não foi possível iniciar: \(error.localizedDescription). "
-                + "Confira a permissão em Ajustes do Sistema > Privacidade e Segurança > Gravação de Tela e Áudio do Sistema."
+            status = localized("Não foi possível iniciar: \(error.localizedDescription). Confira a permissão em Ajustes do Sistema > Privacidade e Segurança > Gravação de Tela e Áudio do Sistema.")
         }
     }
 
@@ -314,7 +313,7 @@ final class CaptionModel: ObservableObject {
         clearVolatile()
         SessionLog.write("PARADO")
         if !keepStatus {
-            status = segments.isEmpty ? "Parado." : "Parado. Transcrição salva em Documentos/Mara AI."
+            status = segments.isEmpty ? localized("Parado.") : localized("Parado. Transcrição salva em Documentos/Mara AI.")
         }
     }
 
@@ -328,7 +327,7 @@ final class CaptionModel: ObservableObject {
                     let minutes = max(1, Int((self.autoStopAfter / 60).rounded()))
                     SessionLog.write("DESLIGADA por \(Int(quiet))s sem áudio")
                     await self.stop(keepStatus: true)
-                    self.status = "Desligada automaticamente após \(minutes) min sem áudio. A transcrição foi salva."
+                    self.status = localized("Desligada automaticamente após \(minutes) min sem áudio. A transcrição foi salva.")
                     return
                 }
                 if self.isIdle {
@@ -420,7 +419,7 @@ final class CaptionModel: ObservableObject {
                 setTranslation(result.text, for: id, refined: true)
             } catch {
                 SessionLog.write("GPT falhou: \(error.localizedDescription)")
-                status = "Falha ao traduzir pelo GPT: \(error.localizedDescription)"
+                status = localized("Falha ao traduzir pelo GPT: \(error.localizedDescription)")
             }
         }
     }
@@ -591,7 +590,7 @@ final class CaptionModel: ObservableObject {
         case .installed:
             makeLocalSessions(from: source)
         case .supported:
-            status = "Confirme o download do idioma na janela da Apple para ativar a tradução instantânea."
+            status = localized("Confirme o download do idioma na janela da Apple para ativar a tradução instantânea.")
             var download = TranslationSession.Configuration(source: source, target: target)
             if translationDownload == download {
                 download = translationDownload ?? download
@@ -600,7 +599,7 @@ final class CaptionModel: ObservableObject {
             translationDownload = download
         default:
             if !gptEnabled {
-                status = "A Apple não traduz do idioma da reunião para o \(captionLanguage.name.lowercased()) e o GPT está desligado: só o original aparece."
+                status = localized("A Apple não traduz do idioma da reunião para o \(captionLanguage.inlineName) e o GPT está desligado: só o original aparece.")
             }
         }
     }
@@ -613,7 +612,7 @@ final class CaptionModel: ObservableObject {
             makeLocalSessions(from: source)
             if isRunning { status = "" }
         } catch {
-            status = "Tradução local indisponível: \(error.localizedDescription)"
+            status = localized("Tradução local indisponível: \(error.localizedDescription)")
         }
     }
 
@@ -637,7 +636,7 @@ final class CaptionModel: ObservableObject {
         let fileStamp = now.formatted(.iso8601.year().month().day().dateSeparator(.dash))
             + " " + now.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits).second(.twoDigits))
                 .replacingOccurrences(of: ":", with: ".")
-        transcriptTitle = "Reunião de \(now.formatted(date: .numeric, time: .shortened)) (\(language))"
+        transcriptTitle = localized("Reunião de \(now.formatted(date: .numeric, time: .shortened)) (\(language))")
         transcriptURL = Self.transcriptsFolder.appendingPathComponent("\(fileStamp) \(language).txt")
     }
 
@@ -654,7 +653,7 @@ final class CaptionModel: ObservableObject {
             try FileManager.default.createDirectory(at: Self.transcriptsFolder, withIntermediateDirectories: true)
             try text.write(to: transcriptURL, atomically: true, encoding: .utf8)
         } catch {
-            status = "Não foi possível salvar a transcrição: \(error.localizedDescription)"
+            status = localized("Não foi possível salvar a transcrição: \(error.localizedDescription)")
         }
     }
 }

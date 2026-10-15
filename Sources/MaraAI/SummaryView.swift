@@ -19,9 +19,9 @@ struct SummaryView: View {
                     Image(systemName: "text.document")
                         .font(.system(size: 28, weight: .light))
                         .foregroundStyle(Theme.paper.opacity(0.35))
-                    Text("Nenhum resumo ainda")
+                    Text(localized("Nenhum resumo ainda"))
                         .font(.system(size: 13, weight: .semibold))
-                    Text("Ao fim de uma sessão, peça o resumo no painel da Mara.")
+                    Text(localized("Ao fim de uma sessão, peça o resumo no painel da Mara."))
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.muted)
                 }
@@ -90,18 +90,18 @@ struct SummaryView: View {
 
             Divider().overlay(Theme.paper.opacity(0.1))
             HStack(spacing: 8) {
-                Button("Copiar") { model.copySummary() }
+                Button(localized("Copiar")) { model.copySummary() }
                     .buttonStyle(PillButtonStyle())
-                Button("Salvar…") { model.saveSummaryAs() }
+                Button(localized("Salvar…")) { model.saveSummaryAs() }
                     .buttonStyle(PillButtonStyle(prominent: false))
                 if let markdown = model.summaryMarkdown {
                     ShareLink(item: markdown, subject: Text(summary.title)) {
-                        Label("Compartilhar", systemImage: "square.and.arrow.up")
+                        Label(localized("Compartilhar"), systemImage: "square.and.arrow.up")
                     }
                     .buttonStyle(PillButtonStyle(prominent: false))
                 }
                 Spacer()
-                Button("Mostrar no Finder") { model.revealSummaryFile() }
+                Button(localized("Mostrar no Finder")) { model.revealSummaryFile() }
                     .buttonStyle(.plain)
                     .font(.system(size: 11.5))
                     .foregroundStyle(Theme.muted)

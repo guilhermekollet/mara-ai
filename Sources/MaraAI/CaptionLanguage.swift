@@ -7,17 +7,22 @@ struct CaptionLanguage: Identifiable, Equatable {
     let id: String
     /// ISO 639 code, to compare with the meeting language.
     let code: String
-    /// The name in the app's language.
-    let name: String
     /// The name the GPT prompts use.
     let englishName: String
 
     var language: Locale.Language { Locale.Language(identifier: id) }
 
+    /// The name in the interface's language, as it reads in a sentence: "inglês" in Portuguese,
+    /// "English" in English.
+    var inlineName: String { Interface.locale.localizedString(forLanguageCode: code) ?? englishName }
+
+    /// The name on its own, as in a menu: "Inglês", "English".
+    var name: String { inlineName.capitalized(with: Interface.locale) }
+
     static let all = [
-        CaptionLanguage(id: "pt-BR", code: "pt", name: "Português", englishName: "Brazilian Portuguese"),
-        CaptionLanguage(id: "en-US", code: "en", name: "Inglês", englishName: "English"),
-        CaptionLanguage(id: "es-ES", code: "es", name: "Espanhol", englishName: "Spanish"),
+        CaptionLanguage(id: "pt-BR", code: "pt", englishName: "Brazilian Portuguese"),
+        CaptionLanguage(id: "en-US", code: "en", englishName: "English"),
+        CaptionLanguage(id: "es-ES", code: "es", englishName: "Spanish"),
     ]
 
     static func with(id: String) -> CaptionLanguage {

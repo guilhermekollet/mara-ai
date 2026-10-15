@@ -45,3 +45,68 @@ func updateSignatureHolds(afterTampering tamper: Bool) -> Bool {
     if tamper { archive[0] ^= 1 }
     return Updater.isSigned(archive, signature: signature, publicKey: key.publicKey.rawRepresentation.base64EncodedString())
 }
+
+// MARK: Translations
+
+private let sources = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    .appendingPathComponent("Sources/MaraAI")
+
+/// The interface's translation table for `language` ("en", "es"), read from the sources.
+func translationTable(_ language: String) -> [String: String] {
+    let url = sources.appendingPathComponent("Resources/\(language).lproj/Localizable.strings")
+    return NSDictionary(contentsOf: url) as? [String: String] ?? [:]
+}
+
+/// The format specifiers in `text`, in order (`%@`, `%lld`, `%%`): a translation must keep its key's.
+func formatSpecifiers(_ text: String) -> [String] {
+    let pattern = try! NSRegularExpression(pattern: "%(%|@|l{0,2}[dfu])")
+    return pattern.matches(in: text, range: NSRange(text.startIndex..., in: text))
+        .map { String(text[Range($0.range, in: text)!]) }
+}
+
+/// The key of every `localized("…")` in Sources/MaraAI, the way `String.LocalizationValue` builds
+/// it, except that interpolations become `%@` whatever their type (the source doesn't say).
+func localizedKeysInSources() -> [String] {
+    let files = (try? FileManager.default.contentsOfDirectory(at: sources, includingPropertiesForKeys: nil)) ?? []
+    var keys: [String] = []
+    for file in files where file.pathExtension == "swift" {
+        let text = Array((try? String(contentsOf: file, encoding: .utf8)) ?? "")
+        let opening = Array("localized(\"")
+        var index = 0
+        while index + opening.count <= text.count {
+            guard Array(text[index..<index + opening.count]) == opening else {
+                index += 1
+                continue
+            }
+            index += opening.count
+            var key = ""
+            while text[index] != "\"" {
+                if text[index] == "\\", text[index + 1] == "(" {
+                    // Skips the interpolated expression, which may have parentheses of its own.
+                    var depth = 1
+                    index += 2
+                    while depth > 0 {
+                        if text[index] == "(" { depth += 1 }
+                        if text[index] == ")" { depth -= 1 }
+                        index += 1
+                    }
+                    key += "%@"
+                } else if text[index] == "\\" {
+                    key += String(text[index...index + 1])
+                    index += 2
+                } else {
+                    key += text[index] == "%" ? "%%" : String(text[index])
+                    index += 1
+                }
+            }
+            keys.append(key)
+        }
+    }
+    return keys
+}
+
+/// `key` with every specifier but `%%` written as `%@`, to compare with `localizedKeysInSources`.
+func normalizedKey(_ key: String) -> String {
+    key.replacingOccurrences(of: "%l{0,2}[dfu]", with: "%@", options: .regularExpression)
+}

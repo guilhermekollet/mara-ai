@@ -29,7 +29,7 @@ final class SystemAudioCapture: NSObject, SCStreamOutput, SCStreamDelegate {
     private func startStream() async throws {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         guard let display = content.displays.first else {
-            throw AppError.message("Nenhuma tela encontrada para capturar o áudio.")
+            throw AppError.message(localized("Nenhuma tela encontrada para capturar o áudio."))
         }
 
         let config = SCStreamConfiguration()

@@ -25,17 +25,17 @@ struct MaraAIApp: App {
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 520, height: 150)
 
-        Window("Resumo da Mara", id: summaryWindowID) {
+        Window(localized("Resumo da Mara"), id: summaryWindowID) {
             SummaryView().environmentObject(model)
         }
         .windowResizability(.contentSize)
 
-        Window("Ajustes da Mara", id: settingsWindowID) {
+        Window(localized("Ajustes da Mara"), id: settingsWindowID) {
             SettingsView().environmentObject(model)
         }
         .windowResizability(.contentSize)
 
-        Window("Boas-vindas à Mara", id: onboardingWindowID) {
+        Window(localized("Boas-vindas à Mara"), id: onboardingWindowID) {
             OnboardingView().environmentObject(model)
         }
         .windowStyle(.hiddenTitleBar)
@@ -160,7 +160,7 @@ struct ContentView: View {
                 .modifier(HoverReveal(shown: hovering, order: 0))
             IconButton(
                 symbol: model.isRunning ? "stop.fill" : "play.fill",
-                help: model.isRunning ? "Parar" : "Iniciar",
+                help: model.isRunning ? localized("Parar") : localized("Iniciar"),
                 color: Theme.accent
             ) { model.toggle() }
                 .keyboardShortcut(.return, modifiers: .command)
@@ -176,12 +176,12 @@ struct ContentView: View {
                     .modifier(HoverReveal(shown: hovering, order: 2))
             }
             Spacer(minLength: 0)
-            IconButton(symbol: "doc.on.doc", help: "Copiar a transcrição") { model.copyTranscript() }
+            IconButton(symbol: "doc.on.doc", help: localized("Copiar a transcrição")) { model.copyTranscript() }
                 .disabled(model.segments.isEmpty)
                 .modifier(HoverReveal(shown: hovering, order: 3))
-            IconButton(symbol: "gearshape", help: "Ajustes") { present(settingsWindowID, using: openWindow) }
+            IconButton(symbol: "gearshape", help: localized("Ajustes")) { present(settingsWindowID, using: openWindow) }
             .modifier(HoverReveal(shown: hovering, order: 4))
-            IconButton(symbol: "xmark", help: "Fechar a janela de legendas") { dismissWindow(id: captionsWindowID) }
+            IconButton(symbol: "xmark", help: localized("Fechar a janela de legendas")) { dismissWindow(id: captionsWindowID) }
                 .modifier(HoverReveal(shown: hovering, order: 5))
         }
         .padding(.horizontal, 6)
@@ -207,7 +207,7 @@ struct ContentView: View {
                     IdleBadge(large: true)
                 } else {
                     SoundBars(meter: model.audioMeter, height: 26, color: Theme.accent.opacity(0.9))
-                        .help("Ouvindo o áudio do Mac")
+                        .help(localized("Ouvindo o áudio do Mac"))
                 }
             }
             .scaleEffect(indicatorInHeader ? 0.5 : 1)
@@ -314,7 +314,7 @@ struct ContentView: View {
                 }
             }
             // Back to the latest captions: just the arrow in the bottom right corner; after 5 s
-            // without scrolling, "Falas novas" slides in beside it.
+            // without scrolling, localized("Falas novas") slides in beside it.
             .overlay(alignment: .bottomTrailing) {
                 if !followsLatest {
                     Button {
@@ -324,7 +324,7 @@ struct ContentView: View {
                     } label: {
                         HStack(spacing: 5) {
                             if showsJumpLabel {
-                                Text("Falas novas")
+                                Text(localized("Falas novas"))
                                     .fixedSize()
                                     .transition(.move(edge: .trailing).combined(with: .opacity))
                             }
@@ -340,7 +340,7 @@ struct ContentView: View {
                         .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
-                    .help("Ir para as falas novas")
+                    .help(localized("Ir para as falas novas"))
                     .padding([.bottom, .trailing], 8)
                     .transition(.opacity.combined(with: .scale(scale: 0.7, anchor: .bottomTrailing)))
                 }
@@ -403,11 +403,11 @@ struct IdleBadge: View {
         HStack(spacing: 5) {
             Image(systemName: "moon.zzz.fill")
                 .font(.system(size: large ? 15 : 10.5))
-            Text("Em espera")
+            Text(localized("Em espera"))
                 .font(.system(size: large ? 13 : 10.5, weight: .medium))
         }
         .foregroundStyle(Theme.paper.opacity(0.45))
-        .help("Sem áudio há algum tempo. A Mara volta a ouvir sozinha quando houver som.")
+        .help(localized("Sem áudio há algum tempo. A Mara volta a ouvir sozinha quando houver som."))
     }
 }
 

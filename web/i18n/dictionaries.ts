@@ -6,7 +6,7 @@
 // Portuguese captions on /pt, Spanish speech becomes English on /en, and English speech becomes
 // Spanish on /es. The app captions meetings in English, Spanish or Portuguese into any of the
 // three, as the FAQ answer about languages says in every language; keep it in step with
-// CaptionLanguage.swift. The app's interface is still in Brazilian Portuguese.
+// CaptionLanguage.swift. The app's interface follows the Mac: Portuguese, English or Spanish.
 
 export const locales = ["en", "pt", "es"] as const;
 export type Locale = (typeof locales)[number];
@@ -169,7 +169,7 @@ const en = {
       {
         question: "Which languages are supported?",
         answer:
-          "Meetings in English, Spanish or Portuguese, with captions in any of the three: Mara translates between them on your Mac. When the meeting is already in the caption language, it transcribes without translating. You pick both languages before you start. The app's own interface is in Brazilian Portuguese for now.",
+          "Meetings in English, Spanish or Portuguese, with captions in any of the three: Mara translates between them on your Mac. When the meeting is already in the caption language, it transcribes without translating. You pick both languages before you start. The app's own interface follows your Mac: English, Spanish or Portuguese.",
       },
       {
         question: "How does the summary work?",
@@ -549,7 +549,7 @@ const es: Dictionary = {
       {
         question: "¿Qué idiomas son compatibles?",
         answer:
-          "Reuniones en inglés, español o portugués, con subtítulos en cualquiera de los tres: Mara traduce entre ellos en tu Mac. Cuando la reunión ya está en el idioma del subtítulo, transcribe sin traducir. Eliges los dos idiomas antes de empezar. Por ahora, la interfaz de la app está en portugués de Brasil.",
+          "Reuniones en inglés, español o portugués, con subtítulos en cualquiera de los tres: Mara traduce entre ellos en tu Mac. Cuando la reunión ya está en el idioma del subtítulo, transcribe sin traducir. Eliges los dos idiomas antes de empezar. La interfaz de la app sigue a tu Mac: español, inglés o portugués.",
       },
       {
         question: "¿Cómo funciona el resumen?",
