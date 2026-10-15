@@ -10,7 +10,7 @@ final class TranscriptionSession {
     private var microphoneRecognizer: Recognizer?
     private var locale = Locale.current
     private var vocabulary: [String] = []
-    private var onResult: (@MainActor (_ text: String, _ isFinal: Bool, _ speaker: Speaker) -> Void)?
+    private var onResult: (@MainActor (_ text: String, _ isFinal: Bool, _ speaker: Speaker, _ range: CMTimeRange) -> Void)?
     private var onError: (@MainActor (Error) -> Void)?
 
     /// Whether what is said into the microphone is being transcribed right now.
@@ -33,9 +33,10 @@ final class TranscriptionSession {
         gate: ActivityGate,
         microphoneGate: ActivityGate,
         withMicrophone: Bool,
+        sentenceAudio: SentenceAudio? = nil,
         onAudio: ((AVAudioPCMBuffer) -> Void)? = nil,
         onStatus: @escaping @MainActor (String) -> Void,
-        onResult: @escaping @MainActor (_ text: String, _ isFinal: Bool, _ speaker: Speaker) -> Void,
+        onResult: @escaping @MainActor (_ text: String, _ isFinal: Bool, _ speaker: Speaker, _ range: CMTimeRange) -> Void,
         onMicrophoneLost: @escaping @MainActor () -> Void,
         onError: @escaping @MainActor (Error) -> Void
     ) async throws {
@@ -52,7 +53,7 @@ final class TranscriptionSession {
         }
         let system = try await Recognizer.start(
             transcriber, vocabulary: vocabulary,
-            onResult: { text, isFinal in onResult(text, isFinal, .others) },
+            onResult: { text, isFinal, range in onResult(text, isFinal, .others, range) },
             onError: onError
         )
         self.system = system
@@ -78,6 +79,9 @@ final class TranscriptionSession {
                 onAudio?(converted)
                 // While on standby, audio is still metered but isn't sent to transcription.
                 for ready in gate.pass(converted) {
+                    // Kept in step with what the recognizer hears, so a sentence's time range
+                    // finds its audio.
+                    sentenceAudio?.append(ready)
                     input.yield(AnalyzerInput(buffer: ready))
                 }
             },
@@ -114,7 +118,7 @@ final class TranscriptionSession {
         let transcriber = try await Recognizer.transcriber(for: locale, partials: false)
         let recognizer = try await Recognizer.start(
             transcriber, vocabulary: vocabulary,
-            onResult: { text, isFinal in onResult(text, isFinal, .me) },
+            onResult: { text, isFinal, range in onResult(text, isFinal, .me, range) },
             onError: onError
         )
         microphoneRecognizer = recognizer
@@ -187,7 +191,7 @@ final class Recognizer {
     static func start(
         _ transcriber: SpeechTranscriber,
         vocabulary: [String],
-        onResult: @escaping @MainActor (_ text: String, _ isFinal: Bool) -> Void,
+        onResult: @escaping @MainActor (_ text: String, _ isFinal: Bool, _ range: CMTimeRange) -> Void,
         onError: @escaping @MainActor (Error) -> Void
     ) async throws -> Recognizer {
         guard let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]) else {
@@ -204,7 +208,7 @@ final class Recognizer {
         let results = Task {
             do {
                 for try await result in transcriber.results {
-                    await onResult(String(result.text.characters), result.isFinal)
+                    await onResult(String(result.text.characters), result.isFinal, result.range)
                 }
             } catch {
                 await onError(error)
@@ -360,5 +364,51 @@ final class ActivityGate {
             for index in 0..<frames { sum += Double(channel[index]) * Double(channel[index]) }
         }
         return (sum / Double(frames)).squareRoot()
+    }
+}
+
+/// The last half minute of the meeting audio that went to transcription, counted from the start
+/// of the session in the recognizer's own timeline (standby gaps don't count), so the time range
+/// of a finished sentence finds exactly its audio: the voice to tell who said it.
+final class SentenceAudio: @unchecked Sendable {
+    private let lock = NSLock()
+    private var samples: [Float] = []
+    /// How many samples came before `samples[0]`.
+    private var dropped = 0
+    private var sampleRate = 16_000.0
+    private static let keep: Double = 30
+
+    /// Called on the capture queue with each buffer handed to the recognizer.
+    func append(_ buffer: AVAudioPCMBuffer) {
+        let count = Int(buffer.frameLength)
+        guard count > 0 else { return }
+        var incoming = [Float](repeating: 0, count: count)
+        if let channel = buffer.floatChannelData?[0] {
+            for index in 0..<count { incoming[index] = channel[index] }
+        } else if let channel = buffer.int16ChannelData?[0] {
+            for index in 0..<count { incoming[index] = Float(channel[index]) / 32_768 }
+        } else {
+            return
+        }
+        lock.lock()
+        defer { lock.unlock() }
+        sampleRate = buffer.format.sampleRate
+        samples += incoming
+        let limit = Int(sampleRate * Self.keep)
+        if samples.count > limit {
+            let excess = samples.count - limit
+            samples.removeFirst(excess)
+            dropped += excess
+        }
+    }
+
+    /// The audio between `start` and `end` seconds, as far as it is still kept, and its sample rate.
+    func clip(from start: Double, to end: Double) -> (samples: [Float], sampleRate: Double) {
+        lock.lock()
+        defer { lock.unlock() }
+        let first = max(0, Int(start * sampleRate) - dropped)
+        let last = min(samples.count, Int(end * sampleRate) - dropped)
+        guard first < last else { return ([], sampleRate) }
+        return (Array(samples[first..<last]), sampleRate)
     }
 }

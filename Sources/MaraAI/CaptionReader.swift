@@ -7,7 +7,6 @@ struct ReadoutQueue {
     struct Item: Equatable {
         let id: UUID
         let finalizedAt: Date
-        let gender: VoiceGender?
     }
 
     static let maxWaiting = 2
@@ -47,8 +46,11 @@ final class CaptionReader {
     /// Whether a GPT version of each sentence is on its way, worth waiting a moment for.
     var expectsRefinement = false
     var onSpeakingChanged: (Bool) -> Void = { _ in }
-    /// Picks the voice for a sentence: the language's voice for that gender.
-    var voiceFor: (VoiceGender?) -> String = { _ in "F1" }
+    /// Who said a sentence, as far as it's known: the gender of their voice, their voice slot,
+    /// and whether telling who it was is still under way (worth waiting a moment for).
+    var speaker: (UUID) -> (gender: VoiceGender?, slot: Int, pending: Bool)? = { _ in nil }
+    /// The language's voice for a gender and slot.
+    var voiceFor: (VoiceGender, Int) -> String = { _, _ in "F1" }
     var language = "pt"
     var speed = 1.0
     var volume = 0.9 {
@@ -139,14 +141,16 @@ final class CaptionReader {
     private func drain() async {
         while !Task.isCancelled, let item = queue.next() {
             guard let synthesizer else { return }
-            let gender = item.gender ?? lastGender
-            lastGender = gender
             guard let text = await resolvedText(item), !text.isEmpty else { continue }
+            let who = await resolvedSpeaker(item)
+            let gender = who?.gender ?? lastGender
+            lastGender = gender
+            let voice = voiceFor(gender, who?.slot ?? 0)
             let pace = speed * ReadoutQueue.boost(waiting: queue.waiting.count)
             let started = Date()
-            guard let samples = try? await synthesizer.synthesize(text, voice: voiceFor(gender), language: language, speed: pace),
+            guard let samples = try? await synthesizer.synthesize(text, voice: voice, language: language, speed: pace),
                   !Task.isCancelled else { continue }
-            SessionLog.write("VOZ \(gender.rawValue) \(SessionLog.ms(since: started)) espera=\(queue.waiting.count) \(text)")
+            SessionLog.write("VOZ \(voice) \(SessionLog.ms(since: started)) espera=\(queue.waiting.count) \(text)")
             await play(samples, sampleRate: synthesizer.sampleRate)
             recentlySpoken.append((text, Date()))
             recentlySpoken.removeAll { Date().timeIntervalSince($0.endedAt) > 30 }
@@ -160,6 +164,16 @@ final class CaptionReader {
             try? await Task.sleep(for: .milliseconds(100))
         }
         return text(item.id)?.text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Who said it, once known. Telling the speaker apart takes about a quarter of a second and
+    /// usually ends while the text is still being refined; it's not waited for past that.
+    private func resolvedSpeaker(_ item: ReadoutQueue.Item) async -> (gender: VoiceGender?, slot: Int)? {
+        while let current = speaker(item.id), current.pending,
+              Date().timeIntervalSince(item.finalizedAt) < Self.refinementWait, !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        return speaker(item.id).map { ($0.gender, $0.slot) }
     }
 
     private func play(_ samples: [Float], sampleRate: Double) async {
@@ -229,12 +243,12 @@ enum VoiceTrial {
     static func run(language: String) async {
         let engine = VoiceEngine.reading(language)
         let store = VoiceModelStore.shared
-        if store.state(engine) != .ready {
-            print("Downloading \(engine.rawValue) (\(engine.manifest.totalBytes / 1_000_000) MB)…")
-            store.download(engine)
+        if store.state(engine.model) != .ready {
+            print("Downloading \(engine.rawValue) (\(engine.model.manifest.totalBytes / 1_000_000) MB)…")
+            store.download(engine.model)
             var last = -1
             while true {
-                switch store.state(engine) {
+                switch store.state(engine.model) {
                 case .downloading(let fraction):
                     let percent = Int(fraction * 100)
                     if percent / 10 != last / 10 { print("  \(percent)%") }
@@ -248,7 +262,7 @@ enum VoiceTrial {
                     print("  cancelled")
                     return
                 }
-                if store.state(engine) == .ready { break }
+                if store.state(engine.model) == .ready { break }
                 try? await Task.sleep(for: .milliseconds(250))
             }
         }

@@ -15,12 +15,30 @@ enum VoiceEngine: String, CaseIterable, Identifiable, Sendable {
         language == "pt" ? .supertonic : .kokoro
     }
 
-    var manifest: VoiceModelManifest {
+    var model: VoiceModel {
         switch self {
         case .kokoro: return .kokoro
         case .supertonic: return .supertonic
         }
     }
+}
+
+/// The models Mara downloads on request: the two voice engines and the one that tells the
+/// meeting's speakers apart.
+enum VoiceModel: String, CaseIterable, Identifiable, Sendable {
+    case kokoro, supertonic, speakers
+
+    var id: String { rawValue }
+
+    var manifest: VoiceModelManifest {
+        switch self {
+        case .kokoro: return .kokoro
+        case .supertonic: return .supertonic
+        case .speakers: return .speakers
+        }
+    }
+
+    var megabytes: Int { Int((Double(manifest.totalBytes) / 1_000_000).rounded()) }
 }
 
 /// The files of one model, pinned to a revision of its Hugging Face repository and checked once
@@ -82,6 +100,18 @@ struct VoiceModelManifest: Sendable {
         ]
     )
 
+    /// ReDimNet2-B6 (MIT): a voice's fingerprint, to tell the meeting's speakers apart.
+    static let speakers = VoiceModelManifest(
+        repository: "aufklarer/ReDimNet2-B6-CoreML",
+        revision: "112dd8f4f836abdf8a420e66a5e2885cf8ec64ab",
+        files: [
+            .init("ReDimNet2B6.mlmodelc/analytics/coremldata.bin", size: 243, sha256: "05fe3e096940a0a13f1a4f2382108872e4a5c448cc552cefcfdebee93f096322"),
+            .init("ReDimNet2B6.mlmodelc/coremldata.bin", size: 518, sha256: "8b23b5a85f79b16a5798121193254e18b43096264c63afdbed90911a64ba1294"),
+            .init("ReDimNet2B6.mlmodelc/model.mil", size: 504071),
+            .init("ReDimNet2B6.mlmodelc/weights/weight.bin", size: 29519872, sha256: "780eb60151995b33d6a967deac32b9fe22ebd119e8288417f6d51ac7b856bcfc"),
+        ]
+    )
+
     /// Supertonic 3 by Supertone (OpenRAIL-M): reads the text as written, without pronunciation rules.
     static let supertonic = VoiceModelManifest(
         repository: "aufklarer/Supertonic-3-CoreML",
@@ -128,73 +158,73 @@ final class VoiceModelStore: ObservableObject {
 
     static let shared = VoiceModelStore()
 
-    @Published private(set) var states: [VoiceEngine: State] = [:]
-    private var downloads: [VoiceEngine: Task<Void, Never>] = [:]
+    @Published private(set) var states: [VoiceModel: State] = [:]
+    private var downloads: [VoiceModel: Task<Void, Never>] = [:]
 
     nonisolated static let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("MaraAI/Voices", isDirectory: true)
 
     private init() {
-        for engine in VoiceEngine.allCases {
-            states[engine] = Self.isComplete(engine) ? .ready : .missing
+        for model in VoiceModel.allCases {
+            states[model] = Self.isComplete(model) ? .ready : .missing
         }
     }
 
-    func state(_ engine: VoiceEngine) -> State { states[engine] ?? .missing }
+    func state(_ model: VoiceModel) -> State { states[model] ?? .missing }
 
     /// The model's folder, named after its revision, so a new one never mixes with an old one.
-    nonisolated static func directory(_ engine: VoiceEngine) -> URL {
-        root.appendingPathComponent("\(engine.rawValue)-\(engine.manifest.revision.prefix(12))", isDirectory: true)
+    nonisolated static func directory(_ model: VoiceModel) -> URL {
+        root.appendingPathComponent("\(model.rawValue)-\(model.manifest.revision.prefix(12))", isDirectory: true)
     }
 
     /// Written last, once every file has been checked.
-    private nonisolated static func marker(_ engine: VoiceEngine) -> URL {
-        directory(engine).appendingPathComponent(".complete")
+    private nonisolated static func marker(_ model: VoiceModel) -> URL {
+        directory(model).appendingPathComponent(".complete")
     }
 
-    nonisolated static func isComplete(_ engine: VoiceEngine) -> Bool {
-        FileManager.default.fileExists(atPath: marker(engine).path)
+    nonisolated static func isComplete(_ model: VoiceModel) -> Bool {
+        FileManager.default.fileExists(atPath: marker(model).path)
     }
 
-    func download(_ engine: VoiceEngine) {
-        if case .downloading = state(engine) { return }
-        guard state(engine) != .ready else { return }
-        states[engine] = .downloading(0)
-        downloads[engine] = Task { [weak self] in
+    func download(_ model: VoiceModel) {
+        if case .downloading = state(model) { return }
+        guard state(model) != .ready else { return }
+        states[model] = .downloading(0)
+        downloads[model] = Task { [weak self] in
             do {
-                try await Self.fetch(engine) { fraction in
+                try await Self.fetch(model) { fraction in
                     Task { @MainActor in
-                        guard let self, case .downloading = self.state(engine) else { return }
-                        self.states[engine] = .downloading(fraction)
+                        guard let self, case .downloading = self.state(model) else { return }
+                        self.states[model] = .downloading(fraction)
                     }
                 }
-                self?.states[engine] = .ready
+                self?.states[model] = .ready
             } catch is CancellationError {
-                self?.states[engine] = .missing
+                self?.states[model] = .missing
             } catch {
-                self?.states[engine] = .failed(error.localizedDescription)
+                self?.states[model] = .failed(error.localizedDescription)
             }
-            self?.downloads[engine] = nil
+            self?.downloads[model] = nil
         }
     }
 
-    func cancel(_ engine: VoiceEngine) {
-        downloads[engine]?.cancel()
+    func cancel(_ model: VoiceModel) {
+        downloads[model]?.cancel()
     }
 
     /// Frees the disk space. The voices come back with another download.
-    func remove(_ engine: VoiceEngine) {
-        cancel(engine)
-        try? FileManager.default.removeItem(at: Self.directory(engine))
-        states[engine] = .missing
+    func remove(_ model: VoiceModel) {
+        cancel(model)
+        try? FileManager.default.removeItem(at: Self.directory(model))
+        states[model] = .missing
     }
 
     /// Downloads into a temporary folder and moves it into place only when everything checks out,
     /// so a download cut halfway never looks complete.
-    private nonisolated static func fetch(_ engine: VoiceEngine, progress: @escaping @Sendable (Double) -> Void) async throws {
-        let manifest = engine.manifest
+    private nonisolated static func fetch(_ model: VoiceModel, progress: @escaping @Sendable (Double) -> Void) async throws {
+        let manifest = model.manifest
         let fileManager = FileManager.default
-        let staging = root.appendingPathComponent(".\(engine.rawValue)-download", isDirectory: true)
+        let staging = root.appendingPathComponent(".\(model.rawValue)-download", isDirectory: true)
         try? fileManager.removeItem(at: staging)
         try fileManager.createDirectory(at: staging, withIntermediateDirectories: true)
         defer { try? fileManager.removeItem(at: staging) }
@@ -230,10 +260,10 @@ final class VoiceModelStore: ObservableObject {
             try fileManager.removeItem(at: package)
         }
 
-        let directory = Self.directory(engine)
+        let directory = Self.directory(model)
         try? fileManager.removeItem(at: directory)
         try fileManager.moveItem(at: staging, to: directory)
-        fileManager.createFile(atPath: marker(engine).path, contents: Data())
+        fileManager.createFile(atPath: marker(model).path, contents: Data())
     }
 
     nonisolated static func verify(_ url: URL, against file: VoiceModelManifest.File) throws {

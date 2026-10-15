@@ -1,4 +1,5 @@
 import AppKit
+import CoreMedia
 import Foundation
 import Translation
 
@@ -14,6 +15,12 @@ final class CaptionModel: ObservableObject {
         var speaker = Speaker.others
         /// Whether the speaker's voice sounded male or female, by its pitch; nil when it didn't say.
         var gender: VoiceGender?
+        /// Who said it (1, 2, 3…), when Mara tells the speakers apart by their voices.
+        var person: Int?
+        /// Which of the gender's two reading voices is this speaker's.
+        var voiceSlot = 0
+        /// Telling who said it is still under way.
+        var identifying = false
     }
 
     @Published var segments: [Segment] = []
@@ -120,6 +127,13 @@ final class CaptionModel: ObservableObject {
     let reader = CaptionReader()
     let voiceModels = VoiceModelStore.shared
     private let speakerPitch = SpeakerPitch()
+    /// Tells the speakers apart by their voices: "Pessoa 1, 2…" in the transcript and the summary,
+    /// and a voice of their own when reading aloud. Off by default; downloads a small model.
+    @Published private(set) var identifySpeakers: Bool {
+        didSet { UserDefaults.standard.set(identifySpeakers, forKey: "identifySpeakers") }
+    }
+    private var speakerTracker: SpeakerTracker?
+    private var sentenceAudio: SentenceAudio?
 
     /// Seconds without audio before going on hold and before stopping on its own (0 disables the feature).
     @Published var idleAfter: Double {
@@ -180,6 +194,7 @@ final class CaptionModel: ObservableObject {
         readoutSpeed = UserDefaults.standard.object(forKey: "readoutSpeed") as? Double ?? 1
         readoutVolume = UserDefaults.standard.object(forKey: "readoutVolume") as? Double ?? 0.9
         readoutVoices = UserDefaults.standard.dictionary(forKey: "readoutVoices") as? [String: String] ?? [:]
+        identifySpeakers = UserDefaults.standard.bool(forKey: "identifySpeakers")
         configureReader()
         applyHotKeys()
         soundCues.enabled = soundCuesEnabled
@@ -310,6 +325,10 @@ final class CaptionModel: ObservableObject {
         self.gate = gate
         self.microphoneGate = microphoneGate
         let withMicrophone = microphoneOn && MicrophonePermission.isGranted
+        // Cheap (half a minute of audio), so it's always kept: telling speakers apart can be
+        // turned on mid-meeting.
+        let sentenceAudio = SentenceAudio()
+        self.sentenceAudio = sentenceAudio
         do {
             try await session.start(
                 locale: Locale(identifier: localeID),
@@ -317,16 +336,17 @@ final class CaptionModel: ObservableObject {
                 gate: gate,
                 microphoneGate: microphoneGate,
                 withMicrophone: withMicrophone,
+                sentenceAudio: sentenceAudio,
                 onAudio: { [audioMeter, speakerPitch] buffer in
                     audioMeter.push(buffer)
                     speakerPitch.push(buffer)
                 },
                 onStatus: { [weak self] in self?.status = $0 },
-                onResult: { [weak self] text, isFinal, speaker in
+                onResult: { [weak self] text, isFinal, speaker, range in
                     if speaker == .me {
                         self?.handleMine(text, isFinal: isFinal)
                     } else {
-                        self?.handle(text, isFinal: isFinal)
+                        self?.handle(text, isFinal: isFinal, range: range)
                     }
                 },
                 onMicrophoneLost: { [weak self] in self?.microphoneLost() },
@@ -354,6 +374,7 @@ final class CaptionModel: ObservableObject {
                 status = ""
             }
             _ = speakerPitch.take()
+            prepareSpeakers()
             prepareReader()
             startIdleWatch()
         } catch {
@@ -377,6 +398,8 @@ final class CaptionModel: ObservableObject {
         menuBarAnimator.setActive(false)
         audioMeter.setActive(false)
         reader.unload()
+        speakerTracker = nil
+        sentenceAudio = nil
         await session.stop()
         clearVolatile()
         SessionLog.write("PARADO")
@@ -434,7 +457,7 @@ final class CaptionModel: ObservableObject {
         return (marks, String(trimmed.dropFirst(marks.count)).trimmingCharacters(in: .whitespaces))
     }
 
-    private func handle(_ text: String, isFinal: Bool) {
+    private func handle(_ text: String, isFinal: Bool, range: CMTimeRange) {
         let (leading, trimmed) = Self.splitLeadingPunctuation(text)
         if isFinal && !leading.isEmpty { attachPunctuation(leading, speaker: .others) }
         guard isFinal else {
@@ -458,7 +481,9 @@ final class CaptionModel: ObservableObject {
         // Only the others' sentences: what you say doesn't leave the Mac unless you ask for a summary.
         let context = segments.filter { $0.speaker == .others }.suffix(3).map(\.original)
         var segment = Segment(original: trimmed)
-        segment.gender = SpeakerPitch.gender(forPitch: speakerPitch.take())
+        let pitch = speakerPitch.take()
+        segment.gender = SpeakerPitch.gender(forPitch: pitch)
+        identifySpeaker(of: &segment, range: range, pitch: pitch)
         guard translates else {
             segment.translation = trimmed
             segment.refined = true
@@ -472,7 +497,7 @@ final class CaptionModel: ObservableObject {
 
         let id = segment.id
         if readAloud {
-            reader.enqueue(ReadoutQueue.Item(id: id, finalizedAt: finalizedAt, gender: segment.gender))
+            reader.enqueue(ReadoutQueue.Item(id: id, finalizedAt: finalizedAt))
         }
 
         if let localFinal {
@@ -514,6 +539,14 @@ final class CaptionModel: ObservableObject {
         return ReadoutCatalog.voice(for: language, gender: gender, preferred: readoutVoices["\(language).\(gender.rawValue)"])
     }
 
+    /// The voice for a speaker's slot: the chosen one, or for a second speaker of the same
+    /// gender, the language's next voice of that gender.
+    func readoutVoice(_ gender: VoiceGender, slot: Int) -> ReadoutVoice {
+        let chosen = readoutVoice(gender)
+        guard slot > 0 else { return chosen }
+        return ReadoutCatalog.voices(for: captionLanguage.code, gender: gender).first { $0.id != chosen.id } ?? chosen
+    }
+
     func setReadoutVoice(_ voice: ReadoutVoice) {
         readoutVoices["\(captionLanguage.code).\(voice.gender.rawValue)"] = voice.id
     }
@@ -525,8 +558,8 @@ final class CaptionModel: ObservableObject {
     /// Turning it on downloads the voices for the caption language first, if they are missing.
     func setReadAloud(_ on: Bool) {
         readAloud = on
-        if on, voiceModels.state(readoutEngine) != .ready {
-            voiceModels.download(readoutEngine)
+        if on, voiceModels.state(readoutEngine.model) != .ready {
+            voiceModels.download(readoutEngine.model)
         }
         if on {
             prepareReader()
@@ -554,8 +587,12 @@ final class CaptionModel: ObservableObject {
             guard let segment = self?.segments.first(where: { $0.id == id }), let translation = segment.translation else { return nil }
             return (translation, segment.refined)
         }
-        reader.voiceFor = { [weak self] gender in
-            self?.readoutVoice(gender ?? .female).id ?? "F1"
+        reader.speaker = { [weak self] id in
+            guard let segment = self?.segments.first(where: { $0.id == id }) else { return nil }
+            return (segment.gender, segment.voiceSlot, segment.identifying)
+        }
+        reader.voiceFor = { [weak self] gender, slot in
+            self?.readoutVoice(gender, slot: slot).id ?? "F1"
         }
         // On speakers the microphone would hear Mara and take her voice for yours.
         reader.onSpeakingChanged = { [weak self] speaking in
@@ -575,12 +612,12 @@ final class CaptionModel: ObservableObject {
         reader.expectsRefinement = gptEnabled
         Task {
             // Turned on before the voices finished downloading: starts reading once they're here.
-            if voiceModels.state(engine) != .ready {
+            if voiceModels.state(engine.model) != .ready {
                 status = localized("A leitura em voz alta começa quando as vozes terminarem de baixar (Ajustes › Tradução).")
-                while case .downloading = voiceModels.state(engine), isRunning, readAloud {
+                while case .downloading = voiceModels.state(engine.model), isRunning, readAloud {
                     try? await Task.sleep(for: .seconds(1))
                 }
-                guard voiceModels.state(engine) == .ready, isRunning, readAloud else { return }
+                guard voiceModels.state(engine.model) == .ready, isRunning, readAloud else { return }
                 status = ""
             }
             let started = Date()
@@ -589,6 +626,62 @@ final class CaptionModel: ObservableObject {
             } else {
                 status = localized("Não foi possível carregar as vozes. Baixe de novo em Ajustes › Tradução.")
             }
+        }
+    }
+
+    // MARK: Telling speakers apart
+
+    func setIdentifySpeakers(_ on: Bool) {
+        identifySpeakers = on
+        if on, voiceModels.state(.speakers) != .ready {
+            voiceModels.download(.speakers)
+        }
+        if on {
+            prepareSpeakers()
+        } else {
+            speakerTracker = nil
+        }
+        SessionLog.write("PESSOAS \(on ? "ligado" : "desligado")")
+    }
+
+    /// Loads the voice fingerprint model when a session starts, or when the feature is turned on
+    /// during one (waiting for its download, if needed).
+    private func prepareSpeakers() {
+        guard identifySpeakers, isRunning, speakerTracker == nil else { return }
+        Task {
+            while case .downloading = voiceModels.state(.speakers), isRunning, identifySpeakers {
+                try? await Task.sleep(for: .seconds(1))
+            }
+            guard voiceModels.state(.speakers) == .ready, isRunning, identifySpeakers else { return }
+            let started = Date()
+            do {
+                let tracker = try await SpeakerTracker.load()
+                guard isRunning, identifySpeakers else { return }
+                speakerTracker = tracker
+                SessionLog.write("PESSOAS prontas em \(SessionLog.ms(since: started))")
+            } catch {
+                SessionLog.write("PESSOAS não carregou: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Starts telling who said the sentence in `segment`, from its audio. The result lands on the
+    /// segment a quarter of a second later; reading aloud waits for it.
+    private func identifySpeaker(of segment: inout Segment, range: CMTimeRange, pitch: Double?) {
+        guard let speakerTracker, let sentenceAudio, range.isValid, !range.isEmpty else { return }
+        let id = segment.id
+        segment.identifying = true
+        let clip = sentenceAudio.clip(from: range.start.seconds, to: range.end.seconds)
+        Task {
+            let info = await speakerTracker.identify(clip.samples, sampleRate: clip.sampleRate, pitch: pitch)
+            guard let index = segments.firstIndex(where: { $0.id == id }) else { return }
+            segments[index].identifying = false
+            guard let info else { return }
+            segments[index].person = info.person
+            if let gender = info.gender { segments[index].gender = gender }
+            segments[index].voiceSlot = info.slot
+            SessionLog.write("PESSOA \(info.person) \(info.gender?.rawValue ?? "?") voz \(info.slot)")
+            saveTranscript()
         }
     }
 

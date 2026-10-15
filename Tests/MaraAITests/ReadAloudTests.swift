@@ -98,9 +98,9 @@ struct ReadoutVoiceTests {
         }
     }
 
-    @Test(arguments: VoiceEngine.allCases)
-    func manifestsArePinnedAndChecked(engine: VoiceEngine) {
-        let manifest = engine.manifest
+    @Test(arguments: VoiceModel.allCases)
+    func manifestsArePinnedAndChecked(model: VoiceModel) {
+        let manifest = model.manifest
         #expect(manifest.revision.count == 40)
         #expect(Set(manifest.files.map(\.path)).count == manifest.files.count)
         // Every model file over 1 MB is checked by its hash.
