@@ -76,7 +76,7 @@ struct SoundBars: View {
         }
         .frame(height: height)
         .animation(.spring(response: 0.16, dampingFraction: 0.62), value: meter.tick)
-        .accessibilityLabel("Ouvindo")
+        .accessibilityLabel(localized("Ouvindo"))
     }
 
     private func amount(_ index: Int) -> Double {

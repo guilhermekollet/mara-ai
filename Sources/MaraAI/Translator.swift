@@ -178,14 +178,14 @@ struct Translator {
 
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             let detail = (json?["error"] as? [String: Any])?["message"] as? String
-            throw AppError.message("OpenAI: " + (detail ?? "erro HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)"))
+            throw AppError.message("OpenAI: " + (detail ?? localized("erro HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)")))
         }
         guard
             let choices = json?["choices"] as? [[String: Any]],
             let message = choices.first?["message"] as? [String: Any],
             let content = message["content"] as? String
         else {
-            throw AppError.message("OpenAI: resposta em formato inesperado.")
+            throw AppError.message(localized("OpenAI: resposta em formato inesperado."))
         }
         // Tokens come from the response's "usage" field: the same count OpenAI uses for billing.
         let usage = json?["usage"] as? [String: Any] ?? [:]

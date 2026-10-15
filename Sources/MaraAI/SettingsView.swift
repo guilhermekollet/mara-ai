@@ -11,10 +11,10 @@ struct GPTModel: Identifiable {
     let outputPrice: Double
 
     static let catalog = [
-        GPTModel(id: "gpt-6-luna", name: "GPT-6 Luna", note: "Recomendado: rápido e natural", inputPrice: 0.10, outputPrice: 0.50),
-        GPTModel(id: "gpt-5-nano", name: "GPT-5 nano", note: "O mais barato; pode demorar um pouco mais", inputPrice: 0.05, outputPrice: 0.40),
-        GPTModel(id: "gpt-4.1-mini", name: "GPT-4.1 mini", note: "Equilibrado, para termos técnicos", inputPrice: 0.40, outputPrice: 1.60),
-        GPTModel(id: "gpt-4o-mini", name: "GPT-4o mini", note: "Clássico e estável", inputPrice: 0.15, outputPrice: 0.60),
+        GPTModel(id: "gpt-6-luna", name: "GPT-6 Luna", note: localized("Recomendado: rápido e natural"), inputPrice: 0.10, outputPrice: 0.50),
+        GPTModel(id: "gpt-5-nano", name: "GPT-5 nano", note: localized("O mais barato; pode demorar um pouco mais"), inputPrice: 0.05, outputPrice: 0.40),
+        GPTModel(id: "gpt-4.1-mini", name: "GPT-4.1 mini", note: localized("Equilibrado, para termos técnicos"), inputPrice: 0.40, outputPrice: 1.60),
+        GPTModel(id: "gpt-4o-mini", name: "GPT-4o mini", note: localized("Clássico e estável"), inputPrice: 0.15, outputPrice: 0.60),
     ]
     static let customID = "custom"
 }
@@ -27,14 +27,20 @@ struct SettingsView: View {
     /// There is more below: the bottom edge fades out.
     @State private var moreBelow = false
 
-    private enum Tab: String, CaseIterable, Identifiable {
-        case translation = "Tradução"
-        case summary = "Resumo"
-        case appearance = "Aparência"
-        case usage = "Consumo"
-        case glossary = "Glossário"
-        case general = "Geral"
-        var id: String { rawValue }
+    private enum Tab: CaseIterable, Identifiable {
+        case translation, summary, appearance, usage, glossary, general
+        var id: Self { self }
+
+        var title: String {
+            switch self {
+            case .translation: return localized("Tradução")
+            case .summary: return localized("Resumo")
+            case .appearance: return localized("Aparência")
+            case .usage: return localized("Consumo")
+            case .glossary: return localized("Glossário")
+            case .general: return localized("Geral")
+            }
+        }
 
         var symbol: String {
             switch self {
@@ -101,7 +107,7 @@ struct SettingsView: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text("Ajustes")
+            Text(localized("Ajustes"))
                 .font(Theme.display(26))
             Spacer()
             // Icon tabs: only the active one shows its name, in lavender with dark text.
@@ -116,7 +122,7 @@ struct SettingsView: View {
                                 .font(.system(size: 12, weight: .medium))
                                 .frame(width: 16, height: 16)
                             if active {
-                                Text(item.rawValue)
+                                Text(item.title)
                                     .font(.system(size: 12, weight: .semibold))
                                     .fixedSize()
                             }
@@ -128,7 +134,7 @@ struct SettingsView: View {
                         .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
-                    .help(item.rawValue)
+                    .help(item.title)
                 }
             }
             .padding(3)
@@ -175,17 +181,17 @@ private struct TranslationSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SettingsCard("Idiomas", hint: "Quando a reunião já é no idioma da legenda, a legenda é a própria transcrição, sem tradução. O resumo sai no idioma da legenda.") {
+            SettingsCard(localized("Idiomas"), hint: localized("Quando a reunião já é no idioma da legenda, a legenda é a própria transcrição, sem tradução. O resumo sai no idioma da legenda.")) {
                 VStack(spacing: 8) {
-                    languageRow("Reunião em") {
-                        Picker("Reunião em", selection: $model.localeID) {
+                    languageRow(localized("Reunião em")) {
+                        Picker(localized("Reunião em"), selection: $model.localeID) {
                             ForEach(model.locales, id: \.identifier) { locale in
                                 Text(model.displayName(locale)).tag(locale.identifier)
                             }
                         }
                     }
-                    languageRow("Legenda em") {
-                        Picker("Legenda em", selection: $model.captionLanguageID) {
+                    languageRow(localized("Legenda em")) {
+                        Picker(localized("Legenda em"), selection: $model.captionLanguageID) {
                             ForEach(CaptionLanguage.all) { language in
                                 Text(language.name).tag(language.id)
                             }
@@ -196,47 +202,47 @@ private struct TranslationSettings: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Como traduzir")
+                Text(localized("Como traduzir"))
                     .font(.system(size: 13, weight: .semibold))
                 HStack(spacing: 10) {
                     OptionCard(
                         symbol: "laptopcomputer",
-                        title: "Só no Mac",
-                        text: "Grátis e privado. A Apple traduz no aparelho, sem internet.",
+                        title: localized("Só no Mac"),
+                        text: localized("Grátis e privado. A Apple traduz no aparelho, sem internet."),
                         selected: !model.useGPT
                     ) { model.useGPT = false }
                     OptionCard(
                         symbol: "sparkles",
                         title: "Mac + GPT",
-                        text: "Mais natural. A legenda aparece na hora e o GPT refina cada frase.",
+                        text: localized("Mais natural. A legenda aparece na hora e o GPT refina cada frase."),
                         selected: model.useGPT
                     ) { model.useGPT = true }
                 }
             }
 
             if model.useGPT {
-                SettingsCard("Modelo do GPT", hint: modelHint) {
-                    Picker("Modelo", selection: selection) {
+                SettingsCard(localized("Modelo do GPT"), hint: modelHint) {
+                    Picker(localized("Modelo"), selection: selection) {
                         ForEach(GPTModel.catalog) { choice in
                             Text("\(choice.name) — \(choice.note)").tag(choice.id)
                         }
                         Divider()
-                        Text("Outro modelo…").tag(GPTModel.customID)
+                        Text(localized("Outro modelo…")).tag(GPTModel.customID)
                     }
                     .labelsHidden()
 
                     if model.apiKey.isEmpty {
-                        Label("O GPT usa a sua chave da OpenAI: adicione em Resumo.", systemImage: "exclamationmark.circle")
+                        Label(localized("O GPT usa a sua chave da OpenAI: adicione em Resumo."), systemImage: "exclamationmark.circle")
                             .font(.system(size: 11.5))
                             .foregroundStyle(Theme.accent)
                     }
 
                     if selection.wrappedValue == GPTModel.customID {
-                        TextField("Nome do modelo na OpenAI", text: $model.model)
+                        TextField(localized("Nome do modelo na OpenAI"), text: $model.model)
                             .textFieldStyle(.roundedBorder)
                         HStack {
-                            priceField("Entrada", value: $model.inputPrice)
-                            priceField("Saída", value: $model.outputPrice)
+                            priceField(localized("Entrada"), value: $model.inputPrice)
+                            priceField(localized("Saída"), value: $model.outputPrice)
                         }
                     }
                 }
@@ -256,8 +262,7 @@ private struct TranslationSettings: View {
     }
 
     private var modelHint: String {
-        let price = "US$ \(format(model.inputPrice)) de entrada e US$ \(format(model.outputPrice)) de saída por milhão de tokens"
-        return "\(price). Uma hora de reunião costuma custar centavos."
+        localized("US$ \(format(model.inputPrice)) de entrada e US$ \(format(model.outputPrice)) de saída por milhão de tokens. Uma hora de reunião costuma custar centavos.")
     }
 
     private func format(_ value: Double) -> String {
@@ -283,8 +288,8 @@ private struct SummarySettings: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             // The key is here because the summary always needs it; the GPT translation uses it too.
-            SettingsCard("Resumo", hint: "Feito pelo GPT com a sua chave, só quando você pede ao fim da sessão. A transcrição vai para a OpenAI; o áudio, nunca.") {
-                Picker("Modelo do resumo", selection: $model.summaryModel) {
+            SettingsCard(localized("Resumo"), hint: localized("Feito pelo GPT com a sua chave, só quando você pede ao fim da sessão. A transcrição vai para a OpenAI; o áudio, nunca.")) {
+                Picker(localized("Modelo do resumo"), selection: $model.summaryModel) {
                     ForEach(GPTModel.catalog) { choice in
                         Text("\(choice.name) — \(choice.note)").tag(choice.id)
                     }
@@ -292,8 +297,8 @@ private struct SummarySettings: View {
                 .labelsHidden()
             }
 
-            SettingsCard("Chave da OpenAI", hint: "Fica guardada no Keychain do macOS. Só o texto transcrito é enviado; o áudio nunca sai do Mac.") {
-                OpenAIKeyField(missingHint: "Sem chave, a tradução fica só no Mac e não há resumo.")
+            SettingsCard(localized("Chave da OpenAI"), hint: localized("Fica guardada no Keychain do macOS. Só o texto transcrito é enviado; o áudio nunca sai do Mac.")) {
+                OpenAIKeyField(missingHint: localized("Sem chave, a tradução fica só no Mac e não há resumo."))
             }
         }
     }
@@ -310,9 +315,9 @@ private struct AppearanceSettings: View {
             ZStack {
                 LinearGradient(colors: [Color(red: 0.91, green: 0.89, blue: 0.99), Color(red: 0.72, green: 0.64, blue: 0.97)], startPoint: .topLeading, endPoint: .bottomTrailing)
                 VStack(spacing: 3) {
-                    Text("Podemos revisar o contrato na quinta.")
+                    Text(localized("Podemos revisar o contrato na quinta."))
                         .foregroundStyle(Theme.paper)
-                    Text("E acho que o prazo de entrega")
+                    Text(localized("E acho que o prazo de entrega"))
                         .foregroundStyle(Theme.accent)
                 }
                 .font(.system(size: model.fontSize, weight: .medium))
@@ -326,32 +331,32 @@ private struct AppearanceSettings: View {
             .frame(height: 150)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-            SettingsCard("Tamanho da legenda") {
+            SettingsCard(localized("Tamanho da legenda")) {
                 sliderRow(value: $model.fontSize, range: 12...40, step: 1, label: "\(Int(model.fontSize)) pt")
             }
-            SettingsCard("Opacidade do fundo", hint: "Mais baixa deixa ver melhor o que está atrás da janela.") {
+            SettingsCard(localized("Opacidade do fundo"), hint: localized("Mais baixa deixa ver melhor o que está atrás da janela.")) {
                 sliderRow(value: $model.opacity, range: 0.2...1, step: 0.05, label: "\(Int(model.opacity * 100))%")
             }
             SettingsCard(
-                "Quando não há áudio",
-                hint: "Em espera, a Mara para de transcrever e confere a cada 2 segundos se o som voltou. Desligar encerra a sessão e salva a transcrição."
+                localized("Quando não há áudio"),
+                hint: localized("Em espera, a Mara para de transcrever e confere a cada 2 segundos se o som voltou. Desligar encerra a sessão e salva a transcrição.")
             ) {
-                durationPicker("Entrar em espera após", selection: $model.idleAfter, options: [
-                    (15, "15 segundos"), (30, "30 segundos"), (60, "1 minuto"), (120, "2 minutos"), (0, "Nunca"),
+                durationPicker(localized("Entrar em espera após"), selection: $model.idleAfter, options: [
+                    (15, localized("15 segundos")), (30, localized("30 segundos")), (60, localized("1 minuto")), (120, localized("2 minutos")), (0, localized("Nunca")),
                 ])
-                durationPicker("Desligar após", selection: $model.autoStopAfter, options: [
-                    (60, "1 minuto"), (300, "5 minutos"), (600, "10 minutos"), (1800, "30 minutos"), (0, "Nunca"),
+                durationPicker(localized("Desligar após"), selection: $model.autoStopAfter, options: [
+                    (60, localized("1 minuto")), (300, localized("5 minutos")), (600, localized("10 minutos")), (1800, localized("30 minutos")), (0, localized("Nunca")),
                 ])
             }
             SettingsCard(
-                "Sons",
-                hint: "Tons curtos e suaves ao iniciar, parar, entrar em espera, voltar e quando o resumo fica pronto. A Mara não capta os próprios sons."
+                localized("Sons"),
+                hint: localized("Tons curtos e suaves ao iniciar, parar, entrar em espera, voltar e quando o resumo fica pronto. A Mara não capta os próprios sons.")
             ) {
                 HStack {
-                    Toggle("Tocar avisos sonoros", isOn: $model.soundCuesEnabled)
+                    Toggle(localized("Tocar avisos sonoros"), isOn: $model.soundCuesEnabled)
                         .font(.system(size: 12.5))
                     Spacer()
-                    Button("Ouvir") { model.soundCues.play(.start, evenIfDisabled: true) }
+                    Button(localized("Ouvir")) { model.soundCues.play(.start, evenIfDisabled: true) }
                         .buttonStyle(PillButtonStyle(prominent: false))
                 }
             }
@@ -394,27 +399,27 @@ private struct UsageSettings: View {
         let calendar = Calendar.current
         let now = Date()
         VStack(alignment: .leading, spacing: 14) {
-            SettingsCard("Uso do GPT", hint: "Os tokens são os informados pela OpenAI. O custo é uma estimativa com o preço do modelo no momento de cada chamada; a fatura da OpenAI é a referência final.") {
+            SettingsCard(localized("Uso do GPT"), hint: localized("Os tokens são os informados pela OpenAI. O custo é uma estimativa com o preço do modelo no momento de cada chamada; a fatura da OpenAI é a referência final.")) {
                 VStack(spacing: 0) {
                     if model.isRunning, let start = model.sessionStart {
-                        row("Sessão atual", ledger.totals(since: start))
+                        row(localized("Sessão atual"), ledger.totals(since: start))
                     }
-                    row("Hoje", ledger.totals(since: calendar.startOfDay(for: now)))
-                    row("Este mês", ledger.totals(since: calendar.dateInterval(of: .month, for: now)?.start))
-                    row("Total", ledger.totals(since: nil), last: true)
+                    row(localized("Hoje"), ledger.totals(since: calendar.startOfDay(for: now)))
+                    row(localized("Este mês"), ledger.totals(since: calendar.dateInterval(of: .month, for: now)?.start))
+                    row(localized("Total"), ledger.totals(since: nil), last: true)
                 }
             }
             if let error = ledger.writeError {
-                Label("O registro em disco falhou (\(error)); o histórico pode estar incompleto.", systemImage: "exclamationmark.triangle")
+                Label(localized("O registro em disco falhou (\(error)); o histórico pode estar incompleto."), systemImage: "exclamationmark.triangle")
                     .font(.system(size: 11.5))
                     .foregroundStyle(.red)
             }
             if ledger.entries.isEmpty {
-                Text("Nenhuma chamada ao GPT até agora. A tradução feita no Mac não tem custo.")
+                Text(localized("Nenhuma chamada ao GPT até agora. A tradução feita no Mac não tem custo."))
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.muted)
             } else {
-                Button("Mostrar o registro no Finder") {
+                Button(localized("Mostrar o registro no Finder")) {
                     NSWorkspace.shared.activateFileViewerSelecting([UsageLedger.url])
                 }
                 .buttonStyle(PillButtonStyle(prominent: false))
@@ -428,7 +433,7 @@ private struct UsageSettings: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)
                         .font(.system(size: 13, weight: .medium))
-                    Text("\(totals.calls) chamadas · \((totals.inputTokens + totals.outputTokens).formatted()) tokens")
+                    Text(localized("\(totals.calls) chamadas · \((totals.inputTokens + totals.outputTokens).formatted()) tokens"))
                         .font(.system(size: 11.5).monospacedDigit())
                         .foregroundStyle(Theme.muted)
                 }
@@ -452,25 +457,25 @@ private struct GlossarySettings: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             SettingsCard(
-                "Termos da sua equipe",
-                hint: "Nomes de pessoas, empresas e produtos. Deixe o segundo campo vazio para manter o termo como está, ou diga como ele deve aparecer na legenda."
+                localized("Termos da sua equipe"),
+                hint: localized("Nomes de pessoas, empresas e produtos. Deixe o segundo campo vazio para manter o termo como está, ou diga como ele deve aparecer na legenda.")
             ) {
                 if model.glossary.isEmpty {
-                    Text("Nenhum termo ainda.")
+                    Text(localized("Nenhum termo ainda."))
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.muted)
                 }
                 VStack(spacing: 6) {
                         ForEach($model.glossary) { $entry in
                             HStack(spacing: 6) {
-                                TextField("Termo (ex.: Kubernetes)", text: $entry.term)
+                                TextField(localized("Termo (ex.: Kubernetes)"), text: $entry.term)
                                     .textFieldStyle(.roundedBorder)
                                 Image(systemName: "arrow.right")
                                     .font(.system(size: 10))
                                     .foregroundStyle(Theme.muted)
-                                TextField("Como aparece (opcional)", text: $entry.rendering)
+                                TextField(localized("Como aparece (opcional)"), text: $entry.rendering)
                                     .textFieldStyle(.roundedBorder)
-                                IconButton(symbol: "minus.circle", help: "Remover o termo") {
+                                IconButton(symbol: "minus.circle", help: localized("Remover o termo")) {
                                     model.glossary.removeAll { $0.id == entry.id }
                                 }
                             }
@@ -479,19 +484,19 @@ private struct GlossarySettings: View {
                 Button {
                     model.glossary.append(GlossaryEntry())
                 } label: {
-                    Label("Adicionar termo", systemImage: "plus")
+                    Label(localized("Adicionar termo"), systemImage: "plus")
                 }
                 .buttonStyle(PillButtonStyle(prominent: false))
             }
-            SettingsCard("Onde o glossário é usado") {
+            SettingsCard(localized("Onde o glossário é usado")) {
                 VStack(alignment: .leading, spacing: 6) {
-                    usage("waveform", "No reconhecimento de fala, para acertar os nomes.")
-                    usage("sparkles", "Na tradução refinada pelo GPT e no resumo da reunião.")
-                    usage("laptopcomputer", "A tradução feita só no Mac não segue o glossário.")
+                    usage("waveform", localized("No reconhecimento de fala, para acertar os nomes."))
+                    usage("sparkles", localized("Na tradução refinada pelo GPT e no resumo da reunião."))
+                    usage("laptopcomputer", localized("A tradução feita só no Mac não segue o glossário."))
                 }
             }
             if model.isRunning {
-                Text("Mudanças no reconhecimento de fala valem a partir da próxima sessão.")
+                Text(localized("Mudanças no reconhecimento de fala valem a partir da próxima sessão."))
                     .font(.system(size: 11.5))
                     .foregroundStyle(Theme.muted)
             }
@@ -520,25 +525,25 @@ private struct GeneralSettings: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             UpdateCard()
-            SettingsCard("Atalhos globais", hint: "Funcionam com qualquer aplicativo em primeiro plano, sem tirar o foco da reunião.") {
-                Toggle("Ativar os atalhos de teclado", isOn: $model.hotKeysEnabled)
+            SettingsCard(localized("Atalhos globais"), hint: localized("Funcionam com qualquer aplicativo em primeiro plano, sem tirar o foco da reunião.")) {
+                Toggle(localized("Ativar os atalhos de teclado"), isOn: $model.hotKeysEnabled)
                     .toggleStyle(.switch)
                     .controlSize(.small)
             }
-            SettingsCard("Teclas") {
+            SettingsCard(localized("Teclas")) {
                 ShortcutList()
                     .opacity(model.hotKeysEnabled ? 1 : 0.4)
             }
             if !model.unavailableHotKeys.isEmpty {
                 Label(
-                    "O macOS recusou \(model.unavailableHotKeys.joined(separator: ", ")): outro aplicativo já usa essa combinação.",
+                    localized("O macOS recusou \(model.unavailableHotKeys.joined(separator: ", ")): outro aplicativo já usa essa combinação."),
                     systemImage: "exclamationmark.triangle"
                 )
                 .font(.system(size: 11.5))
                 .foregroundStyle(.orange)
             }
-            SettingsCard("Introdução", hint: "A apresentação da primeira vez: a permissão de áudio, o idioma da reunião e a chave para o resumo.") {
-                Button("Ver a introdução") {
+            SettingsCard(localized("Introdução"), hint: localized("A apresentação da primeira vez: a permissão de áudio, o idioma da reunião e a chave para o resumo.")) {
+                Button(localized("Ver a introdução")) {
                     UserDefaults.standard.set(0, forKey: Onboarding.stepKey)
                     present(onboardingWindowID, using: openWindow)
                 }
@@ -554,10 +559,10 @@ private struct UpdateCard: View {
 
     var body: some View {
         SettingsCard(
-            "Atualizações",
-            hint: "Uma vez por dia, a Mara procura uma versão nova no GitHub. Ela é baixada em segundo plano, conferida pela assinatura do projeto e instalada quando você fecha a Mara."
+            localized("Atualizações"),
+            hint: localized("Uma vez por dia, a Mara procura uma versão nova no GitHub. Ela é baixada em segundo plano, conferida pela assinatura do projeto e instalada quando você fecha a Mara.")
         ) {
-            Toggle("Baixar e instalar atualizações automaticamente", isOn: $updater.automatic)
+            Toggle(localized("Baixar e instalar atualizações automaticamente"), isOn: $updater.automatic)
                 .toggleStyle(.switch)
                 .controlSize(.small)
                 .disabled(!updater.isAvailable)
@@ -570,7 +575,7 @@ private struct UpdateCard: View {
                     .foregroundStyle(Theme.muted)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 4)
-                Button("Verificar agora") { Task { await updater.check() } }
+                Button(localized("Verificar agora")) { Task { await updater.check() } }
                     .buttonStyle(PillButtonStyle(prominent: false))
                     .disabled(!updater.isAvailable || busy)
             }
@@ -586,18 +591,19 @@ private struct UpdateCard: View {
 
     private var status: String {
         guard updater.isAvailable else {
-            return "As atualizações automáticas valem para o app baixado das releases."
+            return localized("As atualizações automáticas valem para o app baixado das releases.")
         }
-        let version = "Versão \(updater.currentVersion)"
+        let version = updater.currentVersion
         switch updater.state {
-        case .idle: return "\(version)."
-        case .checking: return "Procurando atualizações…"
+        case .idle: return localized("Versão \(version).")
+        case .checking: return localized("Procurando atualizações…")
         case .upToDate:
-            let when = updater.lastCheck.map { " Verificado \($0.formatted(.relative(presentation: .named)))." } ?? ""
-            return "\(version), a mais recente.\(when)"
-        case .downloading(let next): return "Baixando a versão \(next)…"
-        case .ready(let next, _): return "A versão \(next) instala quando você fechar a Mara."
-        case .failed(let message): return "Não foi possível atualizar: \(message)"
+            guard let lastCheck = updater.lastCheck else { return localized("Versão \(version), a mais recente.") }
+            let when = lastCheck.formatted(.relative(presentation: .named).locale(Interface.locale))
+            return localized("Versão \(version), a mais recente. Verificado \(when).")
+        case .downloading(let next): return localized("Baixando a versão \(next)…")
+        case .ready(let next, _): return localized("A versão \(next) instala quando você fechar a Mara.")
+        case .failed(let message): return localized("Não foi possível atualizar: \(message)")
         }
     }
 }
@@ -618,17 +624,17 @@ struct OpenAIKeyField: View {
                     .textFieldStyle(.roundedBorder)
                     .onSubmit(save)
                 if draft != model.apiKey {
-                    Button("Salvar", action: save)
+                    Button(localized("Salvar"), action: save)
                         .buttonStyle(PillButtonStyle())
                 }
             }
             HStack(spacing: 6) {
                 Image(systemName: model.apiKey.isEmpty ? "exclamationmark.circle" : "checkmark.circle.fill")
                     .foregroundStyle(model.apiKey.isEmpty ? Theme.muted : Theme.accent)
-                Text(model.apiKey.isEmpty ? missingHint : "Chave salva no Keychain.")
+                Text(model.apiKey.isEmpty ? missingHint : localized("Chave salva no Keychain."))
                     .foregroundStyle(Theme.muted)
                 Spacer()
-                Link("Criar uma chave", destination: URL(string: "https://platform.openai.com/api-keys")!)
+                Link(localized("Criar uma chave"), destination: URL(string: "https://platform.openai.com/api-keys")!)
             }
             .font(.system(size: 11.5))
         }

@@ -64,8 +64,8 @@ struct MenuBarPanel: View {
             }
             Spacer(minLength: 4)
             LanguageMenu()
-            ChipToggle(symbol: "sparkles", help: "Refinar a tradução com o GPT", isOn: $model.useGPT)
-            Button(model.isRunning ? "Parar" : "Iniciar") {
+            ChipToggle(symbol: "sparkles", help: localized("Refinar a tradução com o GPT"), isOn: $model.useGPT)
+            Button(model.isRunning ? localized("Parar") : localized("Iniciar")) {
                 if !model.isRunning { showCaptions() }
                 model.toggle()
             }
@@ -77,12 +77,12 @@ struct MenuBarPanel: View {
     /// Shown until the introduction is finished, to pick it up where it stopped.
     private var setupCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Termine a configuração")
+            Text(localized("Termine a configuração"))
                 .font(.system(size: 13, weight: .semibold))
-            Text("Falta pouco: a permissão de áudio e o idioma da reunião.")
+            Text(localized("Falta pouco: a permissão de áudio e o idioma da reunião."))
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.muted)
-            Button("Continuar") { open(onboardingWindowID) }
+            Button(localized("Continuar")) { open(onboardingWindowID) }
                 .buttonStyle(PillButtonStyle())
         }
         .padding(10)
@@ -93,22 +93,22 @@ struct MenuBarPanel: View {
     /// A new version, downloaded and checked: it installs on quit, or now with a restart.
     private func updateCard(version: String, notes: URL) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Mara \(version) pronta para instalar")
+            Text(localized("Mara \(version) pronta para instalar"))
                 .font(.system(size: 13, weight: .semibold))
             Text(model.isRunning
-                ? "Instala quando você fechar a Mara, depois da reunião."
-                : "Instala quando você fechar a Mara, ou agora, reiniciando.")
+                ? localized("Instala quando você fechar a Mara, depois da reunião.")
+                : localized("Instala quando você fechar a Mara, ou agora, reiniciando."))
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.muted)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
-                Button("Reiniciar agora") {
+                Button(localized("Reiniciar agora")) {
                     // Quits only once the new version is in place; otherwise Settings say why.
                     if updater.installIfReady(relaunch: true) { NSApp.terminate(nil) }
                 }
                 .buttonStyle(PillButtonStyle())
                 .disabled(model.isRunning || model.isStarting)
-                Link("Novidades", destination: notes)
+                Link(localized("Novidades"), destination: notes)
                     .font(.system(size: 11.5))
                     .foregroundStyle(Theme.muted)
             }
@@ -171,16 +171,16 @@ struct MenuBarPanel: View {
                         .offset(y: detailsShown ? 0 : -6)
                 }
                 HStack(spacing: 8) {
-                    Button("Abrir resumo") { open(summaryWindowID) }
+                    Button(localized("Abrir resumo")) { open(summaryWindowID) }
                         .buttonStyle(PillButtonStyle())
-                    Button("Copiar") { model.copySummary() }
+                    Button(localized("Copiar")) { model.copySummary() }
                         .buttonStyle(PillButtonStyle(prominent: false))
                     Spacer(minLength: 0)
                     Button {
                         setSummaryExpanded(!summaryExpanded)
                     } label: {
                         HStack(spacing: 4) {
-                            Text(summaryExpanded ? "Mostrar menos" : "Mostrar mais")
+                            Text(summaryExpanded ? localized("Mostrar menos") : localized("Mostrar mais"))
                             Image(systemName: "chevron.down")
                                 .font(.system(size: 9, weight: .semibold))
                                 .rotationEffect(.degrees(detailsShown ? 180 : 0))
@@ -190,30 +190,30 @@ struct MenuBarPanel: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .help(summaryExpanded ? "Ocultar os detalhes do resumo" : "Mostrar os assuntos, as decisões e as perguntas em aberto")
+                    .help(summaryExpanded ? localized("Ocultar os detalhes do resumo") : localized("Mostrar os assuntos, as decisões e as perguntas em aberto"))
                 }
             } else if model.isSummarizing {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text("Resumindo a reunião…")
+                    Text(localized("Resumindo a reunião…"))
                         .font(.callout)
                         .foregroundStyle(Theme.muted)
                 }
             } else {
-                Button("Resumir reunião") {
+                Button(localized("Resumir reunião")) {
                     model.openSummary = { present(summaryWindowID, using: openWindow) }
                     model.summarize()
                 }
                 .buttonStyle(PillButtonStyle())
                 .disabled(!model.canSummarize)
                 Text(model.apiKey.isEmpty
-                    ? "O resumo usa o GPT: adicione sua chave da OpenAI em Ajustes."
-                    : "Envia a transcrição desta sessão à OpenAI.")
+                    ? localized("O resumo usa o GPT: adicione sua chave da OpenAI em Ajustes.")
+                    : localized("Envia a transcrição desta sessão à OpenAI."))
                     .font(.caption)
                     .foregroundStyle(Theme.paper.opacity(0.45))
             }
             if let error = model.summaryError {
-                Text("Não foi possível resumir: \(error)")
+                Text(localized("Não foi possível resumir: \(error)"))
                     .font(.caption)
                     .foregroundStyle(.red)
             }
@@ -242,14 +242,14 @@ struct MenuBarPanel: View {
 
     private var footer: some View {
         HStack(spacing: 14) {
-            link("Legendas") { showCaptions() }
-            link("Arquivos") { model.openTranscriptsFolder() }
-            link("Ajustes") { open(settingsWindowID) }
+            link(localized("Legendas")) { showCaptions() }
+            link(localized("Arquivos")) { model.openTranscriptsFolder() }
+            link(localized("Ajustes")) { open(settingsWindowID) }
             Spacer()
             if model.gptEnabled {
                 UsageLine(ledger: model.usage)
             }
-            link("Sair") { NSApp.terminate(nil) }
+            link(localized("Sair")) { NSApp.terminate(nil) }
         }
         .font(.system(size: 11.5))
     }
@@ -289,7 +289,7 @@ private struct ChipToggle: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .help(help + (isOn ? " (ligado)" : " (desligado)"))
+        .help(isOn ? localized("\(help) (ligado)") : localized("\(help) (desligado)"))
     }
 }
 
@@ -367,6 +367,6 @@ private struct UsageLine: View {
         Text("US$ \(String(format: "%.3f", today.costUSD))")
             .monospacedDigit()
             .foregroundStyle(Theme.paper.opacity(0.45))
-            .help("Custo estimado do GPT hoje, em \(today.calls) chamadas")
+            .help(localized("Custo estimado do GPT hoje, em \(today.calls) chamadas"))
     }
 }

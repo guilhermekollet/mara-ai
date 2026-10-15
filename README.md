@@ -19,8 +19,8 @@ browser — transcribes it on-device with Apple's speech recognition and shows a
 Portuguese, English or Spanish that forms word by word while people are still talking. No bot joins the call. When the meeting
 ends, it summarizes the conversation with AI, using your own OpenAI key.
 
-> **Language note:** the app's interface is in Brazilian Portuguese. Code, comments and docs are in
-> English.
+> **Language note:** the app's interface follows your Mac's language: Portuguese (Brazil), English or
+> Spanish, and English on a Mac set to any other language. Code, comments and docs are in English.
 
 ## Contents
 
@@ -211,6 +211,7 @@ Sources/MaraAI/
   MenuBarPanel.swift         Menu bar panel
   SettingsView.swift         Settings window
   OnboardingView.swift       First-launch introduction: permission, language download, OpenAI key
+  Localization.swift         Picks the interface language; translations live in Resources/*.lproj
   …                          Theme, icons, animated captions, sound bars, hot keys, usage ledger
 Tests/MaraAITests/           Swift Testing suite
 scripts/                     Icon generation, signing, test runner, release packaging and update signing

@@ -20,8 +20,9 @@ and never commit it.
 - **Open an issue first** for anything bigger than a small fix, so we can agree on the approach.
 - **Keep pull requests focused**: one change per PR, with a description of what and why.
 - **Match the surrounding code**: SwiftUI views, `@MainActor` model, small helpers, and comments
-  that explain *why*, not *what*. Code and comments are in English; the app's UI text is in
-  Brazilian Portuguese.
+  that explain *why*, not *what*. Code and comments are in English. The app's UI text is written
+  in Brazilian Portuguese inside `localized("…")`, which is also its key: add the English and
+  Spanish versions to `Sources/MaraAI/Resources/en.lproj` and `es.lproj` (a test checks for it).
 - **Add or update tests** for logic you touch. The suite uses Swift Testing (`import Testing`).
   If a helper needs Foundation or AVFoundation, put it in `Tests/MaraAITests/Fixtures.swift`:
   with only the Command Line Tools installed, a file that imports both `Testing` and `Foundation`

@@ -81,12 +81,12 @@ struct LanguageMenu: View {
             IconButton(symbol: "globe", help: help) {
                 anchor.show([
                     MenuAnchor.Section(
-                        title: "Reunião em",
+                        title: localized("Reunião em"),
                         items: model.locales.map { (model.displayName($0), $0.identifier) },
                         selected: model.localeID
                     ) { model.localeID = $0 },
                     MenuAnchor.Section(
-                        title: "Legenda em",
+                        title: localized("Legenda em"),
                         items: CaptionLanguage.all.map { ($0.name, $0.id) },
                         selected: model.captionLanguageID
                     ) { model.captionLanguageID = $0 },
@@ -101,13 +101,13 @@ struct LanguageMenu: View {
 
     private var menu: some View {
         Menu {
-            Picker("Reunião em", selection: $model.localeID) {
+            Picker(localized("Reunião em"), selection: $model.localeID) {
                 ForEach(model.locales, id: \.identifier) { locale in
                     Text(model.displayName(locale)).tag(locale.identifier)
                 }
             }
             .pickerStyle(.inline)
-            Picker("Legenda em", selection: $model.captionLanguageID) {
+            Picker(localized("Legenda em"), selection: $model.captionLanguageID) {
                 ForEach(CaptionLanguage.all) { language in
                     Text(language.name).tag(language.id)
                 }
@@ -125,8 +125,9 @@ struct LanguageMenu: View {
     }
 
     private var help: String {
-        let meeting = model.locales.first { $0.identifier == model.localeID }.map(model.displayName) ?? model.languageCode
-        return "Reunião em \(meeting.lowercased()), legenda em \(model.captionLanguage.name.lowercased())"
+        let locale = Locale(identifier: model.localeID)
+        let meeting = CaptionLanguage.matching(locale)?.inlineName ?? model.displayName(locale)
+        return localized("Reunião em \(meeting), legenda em \(model.captionLanguage.inlineName)")
     }
 }
 

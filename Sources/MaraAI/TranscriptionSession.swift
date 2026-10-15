@@ -16,7 +16,7 @@ final class TranscriptionSession {
     /// Mac. The introduction uses it to fetch the model before the first meeting.
     static func modelDownload(for locale: Locale) async throws -> AssetInstallationRequest? {
         guard let supported = await SpeechTranscriber.supportedLocale(equivalentTo: locale) else {
-            throw AppError.message("O Apple Speech não transcreve o idioma \(locale.identifier).")
+            throw AppError.message(localized("O Apple Speech não transcreve o idioma \(locale.identifier)."))
         }
         let transcriber = SpeechTranscriber(
             locale: supported,
@@ -37,7 +37,7 @@ final class TranscriptionSession {
         onError: @escaping @MainActor (Error) -> Void
     ) async throws {
         guard let supported = await SpeechTranscriber.supportedLocale(equivalentTo: locale) else {
-            throw AppError.message("O Apple Speech não transcreve o idioma \(locale.identifier).")
+            throw AppError.message(localized("O Apple Speech não transcreve o idioma \(locale.identifier)."))
         }
 
         let transcriber = SpeechTranscriber(
@@ -48,12 +48,12 @@ final class TranscriptionSession {
         )
 
         if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
-            await onStatus("Baixando o modelo de transcrição deste idioma…")
+            await onStatus(localized("Baixando o modelo de transcrição deste idioma…"))
             try await request.downloadAndInstall()
         }
 
         guard let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]) else {
-            throw AppError.message("O Apple Speech não informou um formato de áudio compatível.")
+            throw AppError.message(localized("O Apple Speech não informou um formato de áudio compatível."))
         }
 
         let analyzer = SpeechAnalyzer(modules: [transcriber])
