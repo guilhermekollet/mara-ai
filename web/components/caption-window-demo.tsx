@@ -8,8 +8,9 @@ import type { Dictionary } from "@/i18n/dictionaries";
 // captioned word by word, the list is scrolled back and jumps to the new lines, and the window is
 // resized while the captions keep coming. Then the meeting goes quiet and Mara goes on standby, as
 // the app does after a stretch without audio: the moon opens large and faint in the middle of the
-// window, then settles at the top in place of the sound bars, and the pointer passes over the
-// window, bringing up the controls, until someone speaks again. Everything is drawn in macOS points and scaled as a whole with one fixed scale per
+// window, with the captions stepping back. When the pointer comes over the window the moon shrinks
+// to the top and the captions and controls come back; when it leaves, the moon returns to the
+// middle, until someone speaks again. Everything is drawn in macOS points and scaled as a whole with one fixed scale per
 // viewport size: animating the scale would make the text shimmer.
 
 type Copy = Dictionary["demo"];
@@ -24,9 +25,9 @@ const FAINT = "rgba(250,250,250,0.38)";
 const system = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif';
 
 const T = { start: 62, scrollFrom: 405, scrollTo: 428, arrow: 430, label: 490, jump: 535, exit: 1081 };
-// The standby: it starts after the quiet that follows the seventh line, the moon rises to the top
-// a moment later, and it ends when sound comes back, just before the last line.
-const STANDBY = { on: 772, rise: 827, off: 980 };
+// The standby: it starts after the quiet that follows the seventh line and ends when sound comes
+// back, just before the last line.
+const STANDBY = { on: 772, off: 980 };
 const STARTS = [112, 182, 252, 322, 466, 572, 652, 992];
 const LATE = 4; // the line that arrives while the list is scrolled back
 
@@ -107,14 +108,16 @@ const pointerPath = (w: number) => [
   [650, w / 2, 264],
   [662, w / 2, 264],
   [700, w + 80, 340],
-  // Back once the standby badge has risen: over the window, so the controls come up, and out again.
-  [851, w + 80, 300],
-  [873, w * 0.64, 150],
-  [899, w * 0.64, 150],
-  [923, w + 80, 330],
+  // Back once the standby badge has risen. It shows up still, in the margin beside the window, and
+  // only then moves in, so the controls clearly come up as it crosses the edge; then out again.
+  [851, w + 18, 170],
+  [860, w + 18, 170],
+  [890, w * 0.64, 150],
+  [906, w * 0.64, 150],
+  [930, w + 18, 175],
 ];
 const RESIZING = [570, 664];
-const pointerVisible = (frame: number) => (frame >= 26 && frame < 694) || (frame >= 851 && frame < 925);
+const pointerVisible = (frame: number) => (frame >= 26 && frame < 694) || (frame >= 851 && frame < 940);
 
 // ——— The component ———
 
@@ -134,23 +137,26 @@ export function CaptionWindowDemo({ copy }: { copy: Copy }) {
   }, []);
 
   // Plays at 30 fps from the still frame onwards, looping; pauses off screen and in background tabs.
-  // In development, ?frame=800 holds the scene on that frame, to review it.
+  // In development, ?frame=800 holds the scene on that frame and ?start=800 plays it from there, to
+  // review a moment without waiting for the loop to reach it.
   useEffect(() => {
     const element = stage.current;
-    const pinned = process.env.NODE_ENV === "development" ? new URLSearchParams(location.search).get("frame") : null;
-    if (pinned !== null) {
+    const review = process.env.NODE_ENV === "development" ? new URLSearchParams(location.search) : null;
+    const pinned = review?.get("frame");
+    if (pinned) {
       setFrame(Number(pinned) % LOOP);
       return;
     }
+    const first = Number(review?.get("start") ?? STILL) % LOOP;
     if (!element || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     let visible = true;
     const observer = new IntersectionObserver(([entry]) => {
       visible = entry.isIntersecting;
     });
     observer.observe(element);
-    let elapsed = (STILL / FPS) * 1000;
+    let elapsed = (first / FPS) * 1000;
     let previous = performance.now();
-    let shown = STILL;
+    let shown = first;
     let raf = requestAnimationFrame(function tick(now) {
       const delta = Math.min(now - previous, 100);
       previous = now;
@@ -177,7 +183,7 @@ export function CaptionWindowDemo({ copy }: { copy: Copy }) {
   const [px, py] = track(frame, path);
   const pointer = frame < 760
     ? Math.min(progress(frame, 18, 8), 1 - progress(frame, 694, 8))
-    : Math.min(progress(frame, 851, 8), 1 - progress(frame, 917, 8));
+    : Math.min(progress(frame, 851, 8), 1 - progress(frame, 930, 8));
   const resizing = frame >= RESIZING[0] && frame < RESIZING[1];
 
   return (
@@ -235,9 +241,12 @@ function CaptionsWindow({ frame, lines, copy, w }: { frame: number; lines: Line[
   const toTop = progress(frame, lines[0].saidAt[0], 16);
   const speaking = lines.some((line) => frame >= line.saidAt[0] && frame < line.quietAt);
   // The standby badge opens in the middle, as the bars do when a session starts, with the captions
-  // stepping back behind it; then it rises to the top in place of the bars, until sound returns.
+  // stepping back behind it. With the pointer over the window it shrinks to the top, where the
+  // bars sit, and the captions come back; when sound returns it goes up there as the bars come in.
   const standby = progress(frame, STANDBY.on, 14) * (1 - progress(frame, STANDBY.off, 10));
-  const rise = progress(frame, STANDBY.rise, 18, easeInOut);
+  const { now: over, since } = hoverAt(frame, w);
+  const hovered = over ? progress(since, 0, 14, easeInOut) : 1 - progress(since, 0, 14, easeInOut);
+  const rise = Math.max(hovered, progress(frame, STANDBY.off, 12, easeInOut));
   const centered = standby * (1 - rise);
   const middle = heightAt(frame) / 2 - 13;
 
