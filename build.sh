@@ -22,6 +22,8 @@ cp .build/release/MaraAI "$APP/Contents/MacOS/"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 # The interface's translations, where macOS and `Interface` look for them (see Localization.swift).
 cp -R Sources/MaraAI/Resources/*.lproj "$APP/Contents/Resources/"
+# The wallpaper behind the Appearance preview in Settings.
+cp Sources/MaraAI/Resources/PreviewWallpaper.jpg "$APP/Contents/Resources/"
 cp Info.plist "$APP/Contents/"
 if [[ -n "${MARA_VERSION:-}" ]]; then
   /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $MARA_VERSION" "$APP/Contents/Info.plist"

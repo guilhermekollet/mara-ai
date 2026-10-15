@@ -140,7 +140,7 @@ struct ContentView: View {
         .frame(minWidth: 300, minHeight: 96)
         .background {
             ZStack {
-                VisualEffectBackground()
+                VisualEffectBackground(intensity: model.blur)
                 Theme.ink.opacity(model.opacity)
             }
         }
@@ -269,6 +269,7 @@ struct ContentView: View {
                                     .foregroundStyle(Theme.paper.opacity(0.4))
                             }
                         }
+                        .modifier(CaptionShadow(on: model.textShadow))
                         .opacity(isLatest ? 1 : 0.6)
                         .textSelection(.enabled)
                     }
@@ -283,6 +284,7 @@ struct ContentView: View {
                                     .foregroundStyle(Theme.paper.opacity(0.4))
                             }
                         }
+                        .modifier(CaptionShadow(on: model.textShadow))
                     }
                     Color.clear.frame(height: 1).id(bottomID)
                 }
@@ -496,7 +498,11 @@ struct FloatingWindow: NSViewRepresentable {
 }
 
 /// Blur of whatever is behind the window, like in system panels.
+/// The frosted glass behind the captions window. `intensity` blends it from none (0: the desktop
+/// shows through sharp) to the full blur (1).
 struct VisualEffectBackground: NSViewRepresentable {
+    var intensity: Double = 1
+
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
         view.material = .hudWindow
@@ -505,5 +511,22 @@ struct VisualEffectBackground: NSViewRepresentable {
         return view
     }
 
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.alphaValue = intensity
+        nsView.isHidden = intensity == 0
+    }
+}
+
+/// A soft shadow under caption text, for reading it over a see-through background. Applied per row,
+/// and only when on, so a long meeting never renders the whole list into one shadowed layer.
+struct CaptionShadow: ViewModifier {
+    let on: Bool
+
+    func body(content: Content) -> some View {
+        if on {
+            content.shadow(color: .black.opacity(0.65), radius: 2.5, x: 0, y: 1)
+        } else {
+            content
+        }
+    }
 }
