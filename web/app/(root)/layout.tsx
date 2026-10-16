@@ -1,27 +1,25 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import { detectLocaleExpression } from "@/i18n/detect";
-import { basePath } from "@/lib/document";
+import { basePath, languageAlternates } from "@/lib/document";
 
 export const metadata: Metadata = {
   title: "Mara AI",
+  alternates: languageAlternates("/"),
 };
 
-const redirectScript = `location.replace(${JSON.stringify(basePath)}+"/"+${detectLocaleExpression}+"/"+location.hash)`;
+// A plain inline script, not next/script: that one waits for the framework's JavaScript to load
+// before it runs, and this has to leave for the visitor's language before anything else loads.
+const redirectScript = `location.replace(${JSON.stringify(basePath)}+"/"+${detectLocaleExpression}+"/"+location.search+location.hash)`;
 
 // The root URL only sends visitors to their language, so it has its own bare layout.
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en">
       <head>
+        <script id="language-redirect" dangerouslySetInnerHTML={{ __html: redirectScript }} />
         <meta name="color-scheme" content="light dark" />
       </head>
-      <body>
-        <Script id="language-redirect" strategy="beforeInteractive">
-          {redirectScript}
-        </Script>
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
