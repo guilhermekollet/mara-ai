@@ -247,3 +247,29 @@
 "Desfoque" = "Desenfoque";
 "Sombra nas letras" = "Sombra en el texto";
 "Com pouca opacidade e sem desfoque, a reunião aparece nítida atrás da legenda; a sombra mantém o texto legível." = "Con poca opacidad y sin desenfoque, la reunión se ve nítida detrás de los subtítulos; la sombra mantiene el texto legible.";
+
+/* Reading aloud */
+"Ler em voz alta" = "Leer en voz alta";
+"Ler as legendas em voz alta" = "Leer los subtítulos en voz alta";
+"A Mara lê cada frase traduzida com uma voz neural que roda no Mac: grátis, sem internet depois do download. A voz acompanha quem fala: voz grave é lida com a voz masculina, aguda com a feminina. Com alto-falantes, o seu microfone pausa enquanto ela fala; com fone, não precisa. ⌃⌥V liga e desliga." = "Mara lee cada frase traducida con una voz neuronal que funciona en tu Mac: gratis y sin internet después de la descarga. La voz sigue a quien habla: una voz grave se lee con la voz masculina, una aguda con la femenina. Con altavoces, tu micrófono se pausa mientras ella habla; con auriculares no hace falta. ⌃⌥V la activa y desactiva.";
+"Só lê reuniões traduzidas: agora a reunião e a legenda estão no mesmo idioma." = "Solo lee reuniones traducidas: ahora la reunión y los subtítulos están en el mismo idioma.";
+"Vozes em %@: %lld MB, baixadas uma vez." = "Voces en %@: %lld MB, se descargan una vez.";
+"Baixar" = "Descargar";
+"Cancelar" = "Cancelar";
+"Vozes em %@ prontas" = "Voces en %@ listas";
+"Apagar" = "Borrar";
+"Libera %lld MB. Para ler de novo, as vozes são baixadas outra vez." = "Libera %lld MB. Para volver a leer, las voces se descargan otra vez.";
+"Voz feminina" = "Voz femenina";
+"Voz masculina" = "Voz masculina";
+"Feminina %lld" = "Femenina %lld";
+"Masculina %lld" = "Masculina %lld";
+"Velocidade" = "Velocidad";
+"Volume" = "Volumen";
+"Ligar ou desligar a leitura em voz alta" = "Activar o desactivar la lectura en voz alta";
+"Leitura em voz alta ligada: a Mara lê as legendas traduzidas (⌃⌥V)" = "Lectura en voz alta activada: Mara lee los subtítulos traducidos (⌃⌥V)";
+"Leitura em voz alta desligada (⌃⌥V)" = "Lectura en voz alta desactivada (⌃⌥V)";
+"A leitura em voz alta começa quando as vozes terminarem de baixar (Ajustes › Tradução)." = "La lectura en voz alta empieza cuando terminen de descargarse las voces (Ajustes › Traducción).";
+"Não foi possível carregar as vozes. Baixe de novo em Ajustes › Tradução." = "No se pudieron cargar las voces. Descárgalas de nuevo en Ajustes › Traducción.";
+"O download das vozes falhou (%@). Tente de novo." = "La descarga de las voces falló (%@). Inténtalo de nuevo.";
+"Um arquivo das vozes chegou incompleto (%@). Tente de novo." = "Un archivo de las voces llegó incompleto (%@). Inténtalo de nuevo.";
+"Um arquivo das vozes não confere com o original (%@). Tente de novo." = "Un archivo de las voces no coincide con el original (%@). Inténtalo de nuevo.";

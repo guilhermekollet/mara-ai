@@ -17,7 +17,8 @@ final class HotKeys {
     static let toggleSession = Shortcut(id: 1, keyCode: kVK_ANSI_S, keys: "⌃⌥S", title: localized("Iniciar ou parar"))
     static let toggleCaptions = Shortcut(id: 2, keyCode: kVK_ANSI_L, keys: "⌃⌥L", title: localized("Mostrar ou ocultar as legendas"))
     static let toggleMicrophone = Shortcut(id: 3, keyCode: kVK_ANSI_M, keys: "⌃⌥M", title: localized("Ligar ou desligar o microfone"))
-    static let all = [toggleSession, toggleCaptions, toggleMicrophone]
+    static let toggleReadAloud = Shortcut(id: 4, keyCode: kVK_ANSI_V, keys: "⌃⌥V", title: localized("Ligar ou desligar a leitura em voz alta"))
+    static let all = [toggleSession, toggleCaptions, toggleMicrophone, toggleReadAloud]
 
     private var actions: [UInt32: () -> Void] = [:]
     private var references: [EventHotKeyRef] = []

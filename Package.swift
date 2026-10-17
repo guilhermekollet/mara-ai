@@ -9,7 +9,14 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "MaraAI",
+            dependencies: ["Voices"],
             resources: [.process("Resources")],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        // Neural voices that read the captions aloud, vendored from speech-swift (Apache-2.0).
+        .target(
+            name: "Voices",
+            exclude: ["LICENSE", "NOTICE"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(

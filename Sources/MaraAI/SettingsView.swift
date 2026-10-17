@@ -260,6 +260,8 @@ private struct TranslationSettings: View {
                     }
                 }
             }
+
+            ReadAloudCard()
         }
     }
 
@@ -289,6 +291,123 @@ private struct TranslationSettings: View {
                 .foregroundStyle(Theme.muted)
             TextField("US$", value: value, format: .number)
                 .textFieldStyle(.roundedBorder)
+        }
+    }
+}
+
+/// Reading the captions aloud: on or off, the voices' download, which voice for whom, speed and volume.
+private struct ReadAloudCard: View {
+    @EnvironmentObject private var model: CaptionModel
+    @ObservedObject private var store = VoiceModelStore.shared
+
+    var body: some View {
+        let engine = model.readoutEngine
+        SettingsCard(
+            localized("Ler em voz alta"),
+            hint: localized("A Mara lê cada frase traduzida com uma voz neural que roda no Mac: grátis, sem internet depois do download. A voz acompanha quem fala: voz grave é lida com a voz masculina, aguda com a feminina. Com alto-falantes, o seu microfone pausa enquanto ela fala; com fone, não precisa. ⌃⌥V liga e desliga.")
+        ) {
+            Toggle(localized("Ler as legendas em voz alta"), isOn: Binding(
+                get: { model.readAloud },
+                set: { model.setReadAloud($0) }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.small)
+
+            if !model.translates {
+                Label(localized("Só lê reuniões traduzidas: agora a reunião e a legenda estão no mesmo idioma."), systemImage: "info.circle")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Theme.muted)
+            }
+
+            download(engine)
+
+            if store.state(engine) == .ready {
+                voiceRow(.female)
+                voiceRow(.male)
+                sliderRow(localized("Velocidade"), value: $model.readoutSpeed, range: 0.8...1.4, step: 0.05,
+                          label: model.readoutSpeed.formatted(.number.precision(.fractionLength(2))) + "×")
+                sliderRow(localized("Volume"), value: $model.readoutVolume, range: 0.2...1, step: 0.05,
+                          label: "\(Int(model.readoutVolume * 100))%")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func download(_ engine: VoiceEngine) -> some View {
+        let megabytes = Int((Double(engine.manifest.totalBytes) / 1_000_000).rounded())
+        HStack(spacing: 8) {
+            switch store.state(engine) {
+            case .missing:
+                Text(localized("Vozes em \(model.captionLanguage.name): \(megabytes) MB, baixadas uma vez."))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.muted)
+                Spacer()
+                Button(localized("Baixar")) { store.download(engine) }
+                    .buttonStyle(PillButtonStyle(prominent: false))
+            case .downloading(let fraction):
+                ProgressView(value: fraction)
+                    .controlSize(.small)
+                Text("\(Int(fraction * 100))%")
+                    .font(.system(size: 11.5).monospacedDigit())
+                    .foregroundStyle(Theme.muted)
+                    .frame(width: 36, alignment: .trailing)
+                Button(localized("Cancelar")) { store.cancel(engine) }
+                    .buttonStyle(PillButtonStyle(prominent: false))
+            case .ready:
+                Label(localized("Vozes em \(model.captionLanguage.name) prontas"), systemImage: "checkmark.circle")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.muted)
+                Spacer()
+                Button(localized("Apagar")) { store.remove(engine) }
+                    .buttonStyle(PillButtonStyle(prominent: false))
+                    .disabled(model.isRunning)
+                    .help(localized("Libera \(megabytes) MB. Para ler de novo, as vozes são baixadas outra vez."))
+            case .failed(let message):
+                Text(message)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer()
+                Button(localized("Tentar de novo")) { store.download(engine) }
+                    .buttonStyle(PillButtonStyle(prominent: false))
+            }
+        }
+    }
+
+    private func voiceRow(_ gender: VoiceGender) -> some View {
+        let options = ReadoutCatalog.voices(for: model.captionLanguage.code, gender: gender)
+        let title = gender == .female ? localized("Voz feminina") : localized("Voz masculina")
+        return HStack {
+            Text(title)
+                .font(.system(size: 12.5))
+            Spacer()
+            Picker(title, selection: Binding(
+                get: { model.readoutVoice(gender).id },
+                set: { id in
+                    if let voice = options.first(where: { $0.id == id }) { model.setReadoutVoice(voice) }
+                }
+            )) {
+                ForEach(options) { voice in
+                    Text(voice.name).tag(voice.id)
+                }
+            }
+            .labelsHidden()
+            .fixedSize()
+            Button(localized("Ouvir")) { model.previewVoice(model.readoutVoice(gender)) }
+                .buttonStyle(PillButtonStyle(prominent: false))
+        }
+    }
+
+    private func sliderRow(_ title: String, value: Binding<Double>, range: ClosedRange<Double>, step: Double, label: String) -> some View {
+        HStack(spacing: 10) {
+            Text(title)
+                .font(.system(size: 12.5))
+                .frame(width: 80, alignment: .leading)
+            Slider(value: value, in: range, step: step)
+            Text(label)
+                .font(.system(size: 12).monospacedDigit())
+                .foregroundStyle(Theme.muted)
+                .frame(width: 44, alignment: .trailing)
         }
     }
 }

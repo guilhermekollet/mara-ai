@@ -296,6 +296,7 @@ final class BufferConverter {
 final class ActivityGate {
     private let lock = NSLock()
     private var paused = false
+    private var muted = false
     private var lastSound = Date()
     private var held: [AVAudioPCMBuffer] = []
     private var heldFrames = 0
@@ -314,11 +315,22 @@ final class ActivityGate {
         lock.unlock()
     }
 
+    /// Muted, audio is thrown away instead of held: the microphone while Mara reads aloud on
+    /// speakers, so her voice doesn't become yours.
+    func setMuted(_ value: Bool) {
+        lock.lock()
+        muted = value
+        held = []
+        heldFrames = 0
+        lock.unlock()
+    }
+
     /// Called on the capture queue. Returns what should be transcribed now.
     func pass(_ buffer: AVAudioPCMBuffer) -> [AVAudioPCMBuffer] {
         let loud = Self.level(of: buffer) > Self.threshold
         lock.lock()
         defer { lock.unlock() }
+        guard !muted else { return [] }
         if loud { lastSound = Date() }
         guard !paused else {
             held.append(buffer)
