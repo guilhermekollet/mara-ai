@@ -262,6 +262,9 @@ private struct TranslationSettings: View {
             }
 
             ReadAloudCard()
+            if model.readAloud {
+                DubbingCard()
+            }
         }
     }
 
@@ -373,6 +376,64 @@ private struct ReadAloudCard: View {
                 .foregroundStyle(Theme.muted)
                 .frame(width: 44, alignment: .trailing)
         }
+    }
+}
+
+/// "Hear only the dubbing": which app goes silent while Mara reads aloud, and how loud the
+/// original stays underneath.
+private struct DubbingCard: View {
+    @EnvironmentObject private var model: CaptionModel
+    @State private var apps: [AudioApp] = []
+
+    var body: some View {
+        SettingsCard(
+            localized("Ouvir só a dublagem"),
+            hint: localized("Enquanto a Mara lê em voz alta, o app escolhido fica mudo no alto-falante e você ouve a voz dela, com o original baixinho por baixo; a Mara continua ouvindo o app para legendar. Um navegador fica mudo inteiro, não só uma aba. No modo de espera, ou com a leitura desligada, o som volta.")
+        ) {
+            Toggle(localized("Silenciar o app da reunião enquanto a Mara lê"), isOn: $model.hearOnlyDubbing)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+
+            if model.hearOnlyDubbing {
+                HStack {
+                    Text(localized("Silenciar"))
+                        .font(.system(size: 12.5))
+                    Spacer()
+                    Picker(localized("Silenciar"), selection: $model.dubbingTarget) {
+                        Text(localized("Todos os apps")).tag(DubbingTarget.everything.storage)
+                        ForEach(choices) { app in
+                            Text(app.isPlaying ? localized("\(app.name) (tocando)") : app.name).tag(app.bundleID)
+                        }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                }
+                HStack(spacing: 10) {
+                    Text(localized("Original"))
+                        .font(.system(size: 12.5))
+                        .frame(width: 80, alignment: .leading)
+                    Slider(value: $model.originalVolume, in: 0...0.5, step: 0.05)
+                    Text(model.originalVolume == 0 ? localized("Mudo") : "\(Int(model.originalVolume * 100))%")
+                        .font(.system(size: 12).monospacedDigit())
+                        .foregroundStyle(Theme.muted)
+                        .frame(width: 44, alignment: .trailing)
+                }
+            }
+        }
+        // The apps with audio change as they start and stop playing.
+        .task {
+            while !Task.isCancelled {
+                apps = AudioApps.current()
+                try? await Task.sleep(for: .seconds(3))
+            }
+        }
+    }
+
+    /// The apps with audio now, plus the chosen one if it isn't among them (closed, say).
+    private var choices: [AudioApp] {
+        let chosen = DubbingTarget(storage: model.dubbingTarget)
+        guard case .app(let bundleID) = chosen, !apps.contains(where: { $0.bundleID == bundleID }) else { return apps }
+        return apps + [AudioApp(bundleID: bundleID, name: AudioApps.name(of: bundleID), isPlaying: false)]
     }
 }
 

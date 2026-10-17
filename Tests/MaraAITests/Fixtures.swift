@@ -200,3 +200,13 @@ func clippedSeconds(feeding seconds: Int, from start: Double, to end: Double) ->
     }
     return Array(Set(audio.clip(from: start, to: end).samples)).sorted()
 }
+
+/// Feeds `TapHealth` one step per second, (tap silent, sound expected), and returns its verdict
+/// after each: whether the tap is broken by then.
+func tapHealthVerdicts(_ steps: [(tapSilent: Bool, soundExpected: Bool)]) -> [Bool] {
+    var health = TapHealth()
+    let start = Date()
+    return steps.enumerated().map { second, step in
+        health.update(tapSilent: step.tapSilent, soundExpected: step.soundExpected, now: start.addingTimeInterval(Double(second)))
+    }
+}

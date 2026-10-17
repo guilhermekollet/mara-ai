@@ -126,6 +126,24 @@ flowchart LR
   capture. Your microphone is different: on speakers it would hear her, so it pauses while she speaks.
   With headphones it stays on, so **headphones work best**.
 
+### Hearing only the dubbing
+
+With reading aloud on, **Ajustes › Tradução › Ouvir só a dublagem** silences the meeting app on
+the speakers while Mara reads, so you hear her voice instead of the original. Mara still hears the
+app, to caption and translate it.
+
+- **Pick what goes silent:** one app (Zoom, Teams, Chrome, Safari…) or every app but Mara. A
+  browser goes silent as a whole: all of its tabs play through one process, so a single tab can't
+  be singled out.
+- **The original underneath.** A slider keeps the original playing quietly (15% by default, 0 for
+  silence), so music, laughter and anything Mara skips are still there.
+- **The sound comes back** when you turn it off, when reading stops, on standby (nothing is read
+  then), when the session stops and if Mara quits or crashes.
+- **How it works.** A Core Audio process tap (macOS 14.2 and later) takes the app's audio and keeps
+  it off the speakers while Mara reads it. If the tap ever stops delivering audio while the app is
+  audible, Mara gives the sound back and captions from the usual capture for the rest of the
+  session. The measurements are in [docs/dubbing-only-mode.md](docs/dubbing-only-mode.md).
+
 ## Requirements
 
 - macOS 26 (Tahoe) or later.

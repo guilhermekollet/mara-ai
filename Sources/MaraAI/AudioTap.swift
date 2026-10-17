@@ -38,11 +38,16 @@ struct AudioProcess {
         NSRunningApplication(processIdentifier: pid)?.localizedName ?? ""
     }
 
-    /// The executable's file name, for processes without a bundle (afplay, say…).
-    var executable: String {
+    /// The executable's path.
+    var path: String {
         var path = [CChar](repeating: 0, count: 4096)
         guard proc_pidpath(pid, &path, UInt32(path.count)) > 0 else { return "" }
-        return URL(fileURLWithPath: String(cString: path)).lastPathComponent
+        return String(cString: path)
+    }
+
+    /// The executable's file name, for processes without a bundle (afplay, say…).
+    var executable: String {
+        URL(fileURLWithPath: path).lastPathComponent
     }
 }
 
@@ -92,8 +97,8 @@ final class AudioTap {
         }
         self.format = format
 
-        // The aggregate device needs a clock: the default output device's.
-        let outputDevice: AudioObjectID = try CoreAudioProperty.required(AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultSystemOutputDevice, step: "finding the output device")
+        // The aggregate device needs a clock: the output device apps play to.
+        guard let outputDevice = Self.defaultOutputDevice else { throw TapError.coreAudio("finding the output device", -1) }
         let outputUID = CoreAudioProperty.string(outputDevice, kAudioDevicePropertyDeviceUID) ?? ""
         let aggregate: [String: Any] = [
             kAudioAggregateDeviceNameKey: "Mara AI Tap",
@@ -116,6 +121,11 @@ final class AudioTap {
             onBuffer(buffer, delay)
         })
         try check("AudioDeviceStart", AudioDeviceStart(device, procID))
+    }
+
+    /// The device apps play to. The tap is clocked by it, so it is rebuilt when this changes.
+    static var defaultOutputDevice: AudioObjectID? {
+        CoreAudioProperty.value(AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultOutputDevice)
     }
 
     func stop() {
@@ -181,7 +191,7 @@ enum CoreAudioProperty {
 /// and prints, each second, how loud it is, how many buffers came in all zeros and how late they
 /// arrive. Muted by default: the tapped app should go silent on the speakers for those seconds.
 enum TapTrial {
-    static func run(target: String, seconds: Double, muted: Bool) {
+    static func run(target: String, seconds: Double, muted: Bool, withScreenCapture: Bool = false) {
         let processes = AudioProcess.all()
         print("Audio processes (▶ = playing now):")
         for process in processes where !process.bundleID.isEmpty || process.isPlaying {
@@ -219,10 +229,30 @@ enum TapTrial {
         if let format = tap.format {
             print("Tap format: \(Int(format.sampleRate)) Hz, \(format.channelCount) ch, \(format.isInterleaved ? "interleaved" : "non-interleaved")")
         }
+        // ScreenCaptureKit's copy of the Mac's audio alongside, to see whether it still hears what
+        // the tap keeps off the speakers.
+        let screenMeter = TapMeter()
+        let screenCapture = SystemAudioCapture()
+        if withScreenCapture {
+            let ready = DispatchSemaphore(value: 0)
+            Task.detached {
+                do {
+                    try await screenCapture.start(
+                        microphone: false, onBuffer: { screenMeter.add($0, delay: -1) },
+                        onMicrophone: { _ in }, onMicrophoneLost: {}, onStop: { print("ScreenCaptureKit stopped: \($0)") }
+                    )
+                } catch {
+                    print("ScreenCaptureKit didn't start: \(error)")
+                }
+                ready.signal()
+            }
+            ready.wait()
+        }
         let started = Date()
         while Date().timeIntervalSince(started) < seconds {
             Thread.sleep(forTimeInterval: 1)
-            print(meter.report())
+            print("tap" + meter.report())
+            if withScreenCapture { print("sck" + screenMeter.report()) }
         }
         tap.stop()
         print("Tap stopped and destroyed: the sound should be back on the speakers.")
@@ -230,7 +260,7 @@ enum TapTrial {
 }
 
 /// Levels of the tapped audio, collected on the IO queue and reported once a second.
-private final class TapMeter: @unchecked Sendable {
+final class TapMeter: @unchecked Sendable {
     private let lock = NSLock()
     private var buffers = 0
     private var silent = 0
