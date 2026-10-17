@@ -135,7 +135,9 @@ struct Translator {
     "Others:" is someone from the meeting who wasn't told apart. Refer to "Me" as "you", in the \
     second person, and say who said what when it matters: who proposed, agreed to or took on \
     something, who asked what. Lines from "Me" can include stray words picked up by the \
-    microphone; skip what is not part of the meeting.
+    microphone; skip what is not part of the meeting. When you write a participant's label, \
+    write it in the summary's language ("Pessoa 2" in Portuguese, "Persona 2" in Spanish), as the \
+    saved transcript does.
     """
 
     private func notesPrompt(language: String) -> String {

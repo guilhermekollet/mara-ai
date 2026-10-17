@@ -8,16 +8,18 @@ import Voices
 struct SpeakerClusters {
     /// Cosine similarity from which a sentence belongs to someone already heard.
     static let threshold: Float = 0.55
-    /// Past this, new voices go to whoever is closest instead of growing the list.
+    /// Past this, a voice close to nobody isn't given a number (nor merged into someone else's).
     static let maxSpeakers = 8
 
     private(set) var centroids: [[Float]] = []
     private var counts: [Int] = []
 
     /// The index of the speaker `embedding` belongs to, adding one when nobody is close enough.
-    mutating func assign(_ embedding: [Float]) -> Int {
+    /// Nil once the list is full and the voice is close to nobody: pulling it into the nearest
+    /// person would drift their fingerprint, and their later sentences would go elsewhere.
+    mutating func assign(_ embedding: [Float]) -> Int? {
         let similarities = centroids.map { Self.cosine($0, embedding) }
-        if let best = similarities.max(), best >= Self.threshold || centroids.count >= Self.maxSpeakers {
+        if let best = similarities.max(), best >= Self.threshold {
             let index = similarities.firstIndex(of: best)!
             // The running mean follows the voice as more of it is heard.
             var merged = zip(centroids[index], embedding).map { $0 * Float(counts[index]) + $1 }
@@ -27,6 +29,7 @@ struct SpeakerClusters {
             counts[index] += 1
             return index
         }
+        guard centroids.count < Self.maxSpeakers else { return nil }
         centroids.append(embedding)
         counts.append(1)
         return centroids.count - 1
@@ -50,19 +53,20 @@ struct SpeakerClusters {
 struct VoiceCast {
     static let voicesPerGender = 2
 
-    /// The speakers of each gender, in the order they were first heard.
-    private var order: [VoiceGender: [Int]] = [:]
+    /// Each speaker's slot in each gender they were given, kept once given: a speaker whose
+    /// gender estimate changes takes a slot among the other voices, and nobody else's changes.
+    private var slots: [Int: [VoiceGender: Int]] = [:]
+    /// How many speakers were given a voice of each gender.
+    private var given: [VoiceGender: Int] = [:]
 
     /// The voice slot (0 or 1) for `speaker`, now known to be of `gender`.
     mutating func slot(for speaker: Int, gender: VoiceGender) -> Int {
-        // A speaker whose gender estimate changed moves to the other list.
-        for other in VoiceGender.allCases where other != gender {
-            order[other]?.removeAll { $0 == speaker }
-        }
-        var list = order[gender, default: []]
-        if !list.contains(speaker) { list.append(speaker) }
-        order[gender] = list
-        return list.firstIndex(of: speaker)! % Self.voicesPerGender
+        if let slot = slots[speaker]?[gender] { return slot }
+        let count = given[gender, default: 0]
+        given[gender] = count + 1
+        let slot = count % Self.voicesPerGender
+        slots[speaker, default: [:]][gender] = slot
+        return slot
     }
 }
 
@@ -115,8 +119,7 @@ final class SpeakerTracker: @unchecked Sendable {
 
     private func identifyNow(_ samples: [Float], sampleRate: Double) -> SpeakerInfo? {
         let audio = Self.resampled(samples, from: sampleRate)
-        guard let embedding = try? embedder.embed(audio) else { return nil }
-        let speaker = clusters.assign(embedding)
+        guard let embedding = try? embedder.embed(audio), let speaker = clusters.assign(embedding) else { return nil }
         if let pitch = SpeakerPitch.median(of: audio, sampleRate: Double(SpeakerEmbedder.sampleRate)) {
             pitches[speaker, default: []].append(pitch)
         }

@@ -148,7 +148,10 @@ final class CaptionModel: ObservableObject {
     @Published private(set) var identifySpeakers: Bool {
         didSet { UserDefaults.standard.set(identifySpeakers, forKey: "identifySpeakers") }
     }
+    /// Kept for the whole session, even if the feature is turned off and on again, so a person
+    /// keeps their number.
     private var speakerTracker: SpeakerTracker?
+    private var speakersLoading = false
     private var sentenceAudio: SentenceAudio?
 
     /// Seconds without audio before going on hold and before stopping on its own (0 disables the feature).
@@ -565,6 +568,8 @@ final class CaptionModel: ObservableObject {
                 let elapsed = recordUsage(result, model: translator.model, since: finalizedAt)
                 SessionLog.write("GPT \(elapsed)ms in=\(result.inputTokens) out=\(result.outputTokens) \(result.text)")
                 setTranslation(result.text, for: id, refined: true)
+                // Without Apple's translation nothing was read piece by piece: GPT's sentence is.
+                if readingAloud, localFinal == nil { enqueueReading(result.text, createdAt: finalizedAt, range: range) }
             } catch {
                 SessionLog.write("GPT falhou: \(error.localizedDescription)")
                 status = localized("Falha ao traduzir pelo GPT: \(error.localizedDescription)")
@@ -635,20 +640,37 @@ final class CaptionModel: ObservableObject {
         guard let localFinal else { return }
         let id = UUID()
         let createdAt = Date()
-        if let sentenceAudio, range.isValid, !range.isEmpty {
-            pieceSpeakers[id] = (nil, 0, true)
-            let clip = sentenceAudio.clip(from: range.start.seconds, to: range.end.seconds)
-            let tracker = speakerTracker
-            Task {
-                let (info, gender) = await Self.speaker(of: clip, tracker: tracker)
-                pieceSpeakers[id] = (gender, info?.slot ?? 0, false)
-            }
-        }
+        identifyPiece(id, range: range)
         let previous = readingChain
         readingChain = Task {
             await previous?.value
             guard let translated = try? await localFinal.translate(piece).targetText, isRunning else { return }
             reader.enqueue(ReadoutQueue.Item(id: id, createdAt: createdAt, text: translated))
+        }
+    }
+
+    /// Queues a sentence that is already translated, after the pieces before it.
+    private func enqueueReading(_ text: String, createdAt: Date, range: CMTimeRange) {
+        let id = UUID()
+        identifyPiece(id, range: range)
+        let previous = readingChain
+        readingChain = Task {
+            await previous?.value
+            guard isRunning else { return }
+            reader.enqueue(ReadoutQueue.Item(id: id, createdAt: createdAt, text: text))
+        }
+    }
+
+    /// Works out who said a piece, from its audio, while it is translated.
+    private func identifyPiece(_ id: UUID, range: CMTimeRange) {
+        if let sentenceAudio, range.isValid, !range.isEmpty {
+            pieceSpeakers[id] = (nil, 0, true)
+            let clip = sentenceAudio.clip(from: range.start.seconds, to: range.end.seconds)
+            let tracker = activeSpeakerTracker
+            Task {
+                let (info, gender) = await Self.speaker(of: clip, tracker: tracker)
+                pieceSpeakers[id] = (gender, info?.slot ?? 0, false)
+            }
         }
         // Only the recent pieces matter.
         if pieceSpeakers.count > 60 {
@@ -704,31 +726,43 @@ final class CaptionModel: ObservableObject {
         if on, voiceModels.state(.speakers) != .ready {
             voiceModels.download(.speakers)
         }
-        if on {
-            prepareSpeakers()
-        } else {
-            speakerTracker = nil
-        }
+        // Turned off, the tracker stays until the session ends: turned back on, everyone keeps
+        // their number instead of starting over at Pessoa 1.
+        if on { prepareSpeakers() }
         SessionLog.write("PESSOAS \(on ? "ligado" : "desligado")")
     }
 
+    /// The tracker, while telling speakers apart is on.
+    private var activeSpeakerTracker: SpeakerTracker? { identifySpeakers ? speakerTracker : nil }
+
     /// Loads the voice fingerprint model when a session starts, or when the feature is turned on
-    /// during one (waiting for its download, if needed).
+    /// during one, downloading it first if it is missing.
     private func prepareSpeakers() {
-        guard identifySpeakers, isRunning, speakerTracker == nil else { return }
+        guard identifySpeakers, isRunning, speakerTracker == nil, !speakersLoading else { return }
+        speakersLoading = true
         Task {
-            while case .downloading = voiceModels.state(.speakers), isRunning, identifySpeakers {
+            defer { speakersLoading = false }
+            // Deleted in Settings, or an earlier download failed: it's needed now.
+            if voiceModels.state(.speakers) != .ready, !voiceModels.state(.speakers).isDownloading {
+                voiceModels.download(.speakers)
+            }
+            while voiceModels.state(.speakers).isDownloading, isRunning, identifySpeakers {
                 try? await Task.sleep(for: .seconds(1))
             }
-            guard voiceModels.state(.speakers) == .ready, isRunning, identifySpeakers else { return }
+            guard isRunning, identifySpeakers else { return }
+            guard voiceModels.state(.speakers) == .ready else {
+                status = localized("Não foi possível baixar o modelo de vozes. Tente de novo em Ajustes › Geral.")
+                return
+            }
             let started = Date()
             do {
                 let tracker = try await SpeakerTracker.load()
-                guard isRunning, identifySpeakers else { return }
+                guard isRunning else { return }
                 speakerTracker = tracker
                 SessionLog.write("PESSOAS prontas em \(SessionLog.ms(since: started))")
             } catch {
                 SessionLog.write("PESSOAS não carregou: \(error.localizedDescription)")
+                status = localized("Não foi possível carregar o modelo de vozes. Baixe de novo em Ajustes › Geral.")
             }
         }
     }
@@ -740,10 +774,11 @@ final class CaptionModel: ObservableObject {
         let id = segment.id
         segment.identifying = true
         let clip = sentenceAudio.clip(from: range.start.seconds, to: range.end.seconds)
-        let tracker = speakerTracker
+        let tracker = activeSpeakerTracker
         Task {
             let (info, gender) = await Self.speaker(of: clip, tracker: tracker)
-            guard let index = segments.firstIndex(where: { $0.id == id }) else { return }
+            // A recent sentence: looked for from the end, so a long meeting isn't scanned.
+            guard let index = segments.lastIndex(where: { $0.id == id }) else { return }
             segments[index].identifying = false
             segments[index].gender = gender
             guard let info else { return }

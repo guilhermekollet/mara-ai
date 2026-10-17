@@ -372,43 +372,49 @@ final class ActivityGate {
 /// of a finished sentence finds exactly its audio: the voice to tell who said it.
 final class SentenceAudio: @unchecked Sendable {
     private let lock = NSLock()
-    private var samples: [Float] = []
-    /// How many samples came before `samples[0]`.
-    private var dropped = 0
+    /// The last half minute, as a ring: sample `n` of the session sits at `n % ring.count`, so
+    /// adding a buffer never moves what's already kept.
+    private var ring: [Float] = []
+    /// How many samples came in since the session started.
+    private var written = 0
     private var sampleRate = 16_000.0
     private static let keep: Double = 30
 
     /// Called on the capture queue with each buffer handed to the recognizer.
     func append(_ buffer: AVAudioPCMBuffer) {
         let count = Int(buffer.frameLength)
-        guard count > 0 else { return }
-        var incoming = [Float](repeating: 0, count: count)
-        if let channel = buffer.floatChannelData?[0] {
-            for index in 0..<count { incoming[index] = channel[index] }
-        } else if let channel = buffer.int16ChannelData?[0] {
-            for index in 0..<count { incoming[index] = Float(channel[index]) / 32_768 }
-        } else {
-            return
-        }
+        let floats = buffer.floatChannelData?[0]
+        let integers = buffer.int16ChannelData?[0]
+        guard count > 0, floats != nil || integers != nil else { return }
         lock.lock()
         defer { lock.unlock() }
-        sampleRate = buffer.format.sampleRate
-        samples += incoming
-        let limit = Int(sampleRate * Self.keep)
-        if samples.count > limit {
-            let excess = samples.count - limit
-            samples.removeFirst(excess)
-            dropped += excess
+        let rate = buffer.format.sampleRate
+        if ring.isEmpty || rate != sampleRate {
+            if !ring.isEmpty { written = Int(Double(written) * rate / sampleRate) }
+            sampleRate = rate
+            ring = [Float](repeating: 0, count: max(1, Int(rate * Self.keep)))
         }
+        let capacity = ring.count
+        var position = written % capacity
+        ring.withUnsafeMutableBufferPointer { ring in
+            for index in 0..<count {
+                ring[position] = floats.map { $0[index] } ?? Float(integers![index]) / 32_768
+                position += 1
+                if position == capacity { position = 0 }
+            }
+        }
+        written += count
     }
 
     /// The audio between `start` and `end` seconds, as far as it is still kept, and its sample rate.
     func clip(from start: Double, to end: Double) -> (samples: [Float], sampleRate: Double) {
         lock.lock()
         defer { lock.unlock() }
-        let first = max(0, Int(start * sampleRate) - dropped)
-        let last = min(samples.count, Int(end * sampleRate) - dropped)
+        guard !ring.isEmpty else { return ([], sampleRate) }
+        let capacity = ring.count
+        let first = max(written - capacity, 0, Int(start * sampleRate))
+        let last = min(written, Int(end * sampleRate))
         guard first < last else { return ([], sampleRate) }
-        return (Array(samples[first..<last]), sampleRate)
+        return ((first..<last).map { ring[$0 % capacity] }, sampleRate)
     }
 }

@@ -154,6 +154,11 @@ final class VoiceModelStore: ObservableObject {
         case downloading(Double)
         case ready
         case failed(String)
+
+        var isDownloading: Bool {
+            if case .downloading = self { return true }
+            return false
+        }
     }
 
     static let shared = VoiceModelStore()

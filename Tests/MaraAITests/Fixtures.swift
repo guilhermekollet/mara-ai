@@ -158,7 +158,7 @@ func verifiesDownload(_ contents: String, size: Int, sha256: String? = nil) -> B
 
 /// Feeds a meeting to the clustering: each sentence is its speaker's voice (a fixed random
 /// direction) plus some noise, in the order given. Returns the speaker each sentence was put with.
-func clusteredSpeakers(of sentences: [Int], noise: Float = 0.6, seed: UInt64 = 7) -> [Int] {
+func clusteredSpeakers(of sentences: [Int], noise: Float = 0.6, seed: UInt64 = 7) -> [Int?] {
     var generator = SeededGenerator(seed: seed)
     func direction() -> [Float] { (0..<192).map { _ in Float.random(in: -1...1, using: &generator) } }
     func normalized(_ vector: [Float]) -> [Float] {

@@ -283,3 +283,5 @@
 "Libera %lld MB. Para identificar de novo, o modelo é baixado outra vez." = "Frees %lld MB. To identify people again, the model is downloaded again.";
 "Pessoa %lld" = "Person %lld";
 "Pessoa %lld: %@" = "Person %lld: %@";
+"Não foi possível baixar o modelo de vozes. Tente de novo em Ajustes › Geral." = "Couldn't download the voice model. Try again in Settings › General.";
+"Não foi possível carregar o modelo de vozes. Baixe de novo em Ajustes › Geral." = "Couldn't load the voice model. Download it again in Settings › General.";

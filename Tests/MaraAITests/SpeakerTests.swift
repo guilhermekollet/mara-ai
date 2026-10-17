@@ -15,7 +15,16 @@ struct SpeakerTests {
 
     @Test func noMoreThanTheMaximumOfPeopleAreKept() {
         let meeting = Array(0..<12)
-        #expect(Set(clusteredSpeakers(of: meeting)).count == SpeakerClusters.maxSpeakers)
+        let assigned = clusteredSpeakers(of: meeting)
+        #expect(Set(assigned.compactMap { $0 }).count == SpeakerClusters.maxSpeakers)
+        // The ones past the cap get no number instead of being merged into someone else.
+        #expect(assigned.suffix(4).allSatisfy { $0 == nil })
+    }
+
+    @Test func pastTheCapKnownPeopleKeepTheirNumbers() {
+        let meeting = Array(0..<10) + Array(0..<8)
+        let assigned = clusteredSpeakers(of: meeting)
+        #expect(Array(assigned.suffix(8)) == Array(assigned.prefix(8)))
     }
 
     @Test func eachGenderGetsTwoVoicesInTurn() {
@@ -29,13 +38,15 @@ struct SpeakerTests {
         #expect(cast.slot(for: 0, gender: .female) == 0)
     }
 
-    @Test func aSpeakerWhoseGenderChangesMovesToTheOtherVoices() {
+    @Test func aGenderChangeDoesntChangeAnyoneElsesVoice() {
         var cast = VoiceCast()
-        _ = cast.slot(for: 0, gender: .male)
+        #expect(cast.slot(for: 0, gender: .male) == 0)
         #expect(cast.slot(for: 1, gender: .male) == 1)
-        _ = cast.slot(for: 0, gender: .female)
-        // With speaker 0 gone from the men, speaker 1 is now the first man.
-        #expect(cast.slot(for: 1, gender: .male) == 0)
+        // Speaker 0 now sounds female: they take a female voice, and speaker 1 keeps theirs.
+        #expect(cast.slot(for: 0, gender: .female) == 0)
+        #expect(cast.slot(for: 1, gender: .male) == 1)
+        // Back to male, speaker 0 gets their old voice again.
+        #expect(cast.slot(for: 0, gender: .male) == 0)
     }
 
     @Test func aSentencesTimeRangeFindsItsAudio() {
