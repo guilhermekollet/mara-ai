@@ -253,7 +253,7 @@ details[open] > p {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rise, .dither, .mark-live circle, .word-loop, details[open] > p { animation: none; }
+  .rise, .dither, .mark-live circle, .word-loop, .voice-bar, details[open] > p { animation: none; }
   .reveal-ready [data-reveal] { opacity: 1; transform: none; }
   .press { transition: none; }
 }
