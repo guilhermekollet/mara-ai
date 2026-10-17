@@ -32,13 +32,17 @@ Measured on macOS 26, MacBook, built-in speakers, 2026-10-17.
 | Latency from tap to buffer | **~32 ms**, steady (48 kHz stereo, interleaved Float32, ~94 buffers a second). Negligible next to the dubbing's 1–3 s. |
 | One browser tab? | **No**, in Chromium or Safari. Two YouTube tabs in a Chromium browser played through a single process, the audio service (`--utility-sub-type=audio.mojom.AudioService`); tapping it captures and mutes every tab of that browser. Chrome, Brave, Dia and Electron apps share this design. Safari is the same, through WebKit's GPU process (below). |
 | Safari | **Works, per app.** Two YouTube tabs playing at once had four WebContent processes but one process playing audio, WebKit's GPU process (`com.apple.WebKit.GPU`, "Safari Graphics and Media"). A muted tap on it: both tabs went silent for 10 s and came back on their own (heard by the user), while Mara got their audio at −14 to −24 dBFS, ~32 ms late. The GPU process may also carry other WebKit apps' media. |
+| Does ScreenCaptureKit still hear a muted app? | **Yes**, at the same level as the tap, and running it alongside doesn't undo the mute (heard by the user). Mara uses it as the witness that tells a broken tap. |
 | Permission | Run from the terminal, the capture is credited to the host app: every buffer arrives **all zeros, with no error**. Run as Mara (which already had Screen & System Audio Recording), audio arrived and no new prompt appeared during the test. `NSAudioCaptureUsageDescription` was added to Info.plist, which taps require. |
 
 A single tab would need a browser extension using `chrome.tabCapture`, which takes a tab's
 audio away from the speakers too, and a way to send that audio to Mara. That is a separate
 project.
 
-## How it would fit in Mara (not built)
+## How it would fit in Mara
+
+Built as "Ouvir só a dublagem" (Sources/MaraAI/Dubbing.swift); `MaraAI --try-dubbing <bundle id|all>
+<seconds> <volume>...` runs it without a session. The sketch below is what guided it.
 
 **Capture**
 - A second source next to `SystemAudioCapture`: an `AudioTap` with `.mutedWhenTapped` feeding

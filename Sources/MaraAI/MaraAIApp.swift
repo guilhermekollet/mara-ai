@@ -6,7 +6,9 @@ struct MaraAIApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     /// Kept, not observed: observing it here re-evaluated every scene, menu bar icon included, on
     /// each change to the model, such as every partial caption. Each window observes it itself.
-    @State private var model = CaptionModel()
+    /// Created at the end of `init`, after the development tools, which never need it (it reads
+    /// the OpenAI key from the Keychain, which can prompt in a development build).
+    @State private var model: CaptionModel
 
     init() {
         // Development tool: `MaraAI --try-voices pt` downloads that language's voices if needed,
@@ -35,8 +37,19 @@ struct MaraAIApp: App {
         if let flag = CommandLine.arguments.firstIndex(of: "--try-tap"), CommandLine.arguments.count > flag + 1 {
             let rest = CommandLine.arguments[(flag + 1)...]
             let seconds = rest.dropFirst().first.flatMap(Double.init) ?? 10
-            TapTrial.run(target: rest.first!, seconds: seconds, muted: !rest.contains("--unmuted"))
+            TapTrial.run(target: rest.first!, seconds: seconds, muted: !rest.contains("--unmuted"), withScreenCapture: rest.contains("--with-sck"))
             exit(0)
+        }
+        // Development tool: `MaraAI --try-dubbing <bundle id|all> <seconds> <volume>...` runs "hear only
+        // the dubbing" without a session, one step per original volume. See `DubbingTrial`.
+        if let flag = CommandLine.arguments.firstIndex(of: "--try-dubbing"), CommandLine.arguments.count > flag + 3 {
+            let rest = Array(CommandLine.arguments[(flag + 1)...])
+            Task { @MainActor in
+                await DubbingTrial.run(target: rest[0], seconds: Double(rest[1]) ?? 8, volumes: rest.dropFirst(2).compactMap(Double.init))
+                exit(0)
+            }
+            NSApplication.shared.setActivationPolicy(.accessory)
+            NSApplication.shared.run()
         }
         // Development tool: `MaraAI --render-summary file.png` draws the summary window with a
         // sample summary and exits, so it can be checked without an OpenAI key or a meeting.
@@ -44,6 +57,7 @@ struct MaraAIApp: App {
             SummaryView.renderSample(to: URL(fileURLWithPath: CommandLine.arguments[flag + 1]))
             exit(0)
         }
+        _model = State(initialValue: CaptionModel())
     }
 
     var body: some Scene {

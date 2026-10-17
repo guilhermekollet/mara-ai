@@ -285,3 +285,14 @@
 "Pessoa %lld: %@" = "Persona %lld: %@";
 "Não foi possível baixar o modelo de vozes. Tente de novo em Ajustes › Geral." = "No se pudo descargar el modelo de voces. Inténtalo de nuevo en Ajustes › General.";
 "Não foi possível carregar o modelo de vozes. Baixe de novo em Ajustes › Geral." = "No se pudo cargar el modelo de voces. Descárgalo de nuevo en Ajustes › General.";
+
+/* Hearing only the dubbing */
+"Ouvir só a dublagem" = "Escuchar solo el doblaje";
+"Enquanto a Mara lê em voz alta, o app escolhido fica mudo no alto-falante e você ouve a voz dela, com o original baixinho por baixo; a Mara continua ouvindo o app para legendar. Um navegador fica mudo inteiro, não só uma aba. No modo de espera, ou com a leitura desligada, o som volta." = "Mientras Mara lee en voz alta, la app elegida se silencia en los altavoces y oyes su voz, con el original bajito por debajo; Mara sigue escuchando la app para subtitularla. Un navegador se silencia entero, no solo una pestaña. En espera, o con la lectura desactivada, el sonido vuelve.";
+"Silenciar o app da reunião enquanto a Mara lê" = "Silenciar la app de la reunión mientras Mara lee";
+"Silenciar" = "Silenciar";
+"Todos os apps" = "Todas las apps";
+"%@ (tocando)" = "%@ (sonando)";
+"Original" = "Original";
+"Mudo" = "Silenciado";
+"A Mara parou de receber o áudio do app e devolveu o som ao alto-falante. Para tentar de novo, pare e inicie a sessão." = "Mara dejó de recibir el audio de la app y devolvió el sonido a los altavoces. Para intentarlo de nuevo, detén e inicia la sesión.";

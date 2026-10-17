@@ -135,6 +135,33 @@ final class CaptionModel: ObservableObject {
     @Published private var readoutVoices: [String: String] {
         didSet { UserDefaults.standard.set(readoutVoices, forKey: "readoutVoices") }
     }
+    /// "Hear only the dubbing": while reading aloud, the meeting goes silent on the speakers and
+    /// you hear Mara's voice instead, with the original underneath at `originalVolume`. Mara still
+    /// hears the meeting, through a Core Audio tap. Off by default.
+    @Published var hearOnlyDubbing: Bool {
+        didSet {
+            UserDefaults.standard.set(hearOnlyDubbing, forKey: "hearOnlyDubbing")
+            applyDubbing()
+        }
+    }
+    /// What goes silent: an app's bundle identifier, or "*" for every app but Mara.
+    @Published var dubbingTarget: String {
+        didSet {
+            UserDefaults.standard.set(dubbingTarget, forKey: "dubbingTarget")
+            applyDubbing()
+        }
+    }
+    /// How loud the original plays under the dubbing, from 0 (silent) to 1.
+    @Published var originalVolume: Double {
+        didSet {
+            UserDefaults.standard.set(originalVolume, forKey: "originalVolume")
+            applyDubbing()
+        }
+    }
+    /// The tap stopped delivering audio and the sound went back to the speakers: not tried again
+    /// until the next session.
+    private var dubbingFellBack = false
+    private var dubbingApplied: String?
     let reader = CaptionReader()
     let voiceModels = VoiceModelStore.shared
     /// Cuts what the others say into pieces to read before each sentence ends.
@@ -227,6 +254,9 @@ final class CaptionModel: ObservableObject {
         readoutVolume = UserDefaults.standard.object(forKey: "readoutVolume") as? Double ?? 0.9
         readoutVoices = UserDefaults.standard.dictionary(forKey: "readoutVoices") as? [String: String] ?? [:]
         identifySpeakers = UserDefaults.standard.bool(forKey: "identifySpeakers")
+        hearOnlyDubbing = UserDefaults.standard.bool(forKey: "hearOnlyDubbing")
+        dubbingTarget = UserDefaults.standard.string(forKey: "dubbingTarget") ?? DubbingTarget.everything.storage
+        originalVolume = UserDefaults.standard.object(forKey: "originalVolume") as? Double ?? 0.15
         configureReader()
         applyHotKeys()
         soundCues.enabled = soundCuesEnabled
@@ -386,6 +416,7 @@ final class CaptionModel: ObservableObject {
                     }
                 },
                 onMicrophoneLost: { [weak self] in self?.microphoneLost() },
+                onDubbingFallback: { [weak self] in self?.dubbingFailed() },
                 onError: { [weak self] error in
                     SessionLog.write("ERRO \(error.localizedDescription)")
                     self?.status = localized("Erro: \(error.localizedDescription)")
@@ -411,6 +442,8 @@ final class CaptionModel: ObservableObject {
             }
             pieceCutter = PieceCutter()
             pieceSpeakers = [:]
+            dubbingFellBack = false
+            dubbingApplied = nil
             prepareSpeakers()
             prepareReader()
             startIdleWatch()
@@ -437,6 +470,8 @@ final class CaptionModel: ObservableObject {
         reader.unload()
         speakerTracker = nil
         sentenceAudio = nil
+        if dubbingApplied != nil { SessionLog.write("DUBLAGEM desligada") }
+        dubbingApplied = nil
         await session.stop()
         clearVolatile()
         await writeTranscript()
@@ -471,6 +506,7 @@ final class CaptionModel: ObservableObject {
                         self.menuBarAnimator.setActive(true)
                         self.audioMeter.setActive(true)
                         SessionLog.write("VOLTOU da espera")
+                        self.applyDubbing()
                     }
                     try? await Task.sleep(for: .seconds(2))
                 } else {
@@ -484,6 +520,8 @@ final class CaptionModel: ObservableObject {
                         self.audioMeter.setActive(false)
                         self.clearVolatile()
                         SessionLog.write("ESPERA após \(Int(quiet))s sem áudio")
+                        // On standby nothing is read aloud: the original comes back.
+                        self.applyDubbing()
                     }
                     try? await Task.sleep(for: .seconds(1))
                 }
@@ -617,6 +655,7 @@ final class CaptionModel: ObservableObject {
             reader.unload()
         }
         SessionLog.write("LEITURA \(on ? "ligada" : "desligada")")
+        applyDubbing()
     }
 
     /// Plays a sample sentence with `voice`, as it would read the captions.
@@ -713,10 +752,37 @@ final class CaptionModel: ObservableObject {
             let started = Date()
             if await reader.load(engine) {
                 SessionLog.write("VOZ pronta (\(engine.rawValue)) em \(SessionLog.ms(since: started))")
+                applyDubbing()
             } else {
                 status = localized("Não foi possível carregar as vozes. Baixe de novo em Ajustes › Tradução.")
             }
         }
+    }
+
+    // MARK: Hearing only the dubbing
+
+    /// Whether the meeting is kept off the speakers right now: only while Mara reads it aloud, so
+    /// there is always something to hear. On standby, or with reading off, the original is back.
+    private var dubbingWanted: Bool {
+        hearOnlyDubbing && readAloud && isRunning && !isIdle && translates && reader.isLoaded && !dubbingFellBack
+    }
+
+    /// Brings the tap in line with the settings and the session's state.
+    private func applyDubbing() {
+        let target = dubbingWanted ? DubbingTarget(storage: dubbingTarget) : nil
+        session?.setDubbing(target, originalVolume: originalVolume)
+        let applied = target?.storage
+        guard applied != dubbingApplied else { return }
+        dubbingApplied = applied
+        SessionLog.write(applied.map { "DUBLAGEM ligada: \($0) original=\(Int(originalVolume * 100))%" } ?? "DUBLAGEM desligada")
+    }
+
+    /// The tap stopped delivering the meeting's audio: the sound is back on the speakers and the
+    /// captions come from ScreenCaptureKit again, for the rest of the session.
+    private func dubbingFailed() {
+        dubbingFellBack = true
+        dubbingApplied = nil
+        status = localized("A Mara parou de receber o áudio do app e devolveu o som ao alto-falante. Para tentar de novo, pare e inicie a sessão.")
     }
 
     // MARK: Telling speakers apart

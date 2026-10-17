@@ -5,6 +5,8 @@ import Speech
 /// the Mac's audio and, while the microphone is on, another for it.
 final class TranscriptionSession {
     private let capture = SystemAudioCapture()
+    /// "Hear only the dubbing": while it carries the meeting, ScreenCaptureKit's copy is set aside.
+    private var dubbing: DubbingCapture?
     private var system: Recognizer?
     private let microphone = MicrophoneInput()
     private var microphoneRecognizer: Recognizer?
@@ -38,6 +40,7 @@ final class TranscriptionSession {
         onStatus: @escaping @MainActor (String) -> Void,
         onResult: @escaping @MainActor (_ text: String, _ isFinal: Bool, _ speaker: Speaker, _ range: CMTimeRange) -> Void,
         onMicrophoneLost: @escaping @MainActor () -> Void,
+        onDubbingFallback: @escaping @MainActor () -> Void = {},
         onError: @escaping @MainActor (Error) -> Void
     ) async throws {
         self.locale = locale
@@ -68,22 +71,35 @@ final class TranscriptionSession {
             }
         }
 
-        // The converter is only used on the capture queue.
-        let converter = BufferConverter()
+        // The meeting's audio reaches transcription from ScreenCaptureKit or, while "hear only the
+        // dubbing" is on, from a Core Audio tap. One source at a time, each with its own
+        // converter; the lock keeps them in order around a switch.
         let format = system.format
         let input = system.input
+        let feedLock = NSLock()
+        let feed = { (buffer: AVAudioPCMBuffer, converter: BufferConverter) in
+            feedLock.lock()
+            defer { feedLock.unlock() }
+            guard let converted = converter.convert(buffer, to: format) else { return }
+            onAudio?(converted)
+            // While on standby, audio is still metered but isn't sent to transcription.
+            for ready in gate.pass(converted) {
+                // Kept in step with what the recognizer hears, so a sentence's time range
+                // finds its audio.
+                sentenceAudio?.append(ready)
+                input.yield(AnalyzerInput(buffer: ready))
+            }
+        }
+        let tapConverter = BufferConverter()
+        let dubbing = DubbingCapture(onBuffer: { feed($0, tapConverter) }, onFallback: onDubbingFallback)
+        self.dubbing = dubbing
+        let screenConverter = BufferConverter()
         try await capture.start(
             microphone: withMicrophone,
             onBuffer: { buffer in
-                guard let converted = converter.convert(buffer, to: format) else { return }
-                onAudio?(converted)
-                // While on standby, audio is still metered but isn't sent to transcription.
-                for ready in gate.pass(converted) {
-                    // Kept in step with what the recognizer hears, so a sentence's time range
-                    // finds its audio.
-                    sentenceAudio?.append(ready)
-                    input.yield(AnalyzerInput(buffer: ready))
-                }
+                dubbing.noteScreenAudio(buffer)
+                guard !dubbing.isFeeding else { return }
+                feed(buffer, screenConverter)
             },
             onMicrophone: { [microphone] buffer in microphone.push(buffer) },
             onMicrophoneLost: { [weak self] in
@@ -153,7 +169,14 @@ final class TranscriptionSession {
         }
     }
 
+    /// Turns "hear only the dubbing" on for `target`, or off with nil.
+    func setDubbing(_ target: DubbingTarget?, originalVolume: Double) {
+        dubbing?.set(target, originalVolume: originalVolume)
+    }
+
     func stop() async {
+        dubbing?.stop()
+        dubbing = nil
         await capture.stop()
         await stopMicrophoneRecognizer()
         await system?.finish()
