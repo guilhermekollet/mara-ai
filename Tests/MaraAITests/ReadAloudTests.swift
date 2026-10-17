@@ -22,6 +22,34 @@ struct ReadoutQueueTests {
     }
 }
 
+@Suite("Reading aloud: which text")
+struct ReadoutTextTests {
+    private func ready(_ text: String?, refined: Bool = false, settled: Bool = false, gpt: Bool, after waited: Double) -> Bool {
+        CaptionReader.isReady(ReadoutText(text: text, refined: refined, settled: settled), refines: gpt, waited: waited)
+    }
+
+    @Test func waitsForTheFirstTranslationInsteadOfSkipping() {
+        #expect(!ready(nil, gpt: true, after: 0.2))
+        #expect(!ready(nil, gpt: false, after: 3))
+    }
+
+    @Test func withoutGPTReadsApplesFinalNotTheDraft() {
+        #expect(!ready("draft", gpt: false, after: 0.2))
+        #expect(ready("final", settled: true, gpt: false, after: 0.2))
+    }
+
+    @Test func withGPTWaitsForItThenTakesApples() {
+        #expect(ready("gpt", refined: true, settled: true, gpt: true, after: 0.3))
+        #expect(!ready("apple", settled: true, gpt: true, after: 0.5))
+        #expect(ready("apple", settled: true, gpt: true, after: CaptionReader.refinementWait))
+    }
+
+    @Test func aDraftIsTheLastResort() {
+        #expect(!ready("draft", gpt: true, after: CaptionReader.refinementWait))
+        #expect(ready("draft", gpt: true, after: CaptionReader.translationWait))
+    }
+}
+
 @Suite("Reading aloud: the speaker's pitch")
 struct SpeakerPitchTests {
     @Test(arguments: [95.0, 120.0, 150.0, 190.0, 220.0, 260.0])

@@ -35,6 +35,16 @@ struct ReadoutQueue {
     }
 }
 
+/// What a sentence says when its turn to be read comes.
+struct ReadoutText {
+    /// The caption's translation so far; nil until the first one arrives.
+    var text: String?
+    /// GPT's final version.
+    var refined: Bool
+    /// A final translation of the whole sentence (Apple's or GPT's), not a draft of a partial.
+    var settled: Bool
+}
+
 /// Reads finished captions aloud with an on-device neural voice (`Synthesizer`), through Mara's own
 /// audio engine. ScreenCaptureKit leaves Mara's own sound out of the capture
 /// (`excludesCurrentProcessAudio`, measured: nothing of it reaches the meeting audio), so the voice
@@ -42,10 +52,11 @@ struct ReadoutQueue {
 /// `onSpeakingChanged` lets the session pause it.
 @MainActor
 final class CaptionReader {
-    /// What a sentence says right now, and whether that's GPT's final version.
-    var text: (UUID) -> (text: String, refined: Bool)? = { _ in nil }
-    /// Whether a GPT version of each sentence is on its way, worth waiting a moment for.
-    var expectsRefinement = false
+    /// What a sentence says right now; nil once the sentence is gone.
+    var text: (UUID) -> ReadoutText? = { _ in nil }
+    /// Whether a GPT version of each sentence is on its way, worth waiting a moment for. Asked for
+    /// each sentence, since GPT can be turned on and off during a meeting.
+    var expectsRefinement: () -> Bool = { false }
     var onSpeakingChanged: (Bool) -> Void = { _ in }
     /// Picks the voice for a sentence: the language's voice for that gender.
     var voiceFor: (VoiceGender?) -> String = { _ in "F1" }
@@ -60,19 +71,28 @@ final class CaptionReader {
 
     private var queue = ReadoutQueue()
     private var synthesizer: Synthesizer?
-    private var loading: Task<Synthesizer?, Never>?
+    private var loading: (engine: VoiceEngine, task: Task<Synthesizer?, Never>)?
+    /// Bumped by every load and unload, so a load that finishes after it was superseded is dropped.
+    private var loadGeneration = 0
     private var worker: Task<Void, Never>?
+    /// Tells the current worker apart from one that was stopped but is still finishing a sentence.
+    private var workerGeneration = 0
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
     private var connectedRate: Double?
     private var speaking = false
+    /// The sentence playing now, resumed when it ends, is cut, or the audio output changes.
+    private var playback: (id: Int, continuation: CheckedContinuation<Void, Never>)?
+    private var playbackCount = 0
     private var quietAgain: Task<Void, Never>?
     private var idleStop: Task<Void, Never>?
     /// The previous sentence's voice, kept when the pitch doesn't tell.
     private var lastGender: VoiceGender = .female
 
     /// How long to wait for GPT's version of a sentence, counted from when it was finalized.
-    static let refinementWait: TimeInterval = 1.5
+    nonisolated static let refinementWait: TimeInterval = 1.5
+    /// How long to wait for any translation at all, a draft included, before skipping the sentence.
+    nonisolated static let translationWait: TimeInterval = 4
     /// The microphone stays paused this long after Mara stops: the sound's way out of the
     /// speakers and back into the microphone, plus the room's echo.
     static let microphoneTail: Duration = .milliseconds(400)
@@ -80,6 +100,11 @@ final class CaptionReader {
     init() {
         engine.attach(player)
         player.volume = Float(volume)
+        // Headphones plugged in, AirPods connecting, another default output: the engine stops
+        // itself and the sentence in flight never reports its end.
+        NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.outputChanged() }
+        }
     }
 
     var isLoaded: Bool { synthesizer != nil }
@@ -88,7 +113,14 @@ final class CaptionReader {
     @discardableResult
     func load(_ engine: VoiceEngine) async -> Bool {
         if synthesizer?.engine == engine { return true }
-        if let loading, let loaded = await loading.value, loaded.engine == engine { return true }
+        if let loading, loading.engine == engine {
+            _ = await loading.task.value
+            return synthesizer?.engine == engine
+        }
+        loadGeneration += 1
+        let generation = loadGeneration
+        // Never two models in memory: the other engine's goes before this one loads.
+        synthesizer = nil
         let task = Task<Synthesizer?, Never> {
             do {
                 return try await Synthesizer.load(engine)
@@ -97,25 +129,39 @@ final class CaptionReader {
                 return nil
             }
         }
-        loading = task
+        loading = (engine, task)
         let loaded = await task.value
+        // Unloaded (the meeting stopped) or replaced by another load while this one ran.
+        guard generation == loadGeneration else { return false }
         loading = nil
         synthesizer = loaded
+        // Sentences that came in while the model was loading.
+        if loaded != nil { startWorker() }
         return loaded != nil
     }
 
     /// Frees the model's memory (several hundred megabytes) between meetings.
     func unload() {
         stop()
+        loadGeneration += 1
+        loading = nil
         synthesizer = nil
     }
 
     func enqueue(_ item: ReadoutQueue.Item) {
         queue.push(item)
-        guard worker == nil else { return }
+        startWorker()
+    }
+
+    private func startWorker() {
+        guard worker == nil, synthesizer != nil, !queue.waiting.isEmpty else { return }
+        workerGeneration += 1
+        let generation = workerGeneration
         worker = Task { [weak self] in
             await self?.drain()
-            self?.worker = nil
+            // A worker that was stopped mid-sentence mustn't forget the one that replaced it.
+            guard let self, self.workerGeneration == generation else { return }
+            self.worker = nil
         }
     }
 
@@ -125,6 +171,7 @@ final class CaptionReader {
         worker?.cancel()
         worker = nil
         player.stop()
+        finishPlayback()
         setSpeaking(false, immediately: true)
     }
 
@@ -137,8 +184,7 @@ final class CaptionReader {
     }
 
     private func drain() async {
-        while !Task.isCancelled, let item = queue.next() {
-            guard let synthesizer else { return }
+        while !Task.isCancelled, let synthesizer, let item = queue.next() {
             let gender = item.gender ?? lastGender
             lastGender = gender
             guard let text = await resolvedText(item), !text.isEmpty else { continue }
@@ -153,13 +199,27 @@ final class CaptionReader {
         }
     }
 
-    /// The sentence's best text: GPT's when it arrives in time, otherwise Apple's.
+    /// The sentence's best text: GPT's when it arrives in time, otherwise Apple's final translation,
+    /// and the draft of the partial only when nothing better came. Nil skips the sentence.
     private func resolvedText(_ item: ReadoutQueue.Item) async -> String? {
-        while expectsRefinement, let current = text(item.id), !current.refined,
-              Date().timeIntervalSince(item.finalizedAt) < Self.refinementWait, !Task.isCancelled {
+        let refines = expectsRefinement()
+        while !Task.isCancelled, let current = text(item.id) {
+            let waited = Date().timeIntervalSince(item.finalizedAt)
+            if let text = current.text, Self.isReady(current, refines: refines, waited: waited) {
+                return text.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            if waited >= Self.translationWait { return nil }
             try? await Task.sleep(for: .milliseconds(100))
         }
-        return text(item.id)?.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return nil
+    }
+
+    /// Whether `current` is worth reading now, `waited` seconds after the sentence ended.
+    nonisolated static func isReady(_ current: ReadoutText, refines: Bool, waited: TimeInterval) -> Bool {
+        guard current.text != nil else { return false }
+        if current.refined || (!refines && current.settled) { return true }
+        if waited >= refinementWait && current.settled { return true }
+        return waited >= translationWait
     }
 
     private func play(_ samples: [Float], sampleRate: Double) async {
@@ -183,12 +243,25 @@ final class CaptionReader {
             }
         }
         setSpeaking(true)
+        playbackCount += 1
+        let id = playbackCount
+        // A safety net: if the end of the sentence is never reported, the queue still moves on.
+        let duration = Double(samples.count) / sampleRate
+        let watchdog = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(duration + 2))
+            guard !Task.isCancelled else { return }
+            self?.finishPlayback(id)
+        }
+        // A preview can cut in on a meeting's sentence: that one is over.
+        finishPlayback()
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { _ in
-                continuation.resume()
+            playback = (id, continuation)
+            player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
+                Task { @MainActor in self?.finishPlayback(id) }
             }
             player.play()
         }
+        watchdog.cancel()
         setSpeaking(false)
         // Stops the engine a little after the last sentence, so the Mac's audio isn't kept awake.
         idleStop = Task { [weak self] in
@@ -197,6 +270,23 @@ final class CaptionReader {
             self.player.stop()
             self.engine.stop()
         }
+    }
+
+    /// Resumes the sentence that is playing, if it is `id` (any, when nil). Each resumes only once.
+    private func finishPlayback(_ id: Int? = nil) {
+        guard let playback, id == nil || playback.id == id else { return }
+        self.playback = nil
+        playback.continuation.resume()
+    }
+
+    /// The output device changed and the engine stopped: the sentence in flight is dropped, and the
+    /// next one connects and starts the engine again.
+    private func outputChanged() {
+        connectedRate = nil
+        guard playback != nil else { return }
+        SessionLog.write("VOZ saída de áudio mudou")
+        player.stop()
+        finishPlayback()
     }
 
     private func setSpeaking(_ value: Bool, immediately: Bool = false) {

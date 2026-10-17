@@ -14,6 +14,9 @@ final class CaptionModel: ObservableObject {
         /// True when the translation is already GPT's final version (the local one doesn't overwrite it).
         var refined = false
         var speaker = Speaker.others
+        /// A final translation of the whole sentence arrived (Apple's or GPT's), not just the draft
+        /// of the partial.
+        var settled = false
         /// Whether the speaker's voice sounded male or female, by its pitch; nil when it didn't say.
         var gender: VoiceGender?
 
@@ -568,7 +571,8 @@ final class CaptionModel: ObservableObject {
         if on {
             prepareReader()
         } else {
-            reader.stop()
+            // Off for the rest of the meeting, most likely: the model's memory goes too.
+            reader.unload()
         }
         SessionLog.write("LEITURA \(on ? "ligada" : "desligada")")
     }
@@ -587,10 +591,12 @@ final class CaptionModel: ObservableObject {
     private func configureReader() {
         reader.speed = readoutSpeed
         reader.volume = readoutVolume
+        // Asked every tenth of a second while a sentence waits: it is among the last ones.
         reader.text = { [weak self] id in
-            guard let segment = self?.segments.first(where: { $0.id == id }), let translation = segment.translation else { return nil }
-            return (translation, segment.refined)
+            guard let segment = self?.segments.last(where: { $0.id == id }) else { return nil }
+            return ReadoutText(text: segment.translation, refined: segment.refined, settled: segment.settled)
         }
+        reader.expectsRefinement = { [weak self] in self?.gptEnabled ?? false }
         reader.voiceFor = { [weak self] gender in
             self?.readoutVoice(gender ?? .female).id ?? "F1"
         }
@@ -609,7 +615,6 @@ final class CaptionModel: ObservableObject {
         guard readAloud, isRunning, translates else { return }
         let engine = readoutEngine
         reader.language = captionLanguage.code
-        reader.expectsRefinement = gptEnabled
         Task {
             // Turned on before the voices finished downloading: starts reading once they're here.
             if voiceModels.state(engine) != .ready {
@@ -855,6 +860,7 @@ final class CaptionModel: ObservableObject {
         if segments[index].refined && !refined { return }
         segments[index].translation = translation
         segments[index].refined = refined
+        segments[index].settled = true
         saveTranscript()
     }
 
