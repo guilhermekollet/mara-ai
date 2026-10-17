@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Wordmark } from "@/components/mark";
+import { Mark } from "@/components/mark";
 
-// The name in the header and footer. On hover, a shimmer wave runs across the dots, just like
+// The logo in the header and footer: the dotted "M" with the name beside it. On hover, a shimmer
+// wave runs across the M's dots, just like
 // the app's menu bar icon: it builds up on enter and, on leave, fades out until the dots are
 // back to normal, without a hard cut. It links to the top of the page unless given another `href`.
 export function Brand({ href = "#topo" }: { href?: string }) {
@@ -52,7 +53,7 @@ export function Brand({ href = "#topo" }: { href?: string }) {
       ref={link}
       href={href}
       aria-label="Mara AI"
-      className="inline-flex items-center py-2"
+      className="inline-flex items-center gap-2 py-2"
       onMouseEnter={() => {
         active.current = true;
         if (!frame.current) run();
@@ -61,7 +62,8 @@ export function Brand({ href = "#topo" }: { href?: string }) {
         active.current = false;
       }}
     >
-      <Wordmark className="h-[20px] w-auto text-fg" />
+      <Mark className="size-[22px] text-fg" />
+      <span className="text-[17px] font-semibold tracking-tight text-fg">Mara</span>
     </a>
   );
 }

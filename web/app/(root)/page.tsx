@@ -8,7 +8,7 @@ export default function RootPage() {
       <ul>
         {locales.map((locale) => (
           <li key={locale}>
-            <a href={`${basePath}/${locale}`} lang={localeInfo[locale].htmlLang}>
+            <a href={`${basePath}/${locale}/`} lang={localeInfo[locale].htmlLang}>
               Mara AI — {localeInfo[locale].name}
             </a>
           </li>

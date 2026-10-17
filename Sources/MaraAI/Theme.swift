@@ -49,6 +49,35 @@ enum Theme {
     }
 }
 
+/// The icon's dot-matrix "M", with its lavender dot. The dots pop in from left to right when
+/// `shown` turns on. Used large in the introduction and small in the empty captions window.
+struct DotMark: View {
+    let shown: Bool
+    var dot: CGFloat = 8.5
+    var spacing: CGFloat = 4.5
+    /// The same 5 × 5 "M" as the menu bar icon (see `Theme.menuBarImage`).
+    private let dots = ["x...x", "xx.xx", "x.x.x", "x...x", "x...x"].map { $0.map { $0 == "x" } }
+
+    var body: some View {
+        VStack(spacing: spacing) {
+            ForEach(dots.indices, id: \.self) { row in
+                HStack(spacing: spacing) {
+                    ForEach(dots[row].indices, id: \.self) { column in
+                        Circle()
+                            .fill(row == 2 && column == 2 ? Theme.accent : Theme.paper)
+                            .frame(width: dot, height: dot)
+                            .opacity(dots[row][column] && shown ? 1 : 0)
+                            .scaleEffect(shown ? 1 : 0.3)
+                            .animation(.spring(response: 0.42, dampingFraction: 0.62).delay(Double(column) * 0.05 + Double(row) * 0.02), value: shown)
+                    }
+                }
+            }
+        }
+        .accessibilityElement()
+        .accessibilityLabel("Mara")
+    }
+}
+
 /// Primary button: a lavender pill with dark text. `large` is the introduction's size.
 struct PillButtonStyle: ButtonStyle {
     var prominent = true
@@ -196,6 +225,9 @@ final class MenuBarAnimator: ObservableObject {
     /// Wave strength, from 0 (static icon) to 1.
     private var depth = 0.0
     private var active = false
+    /// At full strength the wave repeats every 16 steps, so those frames are drawn once and reused
+    /// for the rest of the session; only the fades in and out are drawn on the fly.
+    private var fullStrength: [Int: NSImage] = [:]
 
     func setActive(_ active: Bool) {
         self.active = active
@@ -213,6 +245,15 @@ final class MenuBarAnimator: ObservableObject {
             timer?.invalidate()
             timer = nil
             image = Theme.menuBarIcon
+        } else if depth >= 1 {
+            let step = Int((phase * 16).rounded()) % 16
+            if let frame = fullStrength[step] {
+                image = frame
+            } else {
+                let frame = Theme.menuBarImage(phase: phase, depth: 1)
+                fullStrength[step] = frame
+                image = frame
+            }
         } else {
             image = Theme.menuBarImage(phase: phase, depth: depth)
         }
