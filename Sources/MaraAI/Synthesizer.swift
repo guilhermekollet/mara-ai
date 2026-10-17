@@ -76,7 +76,7 @@ final class Synthesizer: @unchecked Sendable {
     /// Loads the downloaded model (a few seconds) off the main thread, and warms it up: the first
     /// synthesis after loading is the slow one, when Core ML prepares the model for this Mac.
     static func load(_ engine: VoiceEngine) async throws -> Synthesizer {
-        let directory = VoiceModelStore.directory(engine)
+        let directory = VoiceModelStore.directory(engine.model)
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {

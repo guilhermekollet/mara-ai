@@ -304,7 +304,7 @@ private struct ReadAloudCard: View {
         let engine = model.readoutEngine
         SettingsCard(
             localized("Ler em voz alta"),
-            hint: localized("A Mara lê cada frase traduzida com uma voz neural que roda no Mac: grátis, sem internet depois do download. A voz acompanha quem fala: voz grave é lida com a voz masculina, aguda com a feminina. Com alto-falantes, o seu microfone pausa enquanto ela fala; com fone, não precisa. ⌃⌥V liga e desliga.")
+            hint: localized("A Mara lê cada frase traduzida com uma voz neural que roda no Mac: grátis, sem internet depois do download. A voz acompanha quem fala: voz grave é lida com a voz masculina, aguda com a feminina, e com Identificar quem fala (Ajustes › Geral) cada pessoa ganha a sua voz. Com alto-falantes, o seu microfone pausa enquanto ela fala; com fone, não precisa. ⌃⌥V liga e desliga.")
         ) {
             Toggle(localized("Ler as legendas em voz alta"), isOn: Binding(
                 get: { model.readAloud },
@@ -319,57 +319,21 @@ private struct ReadAloudCard: View {
                     .foregroundStyle(Theme.muted)
             }
 
-            download(engine)
+            let megabytes = engine.model.megabytes
+            ModelDownloadRow(
+                model: engine.model,
+                missing: localized("Vozes em \(model.captionLanguage.name): \(megabytes) MB, baixadas uma vez."),
+                ready: localized("Vozes em \(model.captionLanguage.name) prontas"),
+                freeing: localized("Libera \(megabytes) MB. Para ler de novo, as vozes são baixadas outra vez.")
+            )
 
-            if store.state(engine) == .ready {
+            if store.state(engine.model) == .ready {
                 voiceRow(.female)
                 voiceRow(.male)
                 sliderRow(localized("Velocidade"), value: $model.readoutSpeed, range: 0.8...1.4, step: 0.05,
                           label: model.readoutSpeed.formatted(.number.precision(.fractionLength(2))) + "×")
                 sliderRow(localized("Volume"), value: $model.readoutVolume, range: 0.2...1, step: 0.05,
                           label: "\(Int(model.readoutVolume * 100))%")
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func download(_ engine: VoiceEngine) -> some View {
-        let megabytes = Int((Double(engine.manifest.totalBytes) / 1_000_000).rounded())
-        HStack(spacing: 8) {
-            switch store.state(engine) {
-            case .missing:
-                Text(localized("Vozes em \(model.captionLanguage.name): \(megabytes) MB, baixadas uma vez."))
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.muted)
-                Spacer()
-                Button(localized("Baixar")) { store.download(engine) }
-                    .buttonStyle(PillButtonStyle(prominent: false))
-            case .downloading(let fraction):
-                ProgressView(value: fraction)
-                    .controlSize(.small)
-                Text("\(Int(fraction * 100))%")
-                    .font(.system(size: 11.5).monospacedDigit())
-                    .foregroundStyle(Theme.muted)
-                    .frame(width: 36, alignment: .trailing)
-                Button(localized("Cancelar")) { store.cancel(engine) }
-                    .buttonStyle(PillButtonStyle(prominent: false))
-            case .ready:
-                Label(localized("Vozes em \(model.captionLanguage.name) prontas"), systemImage: "checkmark.circle")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.muted)
-                Spacer()
-                Button(localized("Apagar")) { store.remove(engine) }
-                    .buttonStyle(PillButtonStyle(prominent: false))
-                    .disabled(model.isRunning)
-                    .help(localized("Libera \(megabytes) MB. Para ler de novo, as vozes são baixadas outra vez."))
-            case .failed(let message):
-                Text(message)
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer()
-                Button(localized("Tentar de novo")) { store.download(engine) }
-                    .buttonStyle(PillButtonStyle(prominent: false))
             }
         }
     }
@@ -713,6 +677,7 @@ private struct GeneralSettings: View {
         VStack(alignment: .leading, spacing: 14) {
             UpdateCard()
             MicrophoneCard()
+            SpeakersCard()
             SettingsCard(localized("Atalhos globais"), hint: localized("Funcionam com qualquer aplicativo em primeiro plano, sem tirar o foco da reunião.")) {
                 Toggle(localized("Ativar os atalhos de teclado"), isOn: $model.hotKeysEnabled)
                     .toggleStyle(.switch)
@@ -773,6 +738,84 @@ private struct MicrophoneCard: View {
             while !Task.isCancelled {
                 denied = MicrophonePermission.wasDenied
                 try? await Task.sleep(for: .seconds(1))
+            }
+        }
+    }
+}
+
+/// A downloadable model's state, with the button that fits: download, cancel, delete or retry.
+private struct ModelDownloadRow: View {
+    @EnvironmentObject private var session: CaptionModel
+    @ObservedObject private var store = VoiceModelStore.shared
+    let model: VoiceModel
+    let missing: String
+    let ready: String
+    let freeing: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            switch store.state(model) {
+            case .missing:
+                Text(missing)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.muted)
+                Spacer()
+                Button(localized("Baixar")) { store.download(model) }
+                    .buttonStyle(PillButtonStyle(prominent: false))
+            case .downloading(let fraction):
+                ProgressView(value: fraction)
+                    .controlSize(.small)
+                Text("\(Int(fraction * 100))%")
+                    .font(.system(size: 11.5).monospacedDigit())
+                    .foregroundStyle(Theme.muted)
+                    .frame(width: 36, alignment: .trailing)
+                Button(localized("Cancelar")) { store.cancel(model) }
+                    .buttonStyle(PillButtonStyle(prominent: false))
+            case .ready:
+                Label(ready, systemImage: "checkmark.circle")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.muted)
+                Spacer()
+                Button(localized("Apagar")) { store.remove(model) }
+                    .buttonStyle(PillButtonStyle(prominent: false))
+                    .disabled(session.isRunning)
+                    .help(freeing)
+            case .failed(let message):
+                Text(message)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer()
+                Button(localized("Tentar de novo")) { store.download(model) }
+                    .buttonStyle(PillButtonStyle(prominent: false))
+            }
+        }
+    }
+}
+
+/// Telling the meeting's speakers apart by their voices.
+private struct SpeakersCard: View {
+    @EnvironmentObject private var model: CaptionModel
+
+    var body: some View {
+        SettingsCard(
+            localized("Identificar quem fala"),
+            hint: localized("A Mara reconhece as pessoas da reunião pela voz, no Mac. Na transcrição e no resumo, cada uma aparece como Pessoa 1, Pessoa 2…; na leitura em voz alta, cada uma ganha a sua voz (até duas por gênero, para manter a qualidade). Pode errar com áudio ruim ou vozes parecidas.")
+        ) {
+            Toggle(localized("Distinguir as pessoas pela voz"), isOn: Binding(
+                get: { model.identifySpeakers },
+                set: { model.setIdentifySpeakers($0) }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            if model.identifySpeakers {
+                let megabytes = VoiceModel.speakers.megabytes
+                ModelDownloadRow(
+                    model: .speakers,
+                    missing: localized("Modelo de vozes: \(megabytes) MB, baixado uma vez."),
+                    ready: localized("Modelo de vozes pronto"),
+                    freeing: localized("Libera \(megabytes) MB. Para identificar de novo, o modelo é baixado outra vez.")
+                )
             }
         }
     }
