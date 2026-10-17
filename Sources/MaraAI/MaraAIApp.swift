@@ -29,6 +29,15 @@ struct MaraAIApp: App {
             NSApplication.shared.setActivationPolicy(.accessory)
             NSApplication.shared.run()
         }
+        // Development tool: `MaraAI --try-tap <app|all> [seconds] [--unmuted]` taps that app's audio
+        // (or everything but Mara) with a Core Audio process tap, muted on the speakers, and
+        // prints its levels and delay each second. See `TapTrial`.
+        if let flag = CommandLine.arguments.firstIndex(of: "--try-tap"), CommandLine.arguments.count > flag + 1 {
+            let rest = CommandLine.arguments[(flag + 1)...]
+            let seconds = rest.dropFirst().first.flatMap(Double.init) ?? 10
+            TapTrial.run(target: rest.first!, seconds: seconds, muted: !rest.contains("--unmuted"))
+            exit(0)
+        }
         // Development tool: `MaraAI --render-summary file.png` draws the summary window with a
         // sample summary and exits, so it can be checked without an OpenAI key or a meeting.
         if let flag = CommandLine.arguments.firstIndex(of: "--render-summary"), CommandLine.arguments.count > flag + 1 {
