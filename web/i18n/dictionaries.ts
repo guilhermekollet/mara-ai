@@ -49,17 +49,20 @@ const en = {
     seeHow: "See how it works",
   },
   demo: {
-    label: "Mara's captions window: a meeting in Spanish, captioned in English word by word",
+    label: "Mara's captions window: a meeting in Spanish, captioned in English word by word, with your own reply from the microphone labeled as yours",
     // The jump-to-latest button's label in the captions window.
     jump: "New captions",
     // The badge the captions window shows on standby, after a stretch without audio (as in the app).
     standby: "On hold",
+    // The label on your own lines, from the microphone (as in the app).
+    you: "You",
     // What the hero demo hears and captions, in order; the last one comes after the standby.
     phrases: [
       { source: "Creo que el plazo de entrega es realista para nuestro equipo.", target: "I think the delivery timeline is realistic for our team." },
       { source: "¿Puedes enviar la propuesta revisada antes del jueves?", target: "Can you send the revised proposal by Thursday?" },
       { source: "Agendemos una reunión de seguimiento el próximo martes.", target: "Let's schedule a follow-up meeting next Tuesday." },
-      { source: "Perfecto, yo preparo la demo para el cliente.", target: "Perfect, I'll prepare the demo for the client." },
+      // Said by you, into the microphone: shown untranslated and labeled, as in the app.
+      { source: "Perfecto, yo preparo la demo para el cliente.", target: "Perfect, I'll prepare the demo for the client.", mine: true },
       { source: "Y revisamos los números del trimestre al final.", target: "And we'll go over the quarter's numbers at the end." },
       { source: "Lucía, ¿puedes compartir la presentación en el chat?", target: "Lucía, can you share the slides in the chat?" },
       { source: "Claro, la comparto ahora mismo.", target: "Sure, I'll share it right now." },
@@ -80,7 +83,7 @@ const en = {
     items: [
       {
         title: "Listens to your Mac's audio",
-        text: "Captures sound from any app: Zoom, Meet, Teams or a video in the browser. No bot joining the call.",
+        text: "Captures sound from any app: Zoom, Meet, Teams or a video in the browser, and your microphone if you turn it on. No bot joining the call.",
       },
       {
         title: "Transcribes on your Mac",
@@ -130,7 +133,7 @@ const en = {
     text: "With your own OpenAI key, Mara reads the transcript and tells you what was talked about: the topics, what each side brought up and what was decided.",
     points: [
       { title: "Knows what kind of talk it was", text: "A meeting between several people or someone speaking alone, like a class or a talk: the summary adapts to what happened." },
-      { title: "What was talked about", text: "A short overview and the topics that came up, each with what was said and decided." },
+      { title: "What was talked about", text: "A short overview and the topics that came up, each with what was said and decided. With the microphone on, it also knows what you said and took on." },
       { title: "Yours, on your Mac", text: "The summary is saved as a file in Documents and copied in one click. The transcript only goes to OpenAI when you ask." },
     ],
     // The summary card illustrated next to the copy: what was talked about, not a task list.
@@ -146,7 +149,7 @@ const en = {
         { title: "Quarter's numbers", text: "Left for the end of the meeting." },
       ],
       decisionsTitle: "Decisions",
-      decisions: ["Keep the current deadline."],
+      decisions: ["Keep the current deadline.", "You prepare the demo for the client."],
       copy: "Copy",
       open: "Open file",
     },
@@ -177,7 +180,7 @@ const en = {
     title: "Your audio stays on your Mac.",
     text: "Mara was designed to work locally. The cloud is optional, and you see exactly how much you use.",
     items: [
-      { title: "Local transcription", text: "Done by Apple's speech recognition, on the device." },
+      { title: "Local transcription", text: "Done by Apple's speech recognition, on the device. Your microphone stays off until you turn it on." },
       { title: "Local translation and voice", text: "Apple's translator produces the caption without using the internet, and the voice that reads it aloud runs on your Mac too." },
       { title: "Optional GPT", text: "When on, only the transcribed text is sent. When off, nothing leaves your Mac." },
       { title: "Key in the Keychain", text: "Your OpenAI key lives in the macOS vault, never in a file." },
@@ -192,6 +195,11 @@ const en = {
         question: "Do the other participants know I'm using Mara?",
         answer:
           "Mara doesn't join the call: it listens to the audio already coming out of your Mac. Letting participants know and following your company's rules on meeting transcription is up to the person using it.",
+      },
+      {
+        question: "Does Mara hear me too?",
+        answer:
+          "Only if you want. The microphone is off by default; turn it on in the captions window, with ⌃⌥M or in Settings, and what you say goes into the transcript labeled as yours, so the summary knows who said what. Mara can't tell whether you are muted in the call, so you decide when it listens. Without headphones, it recognizes and drops the echo of the others coming out of the speakers.",
       },
       {
         question: "Do I need an OpenAI key?",
@@ -279,17 +287,19 @@ const pt: Dictionary = {
     seeHow: "Ver como funciona",
   },
   demo: {
-    label: "Janela de legendas da Mara: uma reunião em inglês legendada em português, palavra a palavra",
+    label: "Janela de legendas da Mara: uma reunião em inglês legendada em português, palavra a palavra, com a sua resposta pelo microfone marcada como sua",
     // The jump-to-latest button's label in the captions window.
     jump: "Falas novas",
     // The badge the captions window shows on standby, after a stretch without audio (as in the app).
     standby: "Em espera",
+    // The label on your own lines, from the microphone (as in the app).
+    you: "Você",
     // What the hero demo hears and captions, in order; the last one comes after the standby.
     phrases: [
       { source: "I think the delivery timeline is realistic for our team.", target: "Acho que o prazo de entrega é realista para o nosso time." },
       { source: "Can you send the revised proposal by Thursday?", target: "Você pode enviar a proposta revisada até quinta-feira?" },
       { source: "Let's schedule a follow-up meeting next Tuesday.", target: "Vamos marcar uma reunião de acompanhamento na próxima terça." },
-      { source: "Perfect, I'll prepare the demo for the client.", target: "Perfeito, eu preparo a demo para o cliente." },
+      { source: "Perfect, I'll prepare the demo for the client.", target: "Perfeito, eu preparo a demo para o cliente.", mine: true },
       { source: "And we'll go over the quarter's numbers at the end.", target: "E no final revisamos os números do trimestre." },
       { source: "Lucía, can you share the slides in the chat?", target: "Lucía, você pode compartilhar os slides no chat?" },
       { source: "Sure, I'll share it right now.", target: "Claro, vou compartilhar agora mesmo." },
@@ -308,7 +318,7 @@ const pt: Dictionary = {
     items: [
       {
         title: "Escuta o áudio do Mac",
-        text: "Captura o som de qualquer aplicativo: Zoom, Meet, Teams ou um vídeo no navegador. Sem bot entrando na chamada.",
+        text: "Captura o som de qualquer aplicativo: Zoom, Meet, Teams ou um vídeo no navegador, e o seu microfone se você ligar. Sem bot entrando na chamada.",
       },
       {
         title: "Transcreve no próprio Mac",
@@ -358,7 +368,7 @@ const pt: Dictionary = {
     text: "Com a sua chave da OpenAI, a Mara lê a transcrição e conta o que foi conversado: os assuntos, o que cada lado trouxe e o que ficou decidido.",
     points: [
       { title: "Entende o tipo de conversa", text: "Reunião entre várias pessoas ou alguém falando sozinho, como uma aula ou palestra: o resumo se adapta ao que aconteceu." },
-      { title: "O que foi conversado", text: "Uma visão geral em poucas linhas e os assuntos que surgiram, cada um com o que foi dito e decidido." },
+      { title: "O que foi conversado", text: "Uma visão geral em poucas linhas e os assuntos que surgiram, cada um com o que foi dito e decidido. Com o microfone ligado, ele sabe também o que você disse e assumiu." },
       { title: "Seu, no seu Mac", text: "O resumo fica salvo como arquivo em Documentos e é copiado com um clique. A transcrição só vai para a OpenAI quando você pede." },
     ],
     // The summary card illustrated next to the copy: what was talked about, not a task list.
@@ -374,7 +384,7 @@ const pt: Dictionary = {
         { title: "Números do trimestre", text: "Ficaram para o fim da reunião." },
       ],
       decisionsTitle: "Decisões",
-      decisions: ["Manter o prazo atual."],
+      decisions: ["Manter o prazo atual.", "Você prepara a demo para o cliente."],
       copy: "Copiar",
       open: "Abrir arquivo",
     },
@@ -405,7 +415,7 @@ const pt: Dictionary = {
     title: "Seu áudio fica no seu Mac.",
     text: "A Mara foi desenhada para funcionar localmente. A nuvem é opcional, e você vê exatamente quanto usa.",
     items: [
-      { title: "Transcrição local", text: "Feita pelo reconhecimento de fala da Apple, no aparelho." },
+      { title: "Transcrição local", text: "Feita pelo reconhecimento de fala da Apple, no aparelho. O seu microfone fica desligado até você ligar." },
       { title: "Tradução e voz locais", text: "O tradutor da Apple gera a legenda sem usar a internet, e a voz que a lê em voz alta também roda no seu Mac." },
       { title: "GPT opcional", text: "Ligado, só o texto transcrito é enviado. Desligado, nada sai do Mac." },
       { title: "Chave no Keychain", text: "Sua chave da OpenAI fica no cofre do macOS, nunca em arquivo." },
@@ -420,6 +430,11 @@ const pt: Dictionary = {
         question: "Os outros participantes sabem que estou usando a Mara?",
         answer:
           "A Mara não entra na chamada: ela escuta o áudio que já está saindo do seu Mac. Avisar os participantes e seguir as regras da sua empresa sobre transcrição de reuniões é responsabilidade de quem usa.",
+      },
+      {
+        question: "A Mara também me ouve?",
+        answer:
+          "Só se você quiser. O microfone vem desligado; ligue na janela de legendas, com ⌃⌥M ou nos Ajustes, e o que você diz entra na transcrição marcado como seu, para o resumo saber quem disse o quê. A Mara não sabe se você está mudo na chamada, então é você quem decide quando ela ouve. Sem fone, ela reconhece e descarta o eco dos outros saindo pelos alto-falantes.",
       },
       {
         question: "Preciso de uma chave da OpenAI?",
@@ -505,17 +520,19 @@ const es: Dictionary = {
     seeHow: "Ver cómo funciona",
   },
   demo: {
-    label: "Ventana de subtítulos de Mara: una reunión en inglés subtitulada en español, palabra por palabra",
+    label: "Ventana de subtítulos de Mara: una reunión en inglés subtitulada en español, palabra por palabra, con tu respuesta por el micrófono marcada como tuya",
     // The jump-to-latest button's label in the captions window.
     jump: "Nuevas frases",
     // The badge the captions window shows on standby, after a stretch without audio (as in the app).
     standby: "En espera",
+    // The label on your own lines, from the microphone (as in the app).
+    you: "Tú",
     // What the hero demo hears and captions, in order; the last one comes after the standby.
     phrases: [
       { source: "I think the delivery timeline is realistic for our team.", target: "Creo que el plazo de entrega es realista para nuestro equipo." },
       { source: "Can you send the revised proposal by Thursday?", target: "¿Puedes enviar la propuesta revisada antes del jueves?" },
       { source: "Let's schedule a follow-up meeting next Tuesday.", target: "Agendemos una reunión de seguimiento el próximo martes." },
-      { source: "Perfect, I'll prepare the demo for the client.", target: "Perfecto, yo preparo la demo para el cliente." },
+      { source: "Perfect, I'll prepare the demo for the client.", target: "Perfecto, yo preparo la demo para el cliente.", mine: true },
       { source: "And we'll go over the quarter's numbers at the end.", target: "Y al final revisamos los números del trimestre." },
       { source: "Lucía, can you share the slides in the chat?", target: "Lucía, ¿puedes compartir las diapositivas en el chat?" },
       { source: "Sure, I'll share it right now.", target: "Claro, las comparto ahora mismo." },
@@ -534,7 +551,7 @@ const es: Dictionary = {
     items: [
       {
         title: "Escucha el audio del Mac",
-        text: "Captura el sonido de cualquier aplicación: Zoom, Meet, Teams o un video en el navegador. Sin bots entrando en la llamada.",
+        text: "Captura el sonido de cualquier aplicación: Zoom, Meet, Teams o un video en el navegador, y tu micrófono si lo enciendes. Sin bots entrando en la llamada.",
       },
       {
         title: "Transcribe en tu propio Mac",
@@ -584,7 +601,7 @@ const es: Dictionary = {
     text: "Con tu propia clave de OpenAI, Mara lee la transcripción y cuenta de qué se habló: los temas, lo que aportó cada parte y lo que se decidió.",
     points: [
       { title: "Entiende el tipo de conversación", text: "Una reunión entre varias personas o alguien hablando solo, como una clase o una charla: el resumen se adapta a lo que pasó." },
-      { title: "Lo que se conversó", text: "Una visión general en pocas líneas y los temas que surgieron, cada uno con lo que se dijo y se decidió." },
+      { title: "Lo que se conversó", text: "Una visión general en pocas líneas y los temas que surgieron, cada uno con lo que se dijo y se decidió. Con el micrófono encendido, también sabe lo que dijiste y asumiste." },
       { title: "Tuyo, en tu Mac", text: "El resumen se guarda como archivo en Documentos y se copia con un clic. La transcripción solo va a OpenAI cuando lo pides." },
     ],
     // The summary card illustrated next to the copy: what was talked about, not a task list.
@@ -600,7 +617,7 @@ const es: Dictionary = {
         { title: "Números del trimestre", text: "Quedaron para el final de la reunión." },
       ],
       decisionsTitle: "Decisiones",
-      decisions: ["Mantener el plazo actual."],
+      decisions: ["Mantener el plazo actual.", "Tú preparas la demo para el cliente."],
       copy: "Copiar",
       open: "Abrir archivo",
     },
@@ -631,7 +648,7 @@ const es: Dictionary = {
     title: "Tu audio se queda en tu Mac.",
     text: "Mara fue diseñada para funcionar localmente. La nube es opcional, y ves exactamente cuánto usas.",
     items: [
-      { title: "Transcripción local", text: "La hace el reconocimiento de voz de Apple, en el dispositivo." },
+      { title: "Transcripción local", text: "La hace el reconocimiento de voz de Apple, en el dispositivo. Tu micrófono queda apagado hasta que lo enciendas." },
       { title: "Traducción y voz locales", text: "El traductor de Apple genera el subtítulo sin usar internet, y la voz que lo lee en voz alta también funciona en tu Mac." },
       { title: "GPT opcional", text: "Activado, solo se envía el texto transcrito. Desactivado, nada sale del Mac." },
       { title: "Clave en el Llavero", text: "Tu clave de OpenAI se guarda en la bóveda de macOS, nunca en un archivo." },
@@ -646,6 +663,11 @@ const es: Dictionary = {
         question: "¿Los demás participantes saben que estoy usando Mara?",
         answer:
           "Mara no entra en la llamada: escucha el audio que ya sale de tu Mac. Avisar a los participantes y seguir las reglas de tu empresa sobre la transcripción de reuniones es responsabilidad de quien la usa.",
+      },
+      {
+        question: "¿Mara también me escucha?",
+        answer:
+          "Solo si quieres. El micrófono viene apagado; enciéndelo en la ventana de subtítulos, con ⌃⌥M o en Ajustes, y lo que dices entra en la transcripción marcado como tuyo, para que el resumen sepa quién dijo qué. Mara no sabe si estás silenciado en la llamada, así que tú decides cuándo escucha. Sin auriculares, reconoce y descarta el eco de los demás que sale por los altavoces.",
       },
       {
         question: "¿Necesito una clave de OpenAI?",

@@ -4,9 +4,10 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import type { Dictionary } from "@/i18n/dictionaries";
 
 // The hero demo: Mara's floating captions window, used by a pointer, the same scene as the promo
-// video (promo/src/MainPromo.tsx) rebuilt as live DOM. The pointer starts a session, a meeting is
-// captioned word by word, the list is scrolled back and jumps to the new lines, and the window is
-// resized while the captions keep coming. Then the meeting goes quiet and Mara goes on standby, as
+// video (promo/src/MainPromo.tsx) rebuilt as live DOM. The pointer starts a session and turns the
+// microphone on, a meeting is captioned word by word (your own reply comes in labeled as yours,
+// untranslated), the list is scrolled back and jumps to the new lines, and the window is resized
+// while the captions keep coming. Then the meeting goes quiet and Mara goes on standby, as
 // the app does after a stretch without audio: the moon opens large and faint in the middle of the
 // window, with the captions stepping back. When the pointer comes over the window the moon shrinks
 // to the top and the captions and controls come back; when it leaves, the moon returns to the
@@ -24,7 +25,7 @@ const ACCENT = "#b8a4f8";
 const FAINT = "rgba(250,250,250,0.38)";
 const system = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif';
 
-const T = { start: 62, scrollFrom: 405, scrollTo: 428, arrow: 430, label: 490, jump: 535, exit: 1081 };
+const T = { start: 62, mic: 86, scrollFrom: 405, scrollTo: 428, arrow: 430, label: 490, jump: 535, exit: 1081 };
 // The standby: it starts after the quiet that follows the seventh line and ends when sound comes
 // back, just before the last line.
 const STANDBY = { on: 772, off: 980 };
@@ -51,11 +52,13 @@ function track(frame: number, keys: number[][]): number[] {
 }
 
 // When each word is spoken and each translated word shows up: the translation trails the speech
-// by two words and catches up when the sentence ends, as in the app.
+// by two words and catches up when the sentence ends, as in the app. Your own lines, from the
+// microphone, aren't translated and show up whole once the sentence is over.
 function timeline(copy: Copy) {
   return copy.phrases.map((phrase, index) => {
+    const mine = "mine" in phrase && phrase.mine === true;
     const spoken = phrase.source.split(" ");
-    const translated = phrase.target.split(" ");
+    const translated = mine ? spoken : phrase.target.split(" ");
     const saidAt: number[] = [];
     let t = STARTS[index];
     for (const word of spoken) {
@@ -68,8 +71,12 @@ function timeline(copy: Copy) {
       while (shownAt.length < count) shownAt.push(saidAt[i]);
     });
     const end = saidAt[saidAt.length - 1];
+    if (mine) {
+      const at = end + 10;
+      return { mine, spoken, translated, saidAt, shownAt: translated.map(() => at), appearAt: at, quietAt: end + 10, doneAt: at };
+    }
     for (let step = 1; shownAt.length < translated.length; step++) shownAt.push(end + 3 * step);
-    return { spoken, translated, saidAt, shownAt, quietAt: end + 10, doneAt: shownAt[shownAt.length - 1] + 12 };
+    return { mine, spoken, translated, saidAt, shownAt, appearAt: saidAt[0], quietAt: end + 10, doneAt: shownAt[shownAt.length - 1] + 12 };
   });
 }
 
@@ -84,8 +91,10 @@ const HEIGHT = [
 ];
 const heightAt = (frame: number) => track(frame, HEIGHT)[0];
 
-// The play button's center in window points (6 pt padding, the 24 pt globe, 2 pt gap).
+// The play button's center in window points (6 pt padding, the 24 pt globe, 2 pt gap), and the
+// microphone's, right after it.
 const PLAY = { x: 44, y: 16 };
+const MIC = { x: 70, y: 16 };
 // A click as macOS draws it: the button darkens while the mouse is down, and the action happens on
 // release. The pointer itself never changes size.
 const pressedAt = (frame: number, at: number) => frame >= at - 3 && frame < at + 2;
@@ -95,7 +104,9 @@ const pointerPath = (w: number) => [
   [18, w + 80, 300],
   [52, PLAY.x, PLAY.y],
   [T.start + 10, PLAY.x, PLAY.y],
-  [T.start + 40, w + 60, 250],
+  [T.mic - 8, MIC.x, MIC.y],
+  [T.mic + 8, MIC.x, MIC.y],
+  [T.mic + 34, w + 60, 250],
   [T.scrollFrom - 12, w + 60, 250],
   [T.scrollFrom, w * 0.54, 118],
   [T.label + 12, w * 0.54, 118],
@@ -224,22 +235,23 @@ export function CaptionWindowDemo({ copy }: { copy: Copy }) {
 }
 
 function CaptionsWindow({ frame, lines, copy, w }: { frame: number; lines: Line[]; copy: Copy; w: number }) {
-  const started = lines.filter((line) => frame >= line.saidAt[0]);
+  const started = lines.filter((line) => frame >= line.appearAt);
 
   // Scrolling back drags the list down; the line that arrives meanwhile is added below without
   // moving what is being read; the jump button brings the list back to the bottom. Each other new
   // line slides in from below and pushes the older ones up, like the app's scroll.
   const dragged = 1.2 * BLOCK * progress(frame, T.scrollFrom, T.scrollTo - T.scrollFrom);
-  const kept = frame >= lines[LATE].saidAt[0] ? BLOCK : 0;
+  const kept = frame >= lines[LATE].appearAt ? BLOCK : 0;
   const back = progress(frame, T.jump, 16, easeInOut);
   const arriving = [...started].reverse().find((line) => line !== lines[LATE]);
-  const slide = arriving ? BLOCK * (1 - progress(frame, arriving.saidAt[0], 14)) : 0;
+  const slide = arriving ? BLOCK * (1 - progress(frame, arriving.appearAt, 14)) : 0;
   const offset = (dragged + kept) * (1 - back) + slide;
 
   const running = frame >= T.start;
   const barsIn = progress(frame, T.start + 2, 12);
-  const toTop = progress(frame, lines[0].saidAt[0], 16);
-  const speaking = lines.some((line) => frame >= line.saidAt[0] && frame < line.quietAt);
+  const toTop = progress(frame, lines[0].appearAt, 16);
+  // The bars follow the Mac's audio, as in the app: they stay calm while you are the one speaking.
+  const speaking = lines.some((line) => !line.mine && frame >= line.saidAt[0] && frame < line.quietAt);
   // The standby badge opens in the middle, as the bars do when a session starts, with the captions
   // stepping back behind it. With the pointer over the window it shrinks to the top, where the
   // bars sit, and the captions come back; when sound returns it goes up there as the bars come in.
@@ -282,7 +294,7 @@ function CaptionsWindow({ frame, lines, copy, w }: { frame: number; lines: Line[
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 10, transform: `translateY(${offset}px)` }}>
           {started.map((line, index) => (
-            <CaptionBlock key={index} frame={frame} line={line} next={started[index + 1]} />
+            <CaptionBlock key={index} frame={frame} line={line} next={started[index + 1]} you={copy.you} />
           ))}
         </div>
       </div>
@@ -328,9 +340,19 @@ function CaptionsWindow({ frame, lines, copy, w }: { frame: number; lines: Line[
 
 // One utterance. Live and final share the same markup, so nothing moves when a line turns final:
 // only the color eases from lavender to white, and it dims once the next line starts.
-function CaptionBlock({ frame, line, next }: { frame: number; line: Line; next?: Line }) {
+function CaptionBlock({ frame, line, next, you }: { frame: number; line: Line; next?: Line; you: string }) {
+  const dim = next ? progress(frame, next.appearAt, 12) : 0;
+  if (line.mine) {
+    // Yours, from the microphone: labeled, quieter, and already final when it shows up.
+    const p = progress(frame, line.appearAt, 12);
+    return (
+      <div style={{ opacity: (1 - 0.4 * dim) * p, filter: p < 1 ? `blur(${(1 - p) * 4}px)` : undefined, transform: `translateY(${(1 - p) * 3}px)` }}>
+        <div style={{ fontSize: 10.5, fontWeight: 600, color: "rgba(184,164,248,0.8)" }}>{you}</div>
+        <div style={{ fontSize: 17, fontWeight: 500, lineHeight: 1.25, color: "rgba(250,250,250,0.7)" }}>{line.translated.join(" ")}</div>
+      </div>
+    );
+  }
   const final = frame >= line.doneAt;
-  const dim = next ? progress(frame, next.saidAt[0], 12) : 0;
   const white = progress(frame, line.doneAt, 18);
   const color = final ? `rgb(${[184, 164, 248].map((v) => Math.round(v + (250 - v) * white)).join(",")})` : ACCENT;
   return (
@@ -458,6 +480,16 @@ function ControlBar({ frame, running, w }: { frame: number; running: boolean; w:
   const out = progress(frame, swap, 5, easeIn);
   const into = progress(frame, swap + 2, 9, easeOutBack);
   const stroke = { fill: "none", stroke: "rgba(250,250,250,0.7)", strokeWidth: 1.3 };
+  // The microphone, clicked right after starting: the crossed-out outline gives way to a filled
+  // lavender one, with the same replace effect as play → stop.
+  const micDown = pressedAt(frame, T.mic);
+  const micOut = progress(frame, T.mic + 2, 5, easeIn);
+  const micIn = progress(frame, T.mic + 4, 9, easeOutBack);
+  const onMic = (f: number) => {
+    const [x, y] = track(f, pointerPath(w));
+    return pointerVisible(f) && Math.abs(x - MIC.x) <= 12 && y >= 4 && y <= 28;
+  };
+  const micHover = onMic(frame) ? 0.12 : 0;
   return (
     <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: 32, padding: "0 6px", display: "flex", alignItems: "center", gap: 2 }}>
       <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(13,13,13,0.92), rgba(13,13,13,0))", opacity: shade }} />
@@ -477,20 +509,36 @@ function ControlBar({ frame, running, w }: { frame: number; running: boolean; w:
           )}
         </g>
       </IconButton>
+      <IconButton style={{ ...item(2), background: `rgba(250,250,250,${micDown ? 0.22 : micHover})` }}>
+        <g style={{ opacity: micDown ? 0.75 : 1 }}>
+          {frame < T.mic + 7 && (
+            <g {...stroke} strokeLinecap="round" style={{ transformOrigin: "8px 8px", transform: `scale(${1 - 0.45 * micOut})`, opacity: 1 - micOut }}>
+              <rect x="5.6" y="1.8" width="4.8" height="8" rx="2.4" />
+              <path d="M3.4 7.6a4.6 4.6 0 0 0 9.2 0M8 12.2v2M2.6 2.2l10.8 11.6" />
+            </g>
+          )}
+          {frame >= T.mic + 4 && (
+            <g style={{ transformOrigin: "8px 8px", transform: `scale(${0.55 + 0.45 * micIn})`, opacity: Math.min(1, micIn * 1.4) }}>
+              <rect x="5.6" y="1.8" width="4.8" height="8" rx="2.4" fill={ACCENT} />
+              <path d="M3.4 7.6a4.6 4.6 0 0 0 9.2 0M8 12.2v2" fill="none" stroke={ACCENT} strokeWidth="1.4" strokeLinecap="round" />
+            </g>
+          )}
+        </g>
+      </IconButton>
       <span style={{ flex: 1 }} />
-      <IconButton style={item(2)}>
+      <IconButton style={item(3)}>
         <g {...stroke}>
           <rect x="5.5" y="5.5" width="7.5" height="8" rx="1.5" />
           <path d="M3 10.5V4a1.5 1.5 0 0 1 1.5-1.5H10" />
         </g>
       </IconButton>
-      <IconButton style={item(3)}>
+      <IconButton style={item(4)}>
         <g {...stroke}>
           <circle cx="8" cy="8" r="2.2" />
           <path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M3.6 12.4 5 11M11 5l1.4-1.4" strokeLinecap="round" />
         </g>
       </IconButton>
-      <IconButton style={item(4)}>
+      <IconButton style={item(5)}>
         <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" stroke="rgba(250,250,250,0.7)" strokeWidth="1.4" strokeLinecap="round" />
       </IconButton>
     </div>
