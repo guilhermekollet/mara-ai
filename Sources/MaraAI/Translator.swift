@@ -52,7 +52,7 @@ struct Translator {
     /// Summarizes a meeting from its transcript, in `language`. Long meetings are first taken down
     /// as notes, part by part, and the summary is written from the notes. Returns the JSON text of
     /// the summary and every call made, so each one is logged with its cost.
-    /// `withSpeakers`: the transcript marks each line "Me:" or "Others:" (the microphone was on).
+    /// `withSpeakers`: the transcript marks each line "Me:", "Person N:" or "Others:".
     func summarize(_ transcript: String, language: String, withSpeakers: Bool = false) async throws -> (text: String, calls: [Result]) {
         let speakers = withSpeakers ? Self.speakersPrompt : ""
         var calls: [Result] = []
@@ -123,16 +123,21 @@ struct Translator {
         """ + glossaryPrompt
     }
 
-    /// Added when the microphone was on: the lines say who spoke, so the summary can too.
+    /// Added when the lines say who spoke (the microphone was on, or the speakers were told apart
+    /// by their voices), so the summary can too.
     private static let speakersPrompt = """
 
 
     Each line of this transcript says who spoke. "Me:" is the person this summary is for, from \
-    their microphone; "Others:" is everyone else in the meeting, from the computer's audio, and \
-    can be more than one person. Refer to "Me" as "you", in the second person, and say who said \
-    what when it matters: who proposed, agreed to or took on something, who asked what. Lines \
-    from "Me" can include stray words picked up by the microphone; skip what is not part of the \
-    meeting.
+    their microphone. "Person 1:", "Person 2:" and so on are the other participants, told apart \
+    automatically by their voices: the numbers are only labels and can occasionally mix two people \
+    up, so when someone's name comes up in the conversation, use the name instead of the number. \
+    "Others:" is someone from the meeting who wasn't told apart. Refer to "Me" as "you", in the \
+    second person, and say who said what when it matters: who proposed, agreed to or took on \
+    something, who asked what. Lines from "Me" can include stray words picked up by the \
+    microphone; skip what is not part of the meeting. When you write a participant's label, \
+    write it in the summary's language ("Pessoa 2" in Portuguese, "Persona 2" in Spanish), as the \
+    saved transcript does.
     """
 
     private func notesPrompt(language: String) -> String {

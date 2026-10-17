@@ -250,8 +250,8 @@
 
 /* Reading aloud */
 "Ler em voz alta" = "Leer en voz alta";
+"A Mara lê cada frase traduzida com uma voz neural que roda no Mac: grátis, sem internet depois do download. A voz acompanha quem fala: voz grave é lida com a voz masculina, aguda com a feminina, e com Identificar quem fala (Ajustes › Geral) cada pessoa ganha a sua voz. Com alto-falantes, o seu microfone pausa enquanto ela fala; com fone, não precisa. ⌃⌥V liga e desliga." = "Mara lee cada frase traducida con una voz neuronal que funciona en tu Mac: gratis y sin internet después de la descarga. La voz sigue a quien habla: una voz grave se lee con la voz masculina, una aguda con la femenina, y con Identificar quién habla (Ajustes › General) cada persona tiene su propia voz. Con altavoces, tu micrófono se pausa mientras ella habla; con auriculares no hace falta. ⌃⌥V la activa y desactiva.";
 "Ler as legendas em voz alta" = "Leer los subtítulos en voz alta";
-"A Mara lê cada frase traduzida com uma voz neural que roda no Mac: grátis, sem internet depois do download. A voz acompanha quem fala: voz grave é lida com a voz masculina, aguda com a feminina. Com alto-falantes, o seu microfone pausa enquanto ela fala; com fone, não precisa. ⌃⌥V liga e desliga." = "Mara lee cada frase traducida con una voz neuronal que funciona en tu Mac: gratis y sin internet después de la descarga. La voz sigue a quien habla: una voz grave se lee con la voz masculina, una aguda con la femenina. Con altavoces, tu micrófono se pausa mientras ella habla; con auriculares no hace falta. ⌃⌥V la activa y desactiva.";
 "Só lê reuniões traduzidas: agora a reunião e a legenda estão no mesmo idioma." = "Solo lee reuniones traducidas: ahora la reunión y los subtítulos están en el mismo idioma.";
 "Vozes em %@: %lld MB, baixadas uma vez." = "Voces en %@: %lld MB, se descargan una vez.";
 "Baixar" = "Descargar";
@@ -273,3 +273,15 @@
 "O download das vozes falhou (%@). Tente de novo." = "La descarga de las voces falló (%@). Inténtalo de nuevo.";
 "Um arquivo das vozes chegou incompleto (%@). Tente de novo." = "Un archivo de las voces llegó incompleto (%@). Inténtalo de nuevo.";
 "Um arquivo das vozes não confere com o original (%@). Tente de novo." = "Un archivo de las voces no coincide con el original (%@). Inténtalo de nuevo.";
+
+/* Telling speakers apart */
+"Identificar quem fala" = "Identificar quién habla";
+"Distinguir as pessoas pela voz" = "Distinguir a las personas por la voz";
+"A Mara reconhece as pessoas da reunião pela voz, no Mac. Na transcrição e no resumo, cada uma aparece como Pessoa 1, Pessoa 2…; na leitura em voz alta, cada uma ganha a sua voz (até duas por gênero, para manter a qualidade). Pode errar com áudio ruim ou vozes parecidas." = "Mara reconoce a las personas de la reunión por la voz, en tu Mac. En la transcripción y el resumen, cada una aparece como Persona 1, Persona 2…; en la lectura en voz alta, cada una tiene su propia voz (hasta dos por género, para mantener la calidad). Puede equivocarse con audio malo o voces parecidas.";
+"Modelo de vozes: %lld MB, baixado uma vez." = "Modelo de voces: %lld MB, se descarga una vez.";
+"Modelo de vozes pronto" = "Modelo de voces listo";
+"Libera %lld MB. Para identificar de novo, o modelo é baixado outra vez." = "Libera %lld MB. Para volver a identificar, el modelo se descarga otra vez.";
+"Pessoa %lld" = "Persona %lld";
+"Pessoa %lld: %@" = "Persona %lld: %@";
+"Não foi possível baixar o modelo de vozes. Tente de novo em Ajustes › Geral." = "No se pudo descargar el modelo de voces. Inténtalo de nuevo en Ajustes › General.";
+"Não foi possível carregar o modelo de vozes. Baixe de novo em Ajustes › Geral." = "No se pudo cargar el modelo de voces. Descárgalo de nuevo en Ajustes › General.";

@@ -11,10 +11,18 @@ struct MaraAIApp: App {
     init() {
         // Development tool: `MaraAI --try-voices pt` downloads that language's voices if needed,
         // reads the sample sentence with the female and the male voice and prints the timings.
-        if let flag = CommandLine.arguments.firstIndex(of: "--try-voices"), CommandLine.arguments.count > flag + 1 {
-            let language = CommandLine.arguments[flag + 1]
+        // `MaraAI --try-speakers <folder>` does the same for telling speakers apart, with the
+        // folder's <speaker>_<n>.wav files as the meeting's sentences.
+        let trials = ["--try-voices", "--try-speakers"]
+        if let flag = CommandLine.arguments.firstIndex(where: trials.contains), CommandLine.arguments.count > flag + 1 {
+            let argument = CommandLine.arguments[flag + 1]
+            let speakers = CommandLine.arguments[flag] == "--try-speakers"
             Task { @MainActor in
-                await VoiceTrial.run(language: language)
+                if speakers {
+                    await VoiceTrial.runSpeakers(folder: URL(fileURLWithPath: argument))
+                } else {
+                    await VoiceTrial.run(language: argument)
+                }
                 exit(0)
             }
             // Without the scenes, so the session model (and its Keychain read) is never created.
