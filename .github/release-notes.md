@@ -9,9 +9,9 @@
    for macOS to apply it, downloads what your meeting language needs and, if you want summaries,
    takes your OpenAI key.
 
-Already using Mara? From 0.3.0 on it updates itself: new versions download in the background and
-install when you quit it. Coming from 0.2.0 or earlier, install this one by hand once; macOS asks
-for the recording permission one last time.
+Already using Mara 0.3.0? It updates itself: this version downloads in the background and installs
+when you quit Mara, or right away with **Restart now**. Coming from 0.2.0 or earlier, install this
+one by hand once; macOS asks for the recording permission one last time.
 
 Requires macOS 26 or later on a Mac with Apple silicon. To check the download:
 `shasum -a 256 -c Mara-AI-*.zip.sha256`. Prefer to build it yourself? See
