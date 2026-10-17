@@ -10,6 +10,7 @@
 #   scripts/ship.sh push [--force]               Push the current branch (--force uses --force-with-lease)
 #   scripts/ship.sh pr [body-file]               Open a pull request titled after the branch's first commit
 #   scripts/ship.sh merge <number>               Squash-merge once checks pass, then update main
+#                                                (pull requests stacked on it move to its base first)
 #   scripts/ship.sh check <message-file>         Check a commit message (used by the hook)
 #
 # A subject looks like `feat(linear): read every page of the cycle's issues`: a type, an optional
@@ -124,6 +125,14 @@ case "$command" in
     # The squash commit gets the PR title and the commits' messages, minus any co-author lines.
     body="$(gh pr view "$number" --json commits --jq '.commits[] | .messageHeadline + "\n\n" + .messageBody' | strip_trailers)"
     head="$(gh pr view "$number" --json headRefName --jq .headRefName)"
+    base="$(gh pr view "$number" --json baseRefName --jq .baseRefName)"
+    # Deleting the merged branch would make GitHub close the pull requests stacked on it, so they
+    # move to the branch this one merges into. The squash commit isn't in their history: they'll
+    # need that branch merged into them before they merge cleanly.
+    for stacked in $(gh pr list --base "$head" --state open --json number --jq '.[].number'); do
+      gh pr edit "$stacked" --base "$base" >/dev/null
+      echo "ship: #$stacked was stacked on $head; it now targets $base (merge $base into it next)" >&2
+    done
     if ! gh pr merge "$number" --squash --admin --delete-branch --subject "$title (#$number)" --body "$body"; then
       # gh also deletes the local branch; that fails when a worktree still uses it, after the merge.
       [ "$(gh pr view "$number" --json state --jq .state)" = "MERGED" ] || fail "#$number was not merged"
