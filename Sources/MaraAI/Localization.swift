@@ -7,7 +7,7 @@ enum Interface {
     /// straight from .build, they are in SwiftPM's resource bundle. Inside the app `Bundle.module`
     /// can't be used: it looks for that bundle at the root of the .app, where code signing doesn't
     /// allow it.
-    private static let resources: Bundle = Bundle.main.bundleURL.pathExtension == "app" ? .main : .module
+    static let resources: Bundle = Bundle.main.bundleURL.pathExtension == "app" ? .main : .module
 
     static let language = Bundle.preferredLocalizations(from: resources.localizations, forPreferences: Locale.preferredLanguages).first ?? "en"
     static let locale = Locale(identifier: language)

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { localeInfo, locales, type Dictionary, type Locale } from "@/i18n/dictionaries";
+import { languageStorageKey } from "@/i18n/detect";
 
 type Theme = "light" | "dark";
 
@@ -85,7 +86,7 @@ export function HeaderMenu({ current, copy, label }: { current: Locale; copy: Di
               lang={localeInfo[locale].htmlLang}
               aria-current={active ? "page" : undefined}
               onClick={() => {
-                remember("lang", locale);
+                remember(languageStorageKey, locale);
                 setOpen(false);
               }}
               className="flex h-9 items-center gap-2.5 rounded-xl px-2.5 text-sm hover:bg-fog"

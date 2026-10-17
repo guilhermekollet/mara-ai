@@ -1,0 +1,28 @@
+Mara AI — Voices
+
+The code in this folder comes from speech-swift by soniqo
+(https://github.com/soniqo/speech-swift, commit 511307a1dbb3b9abbba4d5a598bc1e9c503b63f7),
+licensed under the Apache License, Version 2.0 (see LICENSE in this folder). The rest of
+Mara AI is MIT licensed.
+
+Files taken: Sources/KokoroTTS (KokoroTTS, KokoroModel, Configuration, Phonemizer,
+LatinPhonemizer, PronunciationDicts), Sources/SupertonicTTS (SupertonicTTS, SupertonicConfig,
+SupertonicError, SupertonicGraphs, SupertonicTokenizer) and, rewritten down to its Core ML
+inference, Sources/SpeechVAD/ReDimNet2Speaker.swift (Speaker/SpeakerEmbedder.swift here).
+
+Changes made for Mara:
+- Models are loaded from a local folder (`load(from:)`) instead of downloaded from Hugging Face;
+  Mara downloads and verifies the files itself (Sources/MaraAI/VoiceModels.swift).
+- Kokoro keeps only English and Spanish: the Chinese, Japanese, Hindi, French, Italian and
+  Portuguese phonemizers and their dictionaries were removed.
+- The speech-swift protocol conformances and the AudioCommon dependency were removed; the few
+  types they used live in Support.swift.
+
+The Spanish pronunciation dictionary comes from ipa-dict (MIT, https://github.com/open-dict-data/ipa-dict).
+
+Model weights are not part of this repository. Mara downloads them on request:
+- Kokoro-82M (Apache-2.0), CoreML conversion aufklarer/Kokoro-82M-CoreML.
+- ReDimNet2-B6 (MIT), CoreML conversion aufklarer/ReDimNet2-B6-CoreML, which tells speakers apart.
+- Supertonic 3 by Supertone (OpenRAIL-M license), CoreML conversion aufklarer/Supertonic-3-CoreML.
+  Its license restricts some uses (for example impersonating real people or deceiving listeners);
+  see https://huggingface.co/Supertone/supertonic-3.

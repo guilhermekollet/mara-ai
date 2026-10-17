@@ -110,3 +110,93 @@ func localizedKeysInSources() -> [String] {
 func normalizedKey(_ key: String) -> String {
     key.replacingOccurrences(of: "%l{0,2}[dfu]", with: "%@", options: .regularExpression)
 }
+
+// MARK: Reading aloud
+
+/// Pushes sentences finalized `ages` seconds ago into a reading queue and returns the order, by
+/// index, in which they come out.
+func readoutOrder(pushedSecondsAgo ages: [Double]) -> [Int] {
+    let now = Date()
+    let items = ages.map { ReadoutQueue.Item(id: UUID(), createdAt: now.addingTimeInterval(-$0), text: "") }
+    var queue = ReadoutQueue()
+    items.forEach { queue.push($0) }
+    var order: [Int] = []
+    while let next = queue.next(now: now) { order.append(items.firstIndex(of: next)!) }
+    return order
+}
+
+/// A voice-like tone: a fundamental and two overtones, which is what trips up octave detection.
+func voiceTone(_ hertz: Double, seconds: Double = 0.064, sampleRate: Double = 16_000) -> [Float] {
+    (0..<Int(seconds * sampleRate)).map { index in
+        let t = Double(index) / sampleRate
+        return Float(0.3 * sin(2 * .pi * hertz * t) + 0.2 * sin(4 * .pi * hertz * t) + 0.1 * sin(6 * .pi * hertz * t))
+    }
+}
+
+/// Random noise, which has no pitch.
+func noise(count: Int) -> [Float] {
+    (0..<count).map { _ in Float.random(in: -0.3...0.3) }
+}
+
+/// The median pitch of one second of a tone at `hertz`, measured as a piece's clip would be.
+func pitchOfOneSecond(_ hertz: Double) -> Double? {
+    SpeakerPitch.median(of: voiceTone(hertz, seconds: 1), sampleRate: 16_000)
+}
+
+/// SHA-256 of "mara".
+let maraSHA256 = "c8b6c061e8591dfeaabefdbad7cdacc0ece53900f0bb02160860a0e3ef7d2acc"
+
+/// Writes `contents` to a temporary file and checks it against a manifest entry.
+func verifiesDownload(_ contents: String, size: Int, sha256: String? = nil) -> Bool {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: url) }
+    guard (try? Data(contents.utf8).write(to: url)) != nil else { return false }
+    return (try? VoiceModelStore.verify(url, against: .init("x", size: size, sha256: sha256))) != nil
+}
+
+// MARK: Telling speakers apart
+
+/// Feeds a meeting to the clustering: each sentence is its speaker's voice (a fixed random
+/// direction) plus some noise, in the order given. Returns the speaker each sentence was put with.
+func clusteredSpeakers(of sentences: [Int], noise: Float = 0.6, seed: UInt64 = 7) -> [Int?] {
+    var generator = SeededGenerator(seed: seed)
+    func direction() -> [Float] { (0..<192).map { _ in Float.random(in: -1...1, using: &generator) } }
+    func normalized(_ vector: [Float]) -> [Float] {
+        let norm = sqrt(vector.reduce(0) { $0 + $1 * $1 })
+        return vector.map { $0 / norm }
+    }
+    let voices = (0..<((sentences.max() ?? 0) + 1)).map { _ in normalized(direction()) }
+    var clusters = SpeakerClusters()
+    return sentences.map { speaker in
+        let jitter = normalized(direction())
+        return clusters.assign(normalized(zip(voices[speaker], jitter).map { $0 + noise * $1 }))
+    }
+}
+
+struct SeededGenerator: RandomNumberGenerator {
+    var state: UInt64
+    init(seed: UInt64) { state = seed }
+    mutating func next() -> UInt64 {
+        state &+= 0x9E3779B97F4A7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58476D1CE4E5B9
+        z = (z ^ (z >> 27)) &* 0x94D049BB133111EB
+        return z ^ (z >> 31)
+    }
+}
+
+/// Appends `seconds` of audio where each second's samples equal that second's index, in buffers
+/// of 0.1 s, then clips `from`…`to` and returns the distinct values found (which seconds came back).
+func clippedSeconds(feeding seconds: Int, from start: Double, to end: Double) -> [Float] {
+    let audio = SentenceAudio()
+    let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)!
+    for second in 0..<seconds {
+        for _ in 0..<10 {
+            let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 1_600)!
+            buffer.frameLength = 1_600
+            for index in 0..<1_600 { buffer.floatChannelData![0][index] = Float(second) }
+            audio.append(buffer)
+        }
+    }
+    return Array(Set(audio.clip(from: start, to: end).samples)).sorted()
+}

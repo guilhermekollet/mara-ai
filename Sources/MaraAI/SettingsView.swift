@@ -20,12 +20,23 @@ struct GPTModel: Identifiable {
 }
 
 struct SettingsView: View {
+    /// Set to a tab's name ("summary", for example) to open Settings on that tab.
+    static let requestedTabKey = "settingsTab"
+
     @EnvironmentObject private var model: CaptionModel
     @State private var tab = Tab.translation
+    @AppStorage(SettingsView.requestedTabKey) private var requestedTab = ""
     /// The content has slid under the header: a hairline separates them, as under a macOS toolbar.
     @State private var scrolled = false
     /// There is more below: the bottom edge fades out.
     @State private var moreBelow = false
+
+    /// Another part of the app asked for a tab: show it, then forget the request.
+    private func showRequestedTab() {
+        guard let match = Tab.allCases.first(where: { "\($0)" == requestedTab }) else { return }
+        tab = match
+        requestedTab = ""
+    }
 
     private enum Tab: CaseIterable, Identifiable {
         case translation, summary, appearance, usage, glossary, general
@@ -103,6 +114,8 @@ struct SettingsView: View {
         .tint(Theme.accent)
         .preferredColorScheme(.dark)
         .task { await model.loadLocales() }
+        .onAppear(perform: showRequestedTab)
+        .onChange(of: requestedTab) { showRequestedTab() }
     }
 
     private var header: some View {
@@ -247,6 +260,8 @@ private struct TranslationSettings: View {
                     }
                 }
             }
+
+            ReadAloudCard()
         }
     }
 
@@ -276,6 +291,87 @@ private struct TranslationSettings: View {
                 .foregroundStyle(Theme.muted)
             TextField("US$", value: value, format: .number)
                 .textFieldStyle(.roundedBorder)
+        }
+    }
+}
+
+/// Reading the captions aloud: on or off, the voices' download, which voice for whom, speed and volume.
+private struct ReadAloudCard: View {
+    @EnvironmentObject private var model: CaptionModel
+    @ObservedObject private var store = VoiceModelStore.shared
+
+    var body: some View {
+        let engine = model.readoutEngine
+        SettingsCard(
+            localized("Ler em voz alta"),
+            hint: localized("A Mara lê cada frase traduzida com uma voz neural que roda no Mac: grátis, sem internet depois do download. A voz acompanha quem fala: voz grave é lida com a voz masculina, aguda com a feminina, e com Identificar quem fala (Ajustes › Geral) cada pessoa ganha a sua voz. Com alto-falantes, o seu microfone pausa enquanto ela fala; com fone, não precisa. ⌃⌥V liga e desliga.")
+        ) {
+            Toggle(localized("Ler as legendas em voz alta"), isOn: Binding(
+                get: { model.readAloud },
+                set: { model.setReadAloud($0) }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.small)
+
+            if !model.translates {
+                Label(localized("Só lê reuniões traduzidas: agora a reunião e a legenda estão no mesmo idioma."), systemImage: "info.circle")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Theme.muted)
+            }
+
+            let megabytes = engine.model.megabytes
+            ModelDownloadRow(
+                model: engine.model,
+                missing: localized("Vozes em \(model.captionLanguage.name): \(megabytes) MB, baixadas uma vez."),
+                ready: localized("Vozes em \(model.captionLanguage.name) prontas"),
+                freeing: localized("Libera \(megabytes) MB. Para ler de novo, as vozes são baixadas outra vez.")
+            )
+
+            if store.state(engine.model) == .ready {
+                voiceRow(.female)
+                voiceRow(.male)
+                sliderRow(localized("Velocidade"), value: $model.readoutSpeed, range: 0.8...1.4, step: 0.05,
+                          label: model.readoutSpeed.formatted(.number.precision(.fractionLength(2))) + "×")
+                sliderRow(localized("Volume"), value: $model.readoutVolume, range: 0.2...1, step: 0.05,
+                          label: "\(Int(model.readoutVolume * 100))%")
+            }
+        }
+    }
+
+    private func voiceRow(_ gender: VoiceGender) -> some View {
+        let options = ReadoutCatalog.voices(for: model.captionLanguage.code, gender: gender)
+        let title = gender == .female ? localized("Voz feminina") : localized("Voz masculina")
+        return HStack {
+            Text(title)
+                .font(.system(size: 12.5))
+            Spacer()
+            Picker(title, selection: Binding(
+                get: { model.readoutVoice(gender).id },
+                set: { id in
+                    if let voice = options.first(where: { $0.id == id }) { model.setReadoutVoice(voice) }
+                }
+            )) {
+                ForEach(options) { voice in
+                    Text(voice.name).tag(voice.id)
+                }
+            }
+            .labelsHidden()
+            .fixedSize()
+            Button(localized("Ouvir")) { model.previewVoice(model.readoutVoice(gender)) }
+                .buttonStyle(PillButtonStyle(prominent: false))
+        }
+    }
+
+    private func sliderRow(_ title: String, value: Binding<Double>, range: ClosedRange<Double>, step: Double, label: String) -> some View {
+        HStack(spacing: 10) {
+            Text(title)
+                .font(.system(size: 12.5))
+                .frame(width: 80, alignment: .leading)
+            Slider(value: value, in: range, step: step)
+            Text(label)
+                .font(.system(size: 12).monospacedDigit())
+                .foregroundStyle(Theme.muted)
+                .frame(width: 44, alignment: .trailing)
         }
     }
 }
@@ -311,31 +407,19 @@ private struct AppearanceSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            // Live preview: shows how the caption looks over a meeting.
-            ZStack {
-                LinearGradient(colors: [Color(red: 0.91, green: 0.89, blue: 0.99), Color(red: 0.72, green: 0.64, blue: 0.97)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                VStack(spacing: 3) {
-                    Text(localized("Podemos revisar o contrato na quinta."))
-                        .foregroundStyle(Theme.paper)
-                    Text(localized("E acho que o prazo de entrega"))
-                        .foregroundStyle(Theme.accent)
-                }
-                .font(.system(size: model.fontSize, weight: .medium))
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(Theme.ink.opacity(model.opacity), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .padding(14)
-            }
-            .frame(height: 150)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            preview
 
             SettingsCard(localized("Tamanho da legenda")) {
                 sliderRow(value: $model.fontSize, range: 12...40, step: 1, label: "\(Int(model.fontSize)) pt")
             }
-            SettingsCard(localized("Opacidade do fundo"), hint: localized("Mais baixa deixa ver melhor o que está atrás da janela.")) {
-                sliderRow(value: $model.opacity, range: 0.2...1, step: 0.05, label: "\(Int(model.opacity * 100))%")
+            SettingsCard(
+                localized("Fundo da janela"),
+                hint: localized("Com pouca opacidade e sem desfoque, a reunião aparece nítida atrás da legenda; a sombra mantém o texto legível.")
+            ) {
+                labeledSlider(localized("Opacidade"), value: $model.opacity)
+                labeledSlider(localized("Desfoque"), value: $model.blur)
+                Toggle(localized("Sombra nas letras"), isOn: $model.textShadow)
+                    .font(.system(size: 12.5))
             }
             SettingsCard(
                 localized("Quando não há áudio"),
@@ -363,6 +447,48 @@ private struct AppearanceSettings: View {
         }
     }
 
+    /// The captions window over a wallpaper, with this window's tint, blur and text shadow, so each
+    /// setting can be judged as it changes.
+    private var preview: some View {
+        let box = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        // The captions window as a strip over the lower part of the screen, as it usually sits.
+        let window = EdgeInsets(top: 58, leading: 14, bottom: 12, trailing: 14)
+        return ZStack {
+            PreviewWallpaper()
+            // The wallpaper blurred only inside the window, as its frosted glass does.
+            PreviewWallpaper()
+                .blur(radius: 16 * model.blur)
+                .mask { box.padding(window) }
+            box.fill(Theme.ink.opacity(model.opacity))
+                .padding(window)
+            VStack(spacing: 3) {
+                Text(localized("Podemos revisar o contrato na quinta."))
+                    .foregroundStyle(Theme.paper)
+                Text(localized("E acho que o prazo de entrega"))
+                    .foregroundStyle(Theme.accent)
+            }
+            .font(.system(size: model.fontSize, weight: .medium))
+            .multilineTextAlignment(.center)
+            .lineLimit(2)
+            .minimumScaleFactor(0.5)
+            .modifier(CaptionShadow(on: model.textShadow))
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(window)
+        }
+        .frame(height: 170)
+        .clipShape(box)
+    }
+
+    private func labeledSlider(_ title: String, value: Binding<Double>) -> some View {
+        HStack(spacing: 10) {
+            Text(title)
+                .font(.system(size: 12.5))
+                .frame(width: 74, alignment: .leading)
+            sliderRow(value: value, range: 0...1, step: 0.05, label: "\(Int((value.wrappedValue * 100).rounded()))%")
+        }
+    }
+
     private func durationPicker(_ title: String, selection: Binding<Double>, options: [(Double, String)]) -> some View {
         HStack {
             Text(title)
@@ -385,6 +511,31 @@ private struct AppearanceSettings: View {
                 .font(.system(size: 12).monospacedDigit())
                 .foregroundStyle(Theme.muted)
                 .frame(width: 44, alignment: .trailing)
+        }
+    }
+}
+
+/// What the appearance preview shows behind the captions window: a desktop wallpaper, like the one
+/// the window floats over. Without the image, a gradient in its colors.
+private struct PreviewWallpaper: View {
+    private static let image = Interface.resources.url(forResource: "PreviewWallpaper", withExtension: "jpg").flatMap(NSImage.init(contentsOf:))
+
+    var body: some View {
+        if let image = Self.image {
+            // Filled into exactly the space it is given: on its own, a filling image would grow
+            // past it and push the caption strip off its place.
+            Color.clear
+                .overlay {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFill()
+                }
+                .clipped()
+        } else {
+            LinearGradient(
+                colors: [Color(red: 0.1, green: 0.35, blue: 0.95), Color(red: 0.95, green: 0.55, blue: 0.2), Color(red: 0.7, green: 0.45, blue: 0.95)],
+                startPoint: .leading, endPoint: .trailing
+            )
         }
     }
 }
@@ -526,6 +677,7 @@ private struct GeneralSettings: View {
         VStack(alignment: .leading, spacing: 14) {
             UpdateCard()
             MicrophoneCard()
+            SpeakersCard()
             SettingsCard(localized("Atalhos globais"), hint: localized("Funcionam com qualquer aplicativo em primeiro plano, sem tirar o foco da reunião.")) {
                 Toggle(localized("Ativar os atalhos de teclado"), isOn: $model.hotKeysEnabled)
                     .toggleStyle(.switch)
@@ -591,6 +743,84 @@ private struct MicrophoneCard: View {
     }
 }
 
+/// A downloadable model's state, with the button that fits: download, cancel, delete or retry.
+private struct ModelDownloadRow: View {
+    @EnvironmentObject private var session: CaptionModel
+    @ObservedObject private var store = VoiceModelStore.shared
+    let model: VoiceModel
+    let missing: String
+    let ready: String
+    let freeing: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            switch store.state(model) {
+            case .missing:
+                Text(missing)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.muted)
+                Spacer()
+                Button(localized("Baixar")) { store.download(model) }
+                    .buttonStyle(PillButtonStyle(prominent: false))
+            case .downloading(let fraction):
+                ProgressView(value: fraction)
+                    .controlSize(.small)
+                Text("\(Int(fraction * 100))%")
+                    .font(.system(size: 11.5).monospacedDigit())
+                    .foregroundStyle(Theme.muted)
+                    .frame(width: 36, alignment: .trailing)
+                Button(localized("Cancelar")) { store.cancel(model) }
+                    .buttonStyle(PillButtonStyle(prominent: false))
+            case .ready:
+                Label(ready, systemImage: "checkmark.circle")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.muted)
+                Spacer()
+                Button(localized("Apagar")) { store.remove(model) }
+                    .buttonStyle(PillButtonStyle(prominent: false))
+                    .disabled(session.isRunning)
+                    .help(freeing)
+            case .failed(let message):
+                Text(message)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer()
+                Button(localized("Tentar de novo")) { store.download(model) }
+                    .buttonStyle(PillButtonStyle(prominent: false))
+            }
+        }
+    }
+}
+
+/// Telling the meeting's speakers apart by their voices.
+private struct SpeakersCard: View {
+    @EnvironmentObject private var model: CaptionModel
+
+    var body: some View {
+        SettingsCard(
+            localized("Identificar quem fala"),
+            hint: localized("A Mara reconhece as pessoas da reunião pela voz, no Mac. Na transcrição e no resumo, cada uma aparece como Pessoa 1, Pessoa 2…; na leitura em voz alta, cada uma ganha a sua voz (até duas por gênero, para manter a qualidade). Pode errar com áudio ruim ou vozes parecidas.")
+        ) {
+            Toggle(localized("Distinguir as pessoas pela voz"), isOn: Binding(
+                get: { model.identifySpeakers },
+                set: { model.setIdentifySpeakers($0) }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            if model.identifySpeakers {
+                let megabytes = VoiceModel.speakers.megabytes
+                ModelDownloadRow(
+                    model: .speakers,
+                    missing: localized("Modelo de vozes: \(megabytes) MB, baixado uma vez."),
+                    ready: localized("Modelo de vozes pronto"),
+                    freeing: localized("Libera \(megabytes) MB. Para identificar de novo, o modelo é baixado outra vez.")
+                )
+            }
+        }
+    }
+}
+
 /// Automatic updates: on or off, where they stand, and a way to check right away.
 private struct UpdateCard: View {
     @ObservedObject private var updater = Updater.shared
@@ -651,7 +881,12 @@ private struct UpdateCard: View {
 /// The OpenAI key, saved to the Keychain when submitted, with a link to create one. Used in
 /// Settings and in the introduction; `missingHint` says what happens without a key.
 struct OpenAIKeyField: View {
+    /// OpenAI's page for creating API keys.
+    static let keysPage = URL(string: "https://platform.openai.com/api-keys")!
+
     let missingHint: String
+    /// Off where the page shows its own, larger way to create a key.
+    var linksToKeysPage = true
     @EnvironmentObject private var model: CaptionModel
     @State private var draft = ""
 
@@ -672,7 +907,10 @@ struct OpenAIKeyField: View {
                 Text(model.apiKey.isEmpty ? missingHint : localized("Chave salva no Keychain."))
                     .foregroundStyle(Theme.muted)
                 Spacer()
-                Link(localized("Criar uma chave"), destination: URL(string: "https://platform.openai.com/api-keys")!)
+                if linksToKeysPage {
+                    Link(localized("Criar uma chave"), destination: Self.keysPage)
+                        .foregroundStyle(Theme.accent)
+                }
             }
             .font(.system(size: 11.5))
         }

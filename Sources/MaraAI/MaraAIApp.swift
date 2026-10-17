@@ -4,9 +4,31 @@ import Translation
 @main
 struct MaraAIApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    @StateObject private var model = CaptionModel()
+    /// Kept, not observed: observing it here re-evaluated every scene, menu bar icon included, on
+    /// each change to the model, such as every partial caption. Each window observes it itself.
+    @State private var model = CaptionModel()
 
     init() {
+        // Development tool: `MaraAI --try-voices pt` downloads that language's voices if needed,
+        // reads the sample sentence with the female and the male voice and prints the timings.
+        // `MaraAI --try-speakers <folder>` does the same for telling speakers apart, with the
+        // folder's <speaker>_<n>.wav files as the meeting's sentences.
+        let trials = ["--try-voices", "--try-speakers"]
+        if let flag = CommandLine.arguments.firstIndex(where: trials.contains), CommandLine.arguments.count > flag + 1 {
+            let argument = CommandLine.arguments[flag + 1]
+            let speakers = CommandLine.arguments[flag] == "--try-speakers"
+            Task { @MainActor in
+                if speakers {
+                    await VoiceTrial.runSpeakers(folder: URL(fileURLWithPath: argument))
+                } else {
+                    await VoiceTrial.run(language: argument)
+                }
+                exit(0)
+            }
+            // Without the scenes, so the session model (and its Keychain read) is never created.
+            NSApplication.shared.setActivationPolicy(.accessory)
+            NSApplication.shared.run()
+        }
         // Development tool: `MaraAI --render-summary file.png` draws the summary window with a
         // sample summary and exits, so it can be checked without an OpenAI key or a meeting.
         if let flag = CommandLine.arguments.firstIndex(of: "--render-summary"), CommandLine.arguments.count > flag + 1 {
@@ -44,7 +66,7 @@ struct MaraAIApp: App {
         MenuBarExtra {
             MenuBarPanel().environmentObject(model)
         } label: {
-            MenuBarLabel(animator: model.menuBarAnimator).environmentObject(model)
+            MenuBarLabel(model: model, animator: model.menuBarAnimator)
         }
         .menuBarExtraStyle(.window)
     }
@@ -90,7 +112,9 @@ func present(_ id: String, using openWindow: OpenWindowAction) {
 /// opens the captions window, used by the global shortcuts, and that opens the introduction on
 /// first launch.
 struct MenuBarLabel: View {
-    @EnvironmentObject private var model: CaptionModel
+    /// Held, not observed: the icon redraws only when its animation changes. Observing the model
+    /// redrew it (in every display's menu bar) on each partial caption.
+    let model: CaptionModel
     @ObservedObject var animator: MenuBarAnimator
     @Environment(\.openWindow) private var openWindow
     /// The introduction opens once per launch, even if the menu bar redraws the icon.
@@ -122,12 +146,22 @@ struct ContentView: View {
     /// left still for a while, so it doesn't cover captions while someone is rereading.
     @State private var showsJumpLabel = false
     @State private var jumpLabelTimer: Task<Void, Never>?
-    private let bottomID = "bottom"
+    /// The dotted "M" builds itself when the window opens.
+    @State private var markShown = false
+    /// Where the captions list is scrolled; following the latest line means scrolling to its bottom
+    /// edge, which costs the same however long the meeting is (scrolling to a row of a lazy list
+    /// makes it place every row before it).
+    @State private var scrollPosition = ScrollPosition(edge: .bottom)
+    /// The window shows the latest lines; the whole meeting stays in the transcript file, Copy and
+    /// the summary. This keeps a meeting of hours as light as one of minutes.
+    private static let shownLines = 300
     private let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
 
     var body: some View {
         ZStack(alignment: .top) {
             captions
+                .opacity(standbyCentered ? 0.12 : 1)
+                .animation(.easeInOut(duration: 0.4), value: standbyCentered)
             // The controls only appear on hover, so the window is nothing but captions.
             controlBar
         }
@@ -136,7 +170,7 @@ struct ContentView: View {
         .frame(minWidth: 300, minHeight: 96)
         .background {
             ZStack {
-                VisualEffectBackground()
+                VisualEffectBackground(intensity: model.blur)
                 Theme.ink.opacity(model.opacity)
             }
         }
@@ -168,6 +202,8 @@ struct ContentView: View {
                 .modifier(HoverReveal(shown: hovering, order: 1))
             MicrophoneButton()
                 .modifier(HoverReveal(shown: hovering, order: 2))
+            ReadAloudButton()
+                .modifier(HoverReveal(shown: hovering, order: 3))
             if !model.status.isEmpty {
                 Text(model.status)
                     .font(.system(size: 10))
@@ -175,16 +211,16 @@ struct ContentView: View {
                     .lineLimit(1)
                     .padding(.horizontal, 6)
                     .help(model.status)
-                    .modifier(HoverReveal(shown: hovering, order: 3))
+                    .modifier(HoverReveal(shown: hovering, order: 4))
             }
             Spacer(minLength: 0)
             IconButton(symbol: "doc.on.doc", help: localized("Copiar a transcrição")) { model.copyTranscript() }
                 .disabled(model.segments.isEmpty)
-                .modifier(HoverReveal(shown: hovering, order: 4))
+                .modifier(HoverReveal(shown: hovering, order: 5))
             IconButton(symbol: "gearshape", help: localized("Ajustes")) { present(settingsWindowID, using: openWindow) }
-            .modifier(HoverReveal(shown: hovering, order: 5))
+            .modifier(HoverReveal(shown: hovering, order: 6))
             IconButton(symbol: "xmark", help: localized("Fechar a janela de legendas")) { dismissWindow(id: captionsWindowID) }
-                .modifier(HoverReveal(shown: hovering, order: 6))
+                .modifier(HoverReveal(shown: hovering, order: 7))
         }
         .padding(.horizontal, 6)
         .frame(height: 32)
@@ -196,8 +232,13 @@ struct ContentView: View {
 
     private var isEmpty: Bool { model.segments.isEmpty && model.volatile.isEmpty }
 
+    /// On standby the moon sits large in the middle of the window, with the captions stepped back;
+    /// with the pointer over the window it shrinks to the top, where the controls are, and the
+    /// captions come back.
+    private var standbyCentered: Bool { model.isRunning && model.isIdle && !isEmpty && !hovering }
+
     /// On the first utterance, the indicator moves from the middle of the window to the top center.
-    private var indicatorInHeader: Bool { !isEmpty }
+    private var indicatorInHeader: Bool { !isEmpty && !standbyCentered }
 
     /// The sound bars (or the moon, when idle). It is a single piece that changes position and size
     /// with a spring, instead of two pieces that appear and disappear.
@@ -222,26 +263,30 @@ struct ContentView: View {
         }
     }
 
-    /// Before the first utterance: the logo when stopped, the sound bars when listening.
+    /// Before the first utterance: the dotted "M" when stopped, the sound bars when listening.
     private var emptyState: some View {
         Group {
             if !model.isRunning {
-                Text("Mara")
-                    .font(Theme.display(20))
-                    .foregroundStyle(Theme.paper.opacity(0.35))
+                DotMark(shown: markShown, dot: 4, spacing: 1.8)
+                    .opacity(0.45)
+                    .transition(.opacity)
+                    .onAppear { markShown = true }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     /// Scrollable history: the current utterance highlighted and earlier ones fading out upwards.
+    /// Only follows new utterances while scrolled to the bottom.
+    private func follow() {
+        if followsLatest && !userScrolling { scrollPosition.scrollTo(edge: .bottom) }
+    }
+
     private var captions: some View {
-        ScrollViewReader { proxy in
-            // Only follows new utterances while scrolled to the bottom.
-            let follow = { if followsLatest && !userScrolling { proxy.scrollTo(bottomID, anchor: .bottom) } }
+        Group {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 10) {
-                    ForEach(model.segments) { segment in
+                    ForEach(model.segments.suffix(Self.shownLines)) { segment in
                         let isLatest = segment.id == model.segments.last?.id && model.volatile.isEmpty
                         VStack(alignment: .leading, spacing: 1) {
                             if segment.speaker == .me {
@@ -259,6 +304,7 @@ struct ContentView: View {
                                     .foregroundStyle(Theme.paper.opacity(0.4))
                             }
                         }
+                        .modifier(CaptionShadow(on: model.textShadow))
                         .opacity(isLatest ? 1 : 0.6)
                         .textSelection(.enabled)
                     }
@@ -273,14 +319,15 @@ struct ContentView: View {
                                     .foregroundStyle(Theme.paper.opacity(0.4))
                             }
                         }
+                        .modifier(CaptionShadow(on: model.textShadow))
                     }
-                    Color.clear.frame(height: 1).id(bottomID)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 16)
                 .padding(.top, 28)
                 .padding(.bottom, 10)
             }
+            .scrollPosition($scrollPosition)
             .scrollIndicators(.hidden)
             // Older utterances fade out smoothly at the top instead of being clipped.
             .mask(
@@ -312,13 +359,13 @@ struct ContentView: View {
             }
             .onAppear {
                 followsLatest = true
-                proxy.scrollTo(bottomID, anchor: .bottom)
+                scrollPosition.scrollTo(edge: .bottom)
             }
             // A new session always starts following the bottom.
             .onChange(of: model.isRunning) {
                 if model.isRunning {
                     followsLatest = true
-                    proxy.scrollTo(bottomID, anchor: .bottom)
+                    scrollPosition.scrollTo(edge: .bottom)
                 }
             }
             // Back to the latest captions: just the arrow in the bottom right corner; after 5 s
@@ -328,7 +375,7 @@ struct ContentView: View {
                     Button {
                         followsLatest = true
                         hideJumpLabel()
-                        withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(bottomID, anchor: .bottom) }
+                        withAnimation(.easeOut(duration: 0.25)) { scrollPosition.scrollTo(edge: .bottom) }
                     } label: {
                         HStack(spacing: 5) {
                             if showsJumpLabel {
@@ -357,10 +404,9 @@ struct ContentView: View {
             .animation(.spring(response: 0.45, dampingFraction: 0.82), value: showsJumpLabel)
             // Back at the bottom, the next time the button appears it starts as just the arrow.
             .onChange(of: followsLatest) { if followsLatest { hideJumpLabel() } }
-            .onChange(of: model.segments.count) { follow() }
-            .onChange(of: model.volatile) { follow() }
-            .onChange(of: model.volatileTranslation) { follow() }
-            .onChange(of: model.segments.last?.translation) { follow() }
+            // Follows when the content grows or shrinks (a new line, a caption wrapping onto another
+            // line), not on every partial caption: while the height is the same it is already there.
+            .onScrollGeometryChange(for: CGFloat.self) { $0.contentSize.height } action: { _, _ in follow() }
         }
     }
 }
@@ -435,6 +481,21 @@ struct MicrophoneButton: View {
     }
 }
 
+/// Reading aloud in the captions window's control bar: lavender while Mara reads the captions.
+struct ReadAloudButton: View {
+    @EnvironmentObject private var model: CaptionModel
+
+    var body: some View {
+        IconButton(
+            symbol: model.readAloud ? "speaker.wave.2.fill" : "speaker.slash",
+            help: model.readAloud
+                ? localized("Leitura em voz alta ligada: a Mara lê as legendas traduzidas (⌃⌥V)")
+                : localized("Leitura em voz alta desligada (⌃⌥V)"),
+            color: model.readAloud ? Theme.accent : Theme.paper.opacity(0.7)
+        ) { model.toggleReadAloud() }
+    }
+}
+
 /// Subtle icon button for the control bar.
 struct IconButton: View {
     let symbol: String
@@ -486,7 +547,11 @@ struct FloatingWindow: NSViewRepresentable {
 }
 
 /// Blur of whatever is behind the window, like in system panels.
+/// The frosted glass behind the captions window. `intensity` blends it from none (0: the desktop
+/// shows through sharp) to the full blur (1).
 struct VisualEffectBackground: NSViewRepresentable {
+    var intensity: Double = 1
+
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
         view.material = .hudWindow
@@ -495,5 +560,22 @@ struct VisualEffectBackground: NSViewRepresentable {
         return view
     }
 
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.alphaValue = intensity
+        nsView.isHidden = intensity == 0
+    }
+}
+
+/// A soft shadow under caption text, for reading it over a see-through background. Applied per row,
+/// and only when on, so a long meeting never renders the whole list into one shadowed layer.
+struct CaptionShadow: ViewModifier {
+    let on: Bool
+
+    func body(content: Content) -> some View {
+        if on {
+            content.shadow(color: .black.opacity(0.65), radius: 2.5, x: 0, y: 1)
+        } else {
+            content
+        }
+    }
 }

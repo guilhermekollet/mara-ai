@@ -228,32 +228,6 @@ private struct WelcomePage: View {
     }
 }
 
-/// The icon's dot-matrix "M", large, with its lavender dot; the dots pop in from left to right.
-private struct DotMark: View {
-    let shown: Bool
-    /// The same 5 × 5 "M" as the menu bar icon (see `Theme.menuBarImage`).
-    private let dots = ["x...x", "xx.xx", "x.x.x", "x...x", "x...x"].map { $0.map { $0 == "x" } }
-
-    var body: some View {
-        VStack(spacing: 4.5) {
-            ForEach(dots.indices, id: \.self) { row in
-                HStack(spacing: 4.5) {
-                    ForEach(dots[row].indices, id: \.self) { column in
-                        Circle()
-                            .fill(row == 2 && column == 2 ? Theme.accent : Theme.paper)
-                            .frame(width: 8.5, height: 8.5)
-                            .opacity(dots[row][column] && shown ? 1 : 0)
-                            .scaleEffect(shown ? 1 : 0.3)
-                            .animation(.spring(response: 0.42, dampingFraction: 0.62).delay(Double(column) * 0.05 + Double(row) * 0.02), value: shown)
-                    }
-                }
-            }
-        }
-        .accessibilityElement()
-        .accessibilityLabel("Mara")
-    }
-}
-
 private struct PermissionPage: View {
     @State private var granted = ScreenAudioPermission.isGranted
     @State private var asked = false
@@ -408,13 +382,29 @@ private struct PreparationStatus: View {
 }
 
 private struct SummaryKeyPage: View {
+    @EnvironmentObject private var model: CaptionModel
+
     var body: some View {
         PageLayout(
             symbol: "sparkles",
             title: localized("Resumo com IA"),
             text: localized("Opcional. No fim da reunião, o GPT resume o que foi conversado, com a sua chave da OpenAI. Só o texto transcrito é enviado; o áudio, nunca.")
         ) {
-            OpenAIKeyField(missingHint: localized("Fica no Keychain do macOS. Dá para adicionar depois, em Ajustes."))
+            VStack(spacing: 18) {
+                // Most people don't have a key yet: getting one comes first, then the field to paste it.
+                if model.apiKey.isEmpty {
+                    Button {
+                        NSWorkspace.shared.open(OpenAIKeyField.keysPage)
+                    } label: {
+                        Label(localized("Criar uma chave na OpenAI"), systemImage: "arrow.up.right")
+                    }
+                    .buttonStyle(PillButtonStyle(prominent: false, large: true))
+                }
+                OpenAIKeyField(
+                    missingHint: localized("Fica no Keychain do macOS. Dá para adicionar depois, em Ajustes."),
+                    linksToKeysPage: false
+                )
+            }
         }
     }
 }

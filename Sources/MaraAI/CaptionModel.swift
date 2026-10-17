@@ -1,17 +1,37 @@
 import AppKit
+import CoreMedia
 import Foundation
 import Translation
 
 @MainActor
 final class CaptionModel: ObservableObject {
-    struct Segment: Identifiable {
+    struct Segment: Identifiable, Sendable {
         let id = UUID()
-        let date = Date()
+        let date: Date
+        /// When it was said, formatted once for the transcript file instead of on every save.
+        let clock: String
         var original: String
         var translation: String?
         /// True when the translation is already GPT's final version (the local one doesn't overwrite it).
         var refined = false
         var speaker = Speaker.others
+        /// Whether the speaker's voice sounded male or female, by its pitch; nil when it didn't say.
+        var gender: VoiceGender?
+        /// Who said it (1, 2, 3…), when Mara tells the speakers apart by their voices.
+        var person: Int?
+        /// Which of the gender's two reading voices is this speaker's.
+        var voiceSlot = 0
+        /// Telling who said it is still under way.
+        var identifying = false
+
+        init(original: String, translation: String? = nil, refined: Bool = false) {
+            let now = Date()
+            date = now
+            clock = now.formatted(date: .omitted, time: .standard)
+            self.original = original
+            self.translation = translation
+            self.refined = refined
+        }
     }
 
     @Published var segments: [Segment] = []
@@ -94,6 +114,46 @@ final class CaptionModel: ObservableObject {
         didSet { UserDefaults.standard.set(microphoneOn, forKey: "microphoneOn") }
     }
 
+    /// Reads each finished caption aloud with an on-device voice, in meetings that are translated.
+    @Published private(set) var readAloud: Bool {
+        didSet { UserDefaults.standard.set(readAloud, forKey: "readAloud") }
+    }
+    /// 1 is the voice's natural pace.
+    @Published var readoutSpeed: Double {
+        didSet {
+            UserDefaults.standard.set(readoutSpeed, forKey: "readoutSpeed")
+            reader.speed = readoutSpeed
+        }
+    }
+    @Published var readoutVolume: Double {
+        didSet {
+            UserDefaults.standard.set(readoutVolume, forKey: "readoutVolume")
+            reader.volume = readoutVolume
+        }
+    }
+    /// The chosen voice for each language and gender, keyed "pt.female", "en.male" and so on.
+    @Published private var readoutVoices: [String: String] {
+        didSet { UserDefaults.standard.set(readoutVoices, forKey: "readoutVoices") }
+    }
+    let reader = CaptionReader()
+    let voiceModels = VoiceModelStore.shared
+    /// Cuts what the others say into pieces to read before each sentence ends.
+    private var pieceCutter = PieceCutter()
+    /// Pieces are translated one after another, so they reach the reader in order.
+    private var readingChain: Task<Void, Never>?
+    /// Who said each piece being read: the voice's gender, its slot, and whether that's still being worked out.
+    private var pieceSpeakers: [UUID: (gender: VoiceGender?, slot: Int, pending: Bool)] = [:]
+    /// Tells the speakers apart by their voices: "Pessoa 1, 2…" in the transcript and the summary,
+    /// and a voice of their own when reading aloud. Off by default; downloads a small model.
+    @Published private(set) var identifySpeakers: Bool {
+        didSet { UserDefaults.standard.set(identifySpeakers, forKey: "identifySpeakers") }
+    }
+    /// Kept for the whole session, even if the feature is turned off and on again, so a person
+    /// keeps their number.
+    private var speakerTracker: SpeakerTracker?
+    private var speakersLoading = false
+    private var sentenceAudio: SentenceAudio?
+
     /// Seconds without audio before going on hold and before stopping on its own (0 disables the feature).
     @Published var idleAfter: Double {
         didSet { UserDefaults.standard.set(idleAfter, forKey: "idleAfter") }
@@ -110,8 +170,18 @@ final class CaptionModel: ObservableObject {
     @Published var fontSize: Double {
         didSet { UserDefaults.standard.set(fontSize, forKey: "fontSize") }
     }
+    /// The captions window's dark tint, from 0 (none) to 1 (solid).
     @Published var opacity: Double {
         didSet { UserDefaults.standard.set(opacity, forKey: "opacity") }
+    }
+    /// How much the desktop behind the captions window is blurred: 0 shows it sharp, 1 is the full
+    /// frosted glass.
+    @Published var blur: Double {
+        didSet { UserDefaults.standard.set(blur, forKey: "blur") }
+    }
+    /// A soft shadow under the caption text, so it stays readable over a see-through background.
+    @Published var textShadow: Bool {
+        didSet { UserDefaults.standard.set(textShadow, forKey: "textShadow") }
     }
 
     private var session: TranscriptionSession?
@@ -121,6 +191,7 @@ final class CaptionModel: ObservableObject {
     private var isTranslatingVolatile = false
     private var volatileGeneration = 0
     private var transcriptURL: URL?
+    private var transcriptSave: Task<Void, Never>?
     private var transcriptTitle = ""
 
     static let transcriptsFolder = FileManager.default
@@ -147,8 +218,16 @@ final class CaptionModel: ObservableObject {
         soundCuesEnabled = UserDefaults.standard.object(forKey: "soundCues") as? Bool ?? true
         fontSize = UserDefaults.standard.object(forKey: "fontSize") as? Double ?? 17
         opacity = UserDefaults.standard.object(forKey: "opacity") as? Double ?? 0.55
+        blur = UserDefaults.standard.object(forKey: "blur") as? Double ?? 1
+        textShadow = UserDefaults.standard.object(forKey: "textShadow") as? Bool ?? true
         // Without the permission (revoked in System Settings, say), it starts off.
         microphoneOn = UserDefaults.standard.bool(forKey: "microphoneOn") && MicrophonePermission.isGranted
+        readAloud = UserDefaults.standard.bool(forKey: "readAloud")
+        readoutSpeed = UserDefaults.standard.object(forKey: "readoutSpeed") as? Double ?? 1
+        readoutVolume = UserDefaults.standard.object(forKey: "readoutVolume") as? Double ?? 0.9
+        readoutVoices = UserDefaults.standard.dictionary(forKey: "readoutVoices") as? [String: String] ?? [:]
+        identifySpeakers = UserDefaults.standard.bool(forKey: "identifySpeakers")
+        configureReader()
         applyHotKeys()
         soundCues.enabled = soundCuesEnabled
         Self.forgetLinear()
@@ -228,6 +307,7 @@ final class CaptionModel: ObservableObject {
             }),
             (HotKeys.toggleCaptions, { [weak self] in self?.toggleCaptionsWindow() }),
             (HotKeys.toggleMicrophone, { [weak self] in self?.toggleMicrophone() }),
+            (HotKeys.toggleReadAloud, { [weak self] in self?.toggleReadAloud() }),
         ]
         for (shortcut, action) in bindings where !HotKeys.shared.register(shortcut, action: action) {
             unavailableHotKeys.append(shortcut.keys)
@@ -257,7 +337,14 @@ final class CaptionModel: ObservableObject {
     func copyTranscript() {
         let text = segments
             .map { segment in
-                let original = segment.speaker == .me ? localized("Você: \(segment.original)") : segment.original
+                let original: String
+                if segment.speaker == .me {
+                    original = localized("Você: \(segment.original)")
+                } else if let person = segment.person {
+                    original = localized("Pessoa \(person): \(segment.original)")
+                } else {
+                    original = segment.original
+                }
                 return [segment.translation == segment.original ? nil : segment.translation, original].compactMap { $0 }.joined(separator: "\n")
             }
             .joined(separator: "\n\n")
@@ -277,6 +364,10 @@ final class CaptionModel: ObservableObject {
         self.gate = gate
         self.microphoneGate = microphoneGate
         let withMicrophone = microphoneOn && MicrophonePermission.isGranted
+        // Cheap (half a minute of audio), so it's always kept: telling speakers apart can be
+        // turned on mid-meeting.
+        let sentenceAudio = SentenceAudio()
+        self.sentenceAudio = sentenceAudio
         do {
             try await session.start(
                 locale: Locale(identifier: localeID),
@@ -284,13 +375,14 @@ final class CaptionModel: ObservableObject {
                 gate: gate,
                 microphoneGate: microphoneGate,
                 withMicrophone: withMicrophone,
+                sentenceAudio: sentenceAudio,
                 onAudio: { [audioMeter] buffer in audioMeter.push(buffer) },
                 onStatus: { [weak self] in self?.status = $0 },
-                onResult: { [weak self] text, isFinal, speaker in
+                onResult: { [weak self] text, isFinal, speaker, range in
                     if speaker == .me {
                         self?.handleMine(text, isFinal: isFinal)
                     } else {
-                        self?.handle(text, isFinal: isFinal)
+                        self?.handle(text, isFinal: isFinal, range: range)
                     }
                 },
                 onMicrophoneLost: { [weak self] in self?.microphoneLost() },
@@ -317,6 +409,10 @@ final class CaptionModel: ObservableObject {
             } else {
                 status = ""
             }
+            pieceCutter = PieceCutter()
+            pieceSpeakers = [:]
+            prepareSpeakers()
+            prepareReader()
             startIdleWatch()
         } catch {
             await session.stop()
@@ -338,9 +434,14 @@ final class CaptionModel: ObservableObject {
         microphoneGate = nil
         menuBarAnimator.setActive(false)
         audioMeter.setActive(false)
+        reader.unload()
+        speakerTracker = nil
+        sentenceAudio = nil
         await session.stop()
         clearVolatile()
+        await writeTranscript()
         SessionLog.write("PARADO")
+        SessionLog.flush()
         if !keepStatus {
             status = segments.isEmpty ? localized("Parado.") : localized("Parado. Transcrição salva em Documentos/Mara AI.")
         }
@@ -368,6 +469,7 @@ final class CaptionModel: ObservableObject {
                         gate.setPaused(false)
                         self.microphoneGate?.setPaused(false)
                         self.menuBarAnimator.setActive(true)
+                        self.audioMeter.setActive(true)
                         SessionLog.write("VOLTOU da espera")
                     }
                     try? await Task.sleep(for: .seconds(2))
@@ -378,6 +480,8 @@ final class CaptionModel: ObservableObject {
                         gate.setPaused(true)
                         self.microphoneGate?.setPaused(true)
                         self.menuBarAnimator.setActive(false)
+                        // Nothing shows the sound bars on standby: the meter stops until sound returns.
+                        self.audioMeter.setActive(false)
                         self.clearVolatile()
                         SessionLog.write("ESPERA após \(Int(quiet))s sem áudio")
                     }
@@ -389,18 +493,26 @@ final class CaptionModel: ObservableObject {
 
     /// Apple Speech sometimes delivers the previous sentence's punctuation at the start of the next
     /// one (". Coisa linda…"). Returns those marks apart, to go back where they belong.
+    /// Whether a result says anything: recognition sometimes returns only punctuation (", , , ,")
+    /// out of noise or music, which isn't a caption.
+    nonisolated static func hasWords(_ text: String) -> Bool {
+        text.contains { $0.isLetter || $0.isNumber }
+    }
+
     private static func splitLeadingPunctuation(_ text: String) -> (marks: String, text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let marks = String(trimmed.prefix { ".,;:!?…".contains($0) })
         return (marks, String(trimmed.dropFirst(marks.count)).trimmingCharacters(in: .whitespaces))
     }
 
-    private func handle(_ text: String, isFinal: Bool) {
+    private func handle(_ text: String, isFinal: Bool, range: CMTimeRange) {
         let (leading, trimmed) = Self.splitLeadingPunctuation(text)
         if isFinal && !leading.isEmpty { attachPunctuation(leading, speaker: .others) }
         guard isFinal else {
+            guard Self.hasWords(trimmed) else { return }
             volatile = trimmed
             SessionLog.write("PARCIAL \(trimmed)")
+            if readingAloud, let piece = pieceCutter.partial(trimmed) { read(piece, range: range) }
             if translates {
                 translateVolatile()
             } else {
@@ -411,14 +523,16 @@ final class CaptionModel: ObservableObject {
         // The provisional translation becomes the sentence's starting point, so the caption doesn't flicker.
         let draft = volatileTranslation
         clearVolatile()
-        guard !trimmed.isEmpty else { return }
+        guard Self.hasWords(trimmed) else { return }
         SessionLog.write("FINAL \(trimmed)")
         let finalizedAt = Date()
 
         dropEchoes(of: trimmed)
         // Only the others' sentences: what you say doesn't leave the Mac unless you ask for a summary.
-        let context = segments.filter { $0.speaker == .others }.suffix(3).map(\.original)
+        // The last few lines from the others, read from the end so it doesn't scan a long meeting.
+        let context = Array(segments.lazy.reversed().filter { $0.speaker == .others }.prefix(3).map(\.original).reversed())
         var segment = Segment(original: trimmed)
+        identifySpeaker(of: &segment, range: range)
         guard translates else {
             segment.translation = trimmed
             segment.refined = true
@@ -431,6 +545,7 @@ final class CaptionModel: ObservableObject {
         saveTranscript()
 
         let id = segment.id
+        if readingAloud, let rest = pieceCutter.final(trimmed) { read(rest, range: range) }
 
         if let localFinal {
             Task {
@@ -453,11 +568,237 @@ final class CaptionModel: ObservableObject {
                 let elapsed = recordUsage(result, model: translator.model, since: finalizedAt)
                 SessionLog.write("GPT \(elapsed)ms in=\(result.inputTokens) out=\(result.outputTokens) \(result.text)")
                 setTranslation(result.text, for: id, refined: true)
+                // Without Apple's translation nothing was read piece by piece: GPT's sentence is.
+                if readingAloud, localFinal == nil { enqueueReading(result.text, createdAt: finalizedAt, range: range) }
             } catch {
                 SessionLog.write("GPT falhou: \(error.localizedDescription)")
                 status = localized("Falha ao traduzir pelo GPT: \(error.localizedDescription)")
             }
         }
+    }
+
+    // MARK: Reading aloud
+
+    /// The engine that reads the current caption language.
+    var readoutEngine: VoiceEngine { VoiceEngine.reading(captionLanguage.code) }
+
+    /// The voice chosen for `gender` in the current caption language.
+    func readoutVoice(_ gender: VoiceGender) -> ReadoutVoice {
+        let language = captionLanguage.code
+        return ReadoutCatalog.voice(for: language, gender: gender, preferred: readoutVoices["\(language).\(gender.rawValue)"])
+    }
+
+    /// The voice for a speaker's slot: the chosen one, or for a second speaker of the same
+    /// gender, the language's next voice of that gender.
+    func readoutVoice(_ gender: VoiceGender, slot: Int) -> ReadoutVoice {
+        let chosen = readoutVoice(gender)
+        guard slot > 0 else { return chosen }
+        return ReadoutCatalog.voices(for: captionLanguage.code, gender: gender).first { $0.id != chosen.id } ?? chosen
+    }
+
+    func setReadoutVoice(_ voice: ReadoutVoice) {
+        readoutVoices["\(captionLanguage.code).\(voice.gender.rawValue)"] = voice.id
+    }
+
+    func toggleReadAloud() {
+        setReadAloud(!readAloud)
+    }
+
+    /// Turning it on downloads the voices for the caption language first, if they are missing.
+    func setReadAloud(_ on: Bool) {
+        readAloud = on
+        if on, voiceModels.state(readoutEngine.model) != .ready {
+            voiceModels.download(readoutEngine.model)
+        }
+        if on {
+            prepareReader()
+        } else {
+            // Off for the rest of the meeting, most likely: the model's memory goes too.
+            reader.unload()
+        }
+        SessionLog.write("LEITURA \(on ? "ligada" : "desligada")")
+    }
+
+    /// Plays a sample sentence with `voice`, as it would read the captions.
+    func previewVoice(_ voice: ReadoutVoice) {
+        let language = captionLanguage.code
+        let engine = readoutEngine
+        Task {
+            await reader.preview(ReadoutCatalog.sample(for: language), voice: voice.id, language: language, engine: engine)
+            // Outside a meeting the model doesn't stay in memory.
+            if !isRunning { reader.unload() }
+        }
+    }
+
+    /// Reading only happens in translated meetings, once the voice is loaded.
+    private var readingAloud: Bool { readAloud && isRunning && translates && reader.isLoaded }
+
+    /// Translates `piece` (Apple's on-device translation, a few hundredths of a second) and queues
+    /// it, after the pieces before it. Who said it is worked out meanwhile, from the sentence's
+    /// audio so far, so the reader can pick their voice.
+    private func read(_ piece: String, range: CMTimeRange) {
+        guard let localFinal else { return }
+        let id = UUID()
+        let createdAt = Date()
+        identifyPiece(id, range: range)
+        let previous = readingChain
+        readingChain = Task {
+            await previous?.value
+            guard let translated = try? await localFinal.translate(piece).targetText, isRunning else { return }
+            reader.enqueue(ReadoutQueue.Item(id: id, createdAt: createdAt, text: translated))
+        }
+    }
+
+    /// Queues a sentence that is already translated, after the pieces before it.
+    private func enqueueReading(_ text: String, createdAt: Date, range: CMTimeRange) {
+        let id = UUID()
+        identifyPiece(id, range: range)
+        let previous = readingChain
+        readingChain = Task {
+            await previous?.value
+            guard isRunning else { return }
+            reader.enqueue(ReadoutQueue.Item(id: id, createdAt: createdAt, text: text))
+        }
+    }
+
+    /// Works out who said a piece, from its audio, while it is translated.
+    private func identifyPiece(_ id: UUID, range: CMTimeRange) {
+        if let sentenceAudio, range.isValid, !range.isEmpty {
+            pieceSpeakers[id] = (nil, 0, true)
+            let clip = sentenceAudio.clip(from: range.start.seconds, to: range.end.seconds)
+            let tracker = activeSpeakerTracker
+            Task {
+                let (info, gender) = await Self.speaker(of: clip, tracker: tracker)
+                pieceSpeakers[id] = (gender, info?.slot ?? 0, false)
+            }
+        }
+        // Only the recent pieces matter.
+        if pieceSpeakers.count > 60 {
+            for key in pieceSpeakers.keys.prefix(pieceSpeakers.count - 40) { pieceSpeakers[key] = nil }
+        }
+    }
+
+    private func configureReader() {
+        reader.speed = readoutSpeed
+        reader.volume = readoutVolume
+        reader.speaker = { [weak self] id in self?.pieceSpeakers[id] }
+        reader.voiceFor = { [weak self] gender, slot in
+            self?.readoutVoice(gender, slot: slot).id ?? "F1"
+        }
+        // On speakers the microphone would hear Mara and take her voice for yours.
+        reader.onSpeakingChanged = { [weak self] speaking in
+            guard let self else { return }
+            let mute = speaking && self.microphoneOn && AudioOutput.isSpeaker
+            self.microphoneGate?.setMuted(mute)
+            if speaking, self.microphoneOn { SessionLog.write("VOZ microfone \(mute ? "pausado" : "aberto (fone)")") }
+        }
+    }
+
+    /// Gets the voice ready when a session starts or reading is turned on during one. Reads only
+    /// meetings that are translated: otherwise the captions already are what you hear.
+    private func prepareReader() {
+        guard readAloud, isRunning, translates else { return }
+        let engine = readoutEngine
+        reader.language = captionLanguage.code
+        Task {
+            // Turned on before the voices finished downloading: starts reading once they're here.
+            if voiceModels.state(engine.model) != .ready {
+                status = localized("A leitura em voz alta começa quando as vozes terminarem de baixar (Ajustes › Tradução).")
+                while case .downloading = voiceModels.state(engine.model), isRunning, readAloud {
+                    try? await Task.sleep(for: .seconds(1))
+                }
+                guard voiceModels.state(engine.model) == .ready, isRunning, readAloud else { return }
+                status = ""
+            }
+            let started = Date()
+            if await reader.load(engine) {
+                SessionLog.write("VOZ pronta (\(engine.rawValue)) em \(SessionLog.ms(since: started))")
+            } else {
+                status = localized("Não foi possível carregar as vozes. Baixe de novo em Ajustes › Tradução.")
+            }
+        }
+    }
+
+    // MARK: Telling speakers apart
+
+    func setIdentifySpeakers(_ on: Bool) {
+        identifySpeakers = on
+        if on, voiceModels.state(.speakers) != .ready {
+            voiceModels.download(.speakers)
+        }
+        // Turned off, the tracker stays until the session ends: turned back on, everyone keeps
+        // their number instead of starting over at Pessoa 1.
+        if on { prepareSpeakers() }
+        SessionLog.write("PESSOAS \(on ? "ligado" : "desligado")")
+    }
+
+    /// The tracker, while telling speakers apart is on.
+    private var activeSpeakerTracker: SpeakerTracker? { identifySpeakers ? speakerTracker : nil }
+
+    /// Loads the voice fingerprint model when a session starts, or when the feature is turned on
+    /// during one, downloading it first if it is missing.
+    private func prepareSpeakers() {
+        guard identifySpeakers, isRunning, speakerTracker == nil, !speakersLoading else { return }
+        speakersLoading = true
+        Task {
+            defer { speakersLoading = false }
+            // Deleted in Settings, or an earlier download failed: it's needed now.
+            if voiceModels.state(.speakers) != .ready, !voiceModels.state(.speakers).isDownloading {
+                voiceModels.download(.speakers)
+            }
+            while voiceModels.state(.speakers).isDownloading, isRunning, identifySpeakers {
+                try? await Task.sleep(for: .seconds(1))
+            }
+            guard isRunning, identifySpeakers else { return }
+            guard voiceModels.state(.speakers) == .ready else {
+                status = localized("Não foi possível baixar o modelo de vozes. Tente de novo em Ajustes › Geral.")
+                return
+            }
+            let started = Date()
+            do {
+                let tracker = try await SpeakerTracker.load()
+                guard isRunning else { return }
+                speakerTracker = tracker
+                SessionLog.write("PESSOAS prontas em \(SessionLog.ms(since: started))")
+            } catch {
+                SessionLog.write("PESSOAS não carregou: \(error.localizedDescription)")
+                status = localized("Não foi possível carregar o modelo de vozes. Baixe de novo em Ajustes › Geral.")
+            }
+        }
+    }
+
+    /// Starts telling who said the sentence in `segment`, from its audio: their number, for the
+    /// transcript and the summary, and the gender of their voice.
+    private func identifySpeaker(of segment: inout Segment, range: CMTimeRange) {
+        guard let sentenceAudio, range.isValid, !range.isEmpty else { return }
+        let id = segment.id
+        segment.identifying = true
+        let clip = sentenceAudio.clip(from: range.start.seconds, to: range.end.seconds)
+        let tracker = activeSpeakerTracker
+        Task {
+            let (info, gender) = await Self.speaker(of: clip, tracker: tracker)
+            // A recent sentence: looked for from the end, so a long meeting isn't scanned.
+            guard let index = segments.lastIndex(where: { $0.id == id }) else { return }
+            segments[index].identifying = false
+            segments[index].gender = gender
+            guard let info else { return }
+            segments[index].person = info.person
+            segments[index].voiceSlot = info.slot
+            SessionLog.write("PESSOA \(info.person) \(gender?.rawValue ?? "?") voz \(info.slot)")
+            saveTranscript()
+        }
+    }
+
+    /// Who said `clip`: their person and voice slot when speakers are told apart, and the gender
+    /// of their voice (over everything they said, or from this clip alone). Off the main thread.
+    private static func speaker(of clip: (samples: [Float], sampleRate: Double), tracker: SpeakerTracker?) async -> (SpeakerInfo?, VoiceGender?) {
+        if let tracker, let info = await tracker.identify(clip.samples, sampleRate: clip.sampleRate) {
+            return (info, info.gender)
+        }
+        let pitch = await Task.detached(priority: .userInitiated) {
+            SpeakerPitch.median(of: clip.samples, sampleRate: clip.sampleRate)
+        }.value
+        return (nil, SpeakerPitch.gender(forPitch: pitch))
     }
 
     // MARK: Microphone
@@ -470,10 +811,12 @@ final class CaptionModel: ObservableObject {
         guard isFinal, microphoneOn else { return }
         let (leading, trimmed) = Self.splitLeadingPunctuation(text)
         if !leading.isEmpty { attachPunctuation(leading, speaker: .me) }
-        guard !trimmed.isEmpty else { return }
+        guard Self.hasWords(trimmed) else { return }
         let now = Date()
-        var heard = segments.filter { $0.speaker == .others }.suffix(8).map { ($0.original, now.timeIntervalSince($0.date)) }
+        var heard = Array(segments.lazy.reversed().filter { $0.speaker == .others }.prefix(8).map { ($0.original, now.timeIntervalSince($0.date)) }.reversed())
         if !volatile.isEmpty { heard.append((volatile, 0)) }
+        // On speakers, what Mara read aloud can reach the microphone in the moment it unmutes.
+        heard += reader.recentlySpoken.map { ($0.text, now.timeIntervalSince($0.endedAt)) }
         if EchoFilter.isEcho(trimmed, others: heard) {
             SessionLog.write("MICROFONE eco descartado: \(trimmed)")
             return
@@ -600,7 +943,7 @@ final class CaptionModel: ObservableObject {
             let startedAt = Date()
             do {
                 let (text, calls) = try await translator.summarize(
-                    transcript, language: language.englishName, withSpeakers: segments.contains { $0.speaker == .me }
+                    transcript, language: language.englishName, withSpeakers: Self.namesSpeakers(segments)
                 )
                 for call in calls { recordUsage(call, model: translator.model, since: startedAt) }
                 summary = MeetingSummary.parse(text, language: language.code)
@@ -618,16 +961,23 @@ final class CaptionModel: ObservableObject {
 
     /// The transcript the summary is written from. The original is more faithful than the
     /// translation, and the timestamp helps the model follow the conversation. When the microphone
-    /// was on, each line says whose it is ("Me" for the person the summary is for).
+    /// was on or speakers were told apart, each line says whose it is: "Me" for the person the
+    /// summary is for, "Person 1", "Person 2"… for the others, "Others" when it wasn't told.
     static func summaryTranscript(_ segments: [Segment]) -> String {
-        let speakers = segments.contains { $0.speaker == .me }
+        let speakers = namesSpeakers(segments)
         return segments
             .map { segment in
                 let time = "[\(segment.date.formatted(date: .omitted, time: .shortened))]"
                 guard speakers else { return "\(time) \(segment.original)" }
-                return "\(time) \(segment.speaker == .me ? "Me" : "Others"): \(segment.original)"
+                let who = segment.speaker == .me ? "Me" : segment.person.map { "Person \($0)" } ?? "Others"
+                return "\(time) \(who): \(segment.original)"
             }
             .joined(separator: "\n")
+    }
+
+    /// Whether the transcript can say who spoke: the microphone was on, or the others were told apart.
+    static func namesSpeakers(_ segments: [Segment]) -> Bool {
+        segments.contains { $0.speaker == .me || $0.person != nil }
     }
 
     /// Saves the summary as Markdown wherever the user picks.
@@ -774,21 +1124,50 @@ final class CaptionModel: ObservableObject {
         transcriptURL = Self.transcriptsFolder.appendingPathComponent("\(fileStamp) \(language).txt")
     }
 
-    /// Rewrites the file on every sentence, so nothing is lost if the app closes mid-meeting.
+    /// Saves the transcript a moment after it changes, off the main actor: a long meeting would
+    /// otherwise rewrite a growing file on every sentence and every translation. At most the last
+    /// two seconds are lost if the app closes mid-meeting; stopping writes it right away.
     private func saveTranscript() {
-        guard let transcriptURL, !segments.isEmpty else { return }
-        let body = segments.map { segment in
-            let time = segment.date.formatted(date: .omitted, time: .standard)
-            let translation = segment.translation == segment.original ? nil : segment.translation
-            let stamp = segment.speaker == .me ? "[\(time)] \(localized("Você"))" : "[\(time)]"
-            return ([stamp, translation, segment.original].compactMap { $0 }).joined(separator: "\n")
+        guard transcriptSave == nil else { return }
+        transcriptSave = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, let self else { return }
+            self.transcriptSave = nil
+            await self.writeTranscript()
         }
-        let text = transcriptTitle + "\n\n" + body.joined(separator: "\n\n") + "\n"
-        do {
-            try FileManager.default.createDirectory(at: Self.transcriptsFolder, withIntermediateDirectories: true)
-            try text.write(to: transcriptURL, atomically: true, encoding: .utf8)
-        } catch {
-            status = localized("Não foi possível salvar a transcrição: \(error.localizedDescription)")
+    }
+
+    private func writeTranscript() async {
+        transcriptSave?.cancel()
+        transcriptSave = nil
+        guard let transcriptURL, !segments.isEmpty else { return }
+        let segments = segments
+        let title = transcriptTitle
+        let you = localized("Você")
+        let failure = await Task.detached(priority: .utility) { () -> String? in
+            let body = segments.map { segment in
+                let translation = segment.translation == segment.original ? nil : segment.translation
+                let stamp: String
+                if segment.speaker == .me {
+                    stamp = "[\(segment.clock)] \(you)"
+                } else if let person = segment.person {
+                    stamp = "[\(segment.clock)] \(localized("Pessoa \(person)"))"
+                } else {
+                    stamp = "[\(segment.clock)]"
+                }
+                return ([stamp, translation, segment.original].compactMap { $0 }).joined(separator: "\n")
+            }
+            let text = title + "\n\n" + body.joined(separator: "\n\n") + "\n"
+            do {
+                try FileManager.default.createDirectory(at: transcriptURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try text.write(to: transcriptURL, atomically: true, encoding: .utf8)
+                return nil
+            } catch {
+                return error.localizedDescription
+            }
+        }.value
+        if let failure {
+            status = localized("Não foi possível salvar a transcrição: \(failure)")
         }
     }
 }
@@ -806,14 +1185,42 @@ enum SessionLog {
         return formatter
     }()
 
+    /// Lines wait here and go to disk together, about once a second, instead of one write per
+    /// partial caption.
+    private static var pending = Data()
+    private static var lastFlush = Date()
+    private static let lock = NSLock()
+
     static func begin() {
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         FileManager.default.createFile(atPath: url.path, contents: nil)
+        lock.lock()
         handle = try? FileHandle(forWritingTo: url)
+        pending.removeAll()
+        lastFlush = Date()
+        lock.unlock()
     }
 
     static func write(_ message: String) {
-        try? handle?.write(contentsOf: Data("\(clock.string(from: Date())) \(message)\n".utf8))
+        let now = Date()
+        lock.lock()
+        defer { lock.unlock() }
+        pending.append(Data("\(clock.string(from: now)) \(message)\n".utf8))
+        if pending.count > 16_384 || now.timeIntervalSince(lastFlush) >= 1 { flushLocked() }
+    }
+
+    /// Writes whatever is waiting; called when a session stops.
+    static func flush() {
+        lock.lock()
+        flushLocked()
+        lock.unlock()
+    }
+
+    private static func flushLocked() {
+        guard !pending.isEmpty else { return }
+        try? handle?.write(contentsOf: pending)
+        pending.removeAll(keepingCapacity: true)
+        lastFlush = Date()
     }
 
     static func ms(since date: Date) -> String {
