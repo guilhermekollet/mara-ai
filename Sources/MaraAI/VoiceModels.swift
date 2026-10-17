@@ -199,7 +199,8 @@ final class VoiceModelStore: ObservableObject {
                     }
                 }
                 self?.states[model] = .ready
-            } catch is CancellationError {
+            } catch let error where error is CancellationError || (error as? URLError)?.code == .cancelled {
+                // Cancelled mid-file, URLSession reports it as its own error.
                 self?.states[model] = .missing
             } catch {
                 self?.states[model] = .failed(error.localizedDescription)
@@ -260,6 +261,8 @@ final class VoiceModelStore: ObservableObject {
             try fileManager.removeItem(at: package)
         }
 
+        // Cancelled or deleted while compiling: nothing is moved into place.
+        try Task.checkCancellation()
         let directory = Self.directory(model)
         try? fileManager.removeItem(at: directory)
         try fileManager.moveItem(at: staging, to: directory)

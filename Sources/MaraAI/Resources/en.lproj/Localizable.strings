@@ -15,7 +15,6 @@
 "Mostrar os assuntos, as decisões e as perguntas em aberto" = "Show the topics, decisions and open questions";
 "Resumindo a reunião…" = "Summarizing the meeting…";
 "Resumir reunião" = "Summarize meeting";
-"O resumo usa o GPT: adicione sua chave da OpenAI em Ajustes." = "The summary uses GPT: add your OpenAI key in Settings.";
 "Envia a transcrição desta sessão à OpenAI." = "Sends this session's transcript to OpenAI.";
 "Não foi possível resumir: %@" = "Couldn't summarize: %@";
 "Legendas" = "Captions";
@@ -151,8 +150,6 @@
 "Podemos revisar o contrato na quinta." = "We can go over the contract on Thursday.";
 "E acho que o prazo de entrega" = "And I think the delivery date";
 "Tamanho da legenda" = "Caption size";
-"Opacidade do fundo" = "Background opacity";
-"Mais baixa deixa ver melhor o que está atrás da janela." = "Lower lets you see more of what's behind the window.";
 "Quando não há áudio" = "When there's no audio";
 "Em espera, a Mara para de transcrever e confere a cada 2 segundos se o som voltou. Desligar encerra a sessão e salva a transcrição." = "On hold, Mara stops transcribing and checks every 2 seconds whether the sound is back. Turning off ends the session and saves the transcript.";
 "Entrar em espera após" = "Go on hold after";
@@ -242,6 +239,14 @@
 "Transcrever o meu microfone" = "Transcribe my microphone";
 "O macOS não deu acesso ao microfone." = "macOS didn't give access to the microphone.";
 "O microfone parou de responder e foi desligado. As legendas continuam." = "The microphone stopped responding and was turned off. Captions carry on.";
+"O resumo usa o GPT, com a sua chave da OpenAI." = "The summary uses GPT, with your own OpenAI key.";
+"Adicionar em Ajustes" = "Add in Settings";
+"Criar uma chave na OpenAI" = "Create a key at OpenAI";
+"Fundo da janela" = "Window background";
+"Opacidade" = "Opacity";
+"Desfoque" = "Blur";
+"Sombra nas letras" = "Shadow behind the text";
+"Com pouca opacidade e sem desfoque, a reunião aparece nítida atrás da legenda; a sombra mantém o texto legível." = "With low opacity and no blur, the meeting shows clearly behind the captions; the shadow keeps the text readable.";
 
 /* Reading aloud */
 "Ler em voz alta" = "Read aloud";

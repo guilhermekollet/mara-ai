@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Script from "next/script";
 import { getDictionary, hasLocale, localeInfo, locales } from "@/i18n/dictionaries";
-import { htmlClassName, themeScript } from "@/lib/document";
+import { htmlClassName, languageAlternates, themeScript } from "@/lib/document";
 import "../globals.css";
 
 // One static page per language; any other value in the URL is a 404.
@@ -15,7 +15,7 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: LayoutProps<"/[lang]">): Promise<Metadata> {
   const { lang } = await params;
   if (!hasLocale(lang)) return {};
-  return getDictionary(lang).meta;
+  return { ...getDictionary(lang).meta, alternates: languageAlternates(`/${lang}/`) };
 }
 
 export default async function LangLayout({ children, params }: LayoutProps<"/[lang]">) {

@@ -15,7 +15,6 @@
 "Mostrar os assuntos, as decisões e as perguntas em aberto" = "Mostrar los temas, las decisiones y las preguntas abiertas";
 "Resumindo a reunião…" = "Resumiendo la reunión…";
 "Resumir reunião" = "Resumir reunión";
-"O resumo usa o GPT: adicione sua chave da OpenAI em Ajustes." = "El resumen usa GPT: añade tu clave de OpenAI en Ajustes.";
 "Envia a transcrição desta sessão à OpenAI." = "Envía la transcripción de esta sesión a OpenAI.";
 "Não foi possível resumir: %@" = "No se pudo resumir: %@";
 "Legendas" = "Subtítulos";
@@ -151,8 +150,6 @@
 "Podemos revisar o contrato na quinta." = "Podemos revisar el contrato el jueves.";
 "E acho que o prazo de entrega" = "Y creo que el plazo de entrega";
 "Tamanho da legenda" = "Tamaño de los subtítulos";
-"Opacidade do fundo" = "Opacidad del fondo";
-"Mais baixa deixa ver melhor o que está atrás da janela." = "Más baja deja ver mejor lo que está detrás de la ventana.";
 "Quando não há áudio" = "Cuando no hay audio";
 "Em espera, a Mara para de transcrever e confere a cada 2 segundos se o som voltou. Desligar encerra a sessão e salva a transcrição." = "En espera, Mara deja de transcribir y revisa cada 2 segundos si volvió el sonido. Apagar termina la sesión y guarda la transcripción.";
 "Entrar em espera após" = "Pasar a espera tras";
@@ -242,6 +239,14 @@
 "Transcrever o meu microfone" = "Transcribir mi micrófono";
 "O macOS não deu acesso ao microfone." = "macOS no dio acceso al micrófono.";
 "O microfone parou de responder e foi desligado. As legendas continuam." = "El micrófono dejó de responder y se apagó. Los subtítulos siguen.";
+"O resumo usa o GPT, com a sua chave da OpenAI." = "El resumen usa GPT, con tu propia clave de OpenAI.";
+"Adicionar em Ajustes" = "Añadir en Ajustes";
+"Criar uma chave na OpenAI" = "Crear una clave en OpenAI";
+"Fundo da janela" = "Fondo de la ventana";
+"Opacidade" = "Opacidad";
+"Desfoque" = "Desenfoque";
+"Sombra nas letras" = "Sombra en el texto";
+"Com pouca opacidade e sem desfoque, a reunião aparece nítida atrás da legenda; a sombra mantém o texto legível." = "Con poca opacidad y sin desenfoque, la reunión se ve nítida detrás de los subtítulos; la sombra mantiene el texto legible.";
 
 /* Reading aloud */
 "Ler em voz alta" = "Leer en voz alta";

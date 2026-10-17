@@ -23,12 +23,13 @@ const pill =
 export default function GlobalNotFound() {
   return (
     <html lang="en" suppressHydrationWarning className={htmlClassName}>
+      <head>
+        {/* Inline rather than next/script, which would only run once the framework has loaded. */}
+        <script id="language" dangerouslySetInnerHTML={{ __html: languageScript }} />
+      </head>
       <body className="flex min-h-svh flex-col font-sans">
         <Script id="theme" strategy="beforeInteractive">
           {themeScript}
-        </Script>
-        <Script id="language" strategy="beforeInteractive">
-          {languageScript}
         </Script>
         <header className="flex h-14 items-center px-4 sm:px-6">
           <Brand href={`${basePath}/`} />
@@ -45,7 +46,7 @@ export default function GlobalNotFound() {
                 </h1>
                 <p className="mx-auto mt-5 max-w-[520px] text-[19px] text-fg/70">{copy.text}</p>
                 <div className="mt-9 flex justify-center">
-                  <a href={`${basePath}/${locale}`} className={`${pill} bg-pill text-pill-fg`}>
+                  <a href={`${basePath}/${locale}/`} className={`${pill} bg-pill text-pill-fg`}>
                     {copy.home}
                   </a>
                 </div>

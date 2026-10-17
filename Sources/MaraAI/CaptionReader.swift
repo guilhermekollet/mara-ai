@@ -122,12 +122,19 @@ final class CaptionReader {
 
     private var queue = ReadoutQueue()
     private var synthesizer: Synthesizer?
-    private var loading: Task<Synthesizer?, Never>?
+    private var loading: (engine: VoiceEngine, task: Task<Synthesizer?, Never>)?
+    /// Bumped by every load and unload, so a load that finishes after it was superseded is dropped.
+    private var loadGeneration = 0
     private var worker: Task<Void, Never>?
+    /// Tells the current worker apart from one that was stopped but is still finishing a piece.
+    private var workerGeneration = 0
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
     private var connectedRate: Double?
     private var speaking = false
+    /// The piece playing now, resumed when it ends, is cut, or the audio output changes.
+    private var playback: (id: Int, continuation: CheckedContinuation<Void, Never>)?
+    private var playbackCount = 0
     private var quietAgain: Task<Void, Never>?
     private var idleStop: Task<Void, Never>?
     /// The previous piece's voice, kept when the pitch doesn't tell.
@@ -142,6 +149,11 @@ final class CaptionReader {
     init() {
         engine.attach(player)
         player.volume = Float(volume)
+        // Headphones plugged in, AirPods connecting, another default output: the engine stops
+        // itself and the piece in flight never reports its end.
+        NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.outputChanged() }
+        }
     }
 
     var isLoaded: Bool { synthesizer != nil }
@@ -150,7 +162,14 @@ final class CaptionReader {
     @discardableResult
     func load(_ engine: VoiceEngine) async -> Bool {
         if synthesizer?.engine == engine { return true }
-        if let loading, let loaded = await loading.value, loaded.engine == engine { return true }
+        if let loading, loading.engine == engine {
+            _ = await loading.task.value
+            return synthesizer?.engine == engine
+        }
+        loadGeneration += 1
+        let generation = loadGeneration
+        // Never two models in memory: the other engine's goes before this one loads.
+        synthesizer = nil
         let task = Task<Synthesizer?, Never> {
             do {
                 return try await Synthesizer.load(engine)
@@ -159,34 +178,49 @@ final class CaptionReader {
                 return nil
             }
         }
-        loading = task
+        loading = (engine, task)
         let loaded = await task.value
+        // Unloaded (the meeting stopped) or replaced by another load while this one ran.
+        guard generation == loadGeneration else { return false }
         loading = nil
         synthesizer = loaded
+        // Pieces that came in while the model was loading.
+        if loaded != nil { startWorker() }
         return loaded != nil
     }
 
     /// Frees the model's memory (several hundred megabytes) between meetings.
     func unload() {
         stop()
+        loadGeneration += 1
+        loading = nil
         synthesizer = nil
     }
 
     func enqueue(_ item: ReadoutQueue.Item) {
         queue.push(item)
-        guard worker == nil else { return }
+        startWorker()
+    }
+
+    private func startWorker() {
+        guard worker == nil, synthesizer != nil, !queue.waiting.isEmpty else { return }
+        workerGeneration += 1
+        let generation = workerGeneration
         worker = Task { [weak self] in
             await self?.drain()
-            self?.worker = nil
+            // A worker that was stopped mid-piece mustn't forget the one that replaced it.
+            guard let self, self.workerGeneration == generation else { return }
+            self.worker = nil
         }
     }
 
-    /// Silences Mara at once and forgets the waiting sentences.
+    /// Silences Mara at once and forgets the waiting pieces.
     func stop() {
         queue.clear()
         worker?.cancel()
         worker = nil
         player.stop()
+        finishPlayback()
         setSpeaking(false, immediately: true)
     }
 
@@ -272,12 +306,25 @@ final class CaptionReader {
             }
         }
         setSpeaking(true)
+        playbackCount += 1
+        let id = playbackCount
+        // A safety net: if the end of the piece is never reported, the queue still moves on.
+        let duration = Double(samples.count) / sampleRate
+        let watchdog = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(duration + 2))
+            guard !Task.isCancelled else { return }
+            self?.finishPlayback(id)
+        }
+        // A preview can cut in on a meeting's piece: that one is over.
+        finishPlayback()
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { _ in
-                continuation.resume()
+            playback = (id, continuation)
+            player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
+                Task { @MainActor in self?.finishPlayback(id) }
             }
             player.play()
         }
+        watchdog.cancel()
         setSpeaking(false)
         // Stops the engine a little after the last sentence, so the Mac's audio isn't kept awake.
         idleStop = Task { [weak self] in
@@ -286,6 +333,23 @@ final class CaptionReader {
             self.player.stop()
             self.engine.stop()
         }
+    }
+
+    /// Resumes the piece that is playing, if it is `id` (any, when nil). Each resumes only once.
+    private func finishPlayback(_ id: Int? = nil) {
+        guard let playback, id == nil || playback.id == id else { return }
+        self.playback = nil
+        playback.continuation.resume()
+    }
+
+    /// The output device changed and the engine stopped: the piece in flight is dropped, and the
+    /// next one connects and starts the engine again.
+    private func outputChanged() {
+        connectedRate = nil
+        guard playback != nil else { return }
+        SessionLog.write("VOZ saída de áudio mudou")
+        player.stop()
+        finishPlayback()
     }
 
     private func setSpeaking(_ value: Bool, immediately: Bool = false) {

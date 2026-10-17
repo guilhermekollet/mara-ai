@@ -20,12 +20,23 @@ struct GPTModel: Identifiable {
 }
 
 struct SettingsView: View {
+    /// Set to a tab's name ("summary", for example) to open Settings on that tab.
+    static let requestedTabKey = "settingsTab"
+
     @EnvironmentObject private var model: CaptionModel
     @State private var tab = Tab.translation
+    @AppStorage(SettingsView.requestedTabKey) private var requestedTab = ""
     /// The content has slid under the header: a hairline separates them, as under a macOS toolbar.
     @State private var scrolled = false
     /// There is more below: the bottom edge fades out.
     @State private var moreBelow = false
+
+    /// Another part of the app asked for a tab: show it, then forget the request.
+    private func showRequestedTab() {
+        guard let match = Tab.allCases.first(where: { "\($0)" == requestedTab }) else { return }
+        tab = match
+        requestedTab = ""
+    }
 
     private enum Tab: CaseIterable, Identifiable {
         case translation, summary, appearance, usage, glossary, general
@@ -103,6 +114,8 @@ struct SettingsView: View {
         .tint(Theme.accent)
         .preferredColorScheme(.dark)
         .task { await model.loadLocales() }
+        .onAppear(perform: showRequestedTab)
+        .onChange(of: requestedTab) { showRequestedTab() }
     }
 
     private var header: some View {
@@ -394,31 +407,19 @@ private struct AppearanceSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            // Live preview: shows how the caption looks over a meeting.
-            ZStack {
-                LinearGradient(colors: [Color(red: 0.91, green: 0.89, blue: 0.99), Color(red: 0.72, green: 0.64, blue: 0.97)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                VStack(spacing: 3) {
-                    Text(localized("Podemos revisar o contrato na quinta."))
-                        .foregroundStyle(Theme.paper)
-                    Text(localized("E acho que o prazo de entrega"))
-                        .foregroundStyle(Theme.accent)
-                }
-                .font(.system(size: model.fontSize, weight: .medium))
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(Theme.ink.opacity(model.opacity), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .padding(14)
-            }
-            .frame(height: 150)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            preview
 
             SettingsCard(localized("Tamanho da legenda")) {
                 sliderRow(value: $model.fontSize, range: 12...40, step: 1, label: "\(Int(model.fontSize)) pt")
             }
-            SettingsCard(localized("Opacidade do fundo"), hint: localized("Mais baixa deixa ver melhor o que está atrás da janela.")) {
-                sliderRow(value: $model.opacity, range: 0.2...1, step: 0.05, label: "\(Int(model.opacity * 100))%")
+            SettingsCard(
+                localized("Fundo da janela"),
+                hint: localized("Com pouca opacidade e sem desfoque, a reunião aparece nítida atrás da legenda; a sombra mantém o texto legível.")
+            ) {
+                labeledSlider(localized("Opacidade"), value: $model.opacity)
+                labeledSlider(localized("Desfoque"), value: $model.blur)
+                Toggle(localized("Sombra nas letras"), isOn: $model.textShadow)
+                    .font(.system(size: 12.5))
             }
             SettingsCard(
                 localized("Quando não há áudio"),
@@ -446,6 +447,48 @@ private struct AppearanceSettings: View {
         }
     }
 
+    /// The captions window over a wallpaper, with this window's tint, blur and text shadow, so each
+    /// setting can be judged as it changes.
+    private var preview: some View {
+        let box = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        // The captions window as a strip over the lower part of the screen, as it usually sits.
+        let window = EdgeInsets(top: 58, leading: 14, bottom: 12, trailing: 14)
+        return ZStack {
+            PreviewWallpaper()
+            // The wallpaper blurred only inside the window, as its frosted glass does.
+            PreviewWallpaper()
+                .blur(radius: 16 * model.blur)
+                .mask { box.padding(window) }
+            box.fill(Theme.ink.opacity(model.opacity))
+                .padding(window)
+            VStack(spacing: 3) {
+                Text(localized("Podemos revisar o contrato na quinta."))
+                    .foregroundStyle(Theme.paper)
+                Text(localized("E acho que o prazo de entrega"))
+                    .foregroundStyle(Theme.accent)
+            }
+            .font(.system(size: model.fontSize, weight: .medium))
+            .multilineTextAlignment(.center)
+            .lineLimit(2)
+            .minimumScaleFactor(0.5)
+            .modifier(CaptionShadow(on: model.textShadow))
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(window)
+        }
+        .frame(height: 170)
+        .clipShape(box)
+    }
+
+    private func labeledSlider(_ title: String, value: Binding<Double>) -> some View {
+        HStack(spacing: 10) {
+            Text(title)
+                .font(.system(size: 12.5))
+                .frame(width: 74, alignment: .leading)
+            sliderRow(value: value, range: 0...1, step: 0.05, label: "\(Int((value.wrappedValue * 100).rounded()))%")
+        }
+    }
+
     private func durationPicker(_ title: String, selection: Binding<Double>, options: [(Double, String)]) -> some View {
         HStack {
             Text(title)
@@ -468,6 +511,31 @@ private struct AppearanceSettings: View {
                 .font(.system(size: 12).monospacedDigit())
                 .foregroundStyle(Theme.muted)
                 .frame(width: 44, alignment: .trailing)
+        }
+    }
+}
+
+/// What the appearance preview shows behind the captions window: a desktop wallpaper, like the one
+/// the window floats over. Without the image, a gradient in its colors.
+private struct PreviewWallpaper: View {
+    private static let image = Interface.resources.url(forResource: "PreviewWallpaper", withExtension: "jpg").flatMap(NSImage.init(contentsOf:))
+
+    var body: some View {
+        if let image = Self.image {
+            // Filled into exactly the space it is given: on its own, a filling image would grow
+            // past it and push the caption strip off its place.
+            Color.clear
+                .overlay {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFill()
+                }
+                .clipped()
+        } else {
+            LinearGradient(
+                colors: [Color(red: 0.1, green: 0.35, blue: 0.95), Color(red: 0.95, green: 0.55, blue: 0.2), Color(red: 0.7, green: 0.45, blue: 0.95)],
+                startPoint: .leading, endPoint: .trailing
+            )
         }
     }
 }
@@ -813,7 +881,12 @@ private struct UpdateCard: View {
 /// The OpenAI key, saved to the Keychain when submitted, with a link to create one. Used in
 /// Settings and in the introduction; `missingHint` says what happens without a key.
 struct OpenAIKeyField: View {
+    /// OpenAI's page for creating API keys.
+    static let keysPage = URL(string: "https://platform.openai.com/api-keys")!
+
     let missingHint: String
+    /// Off where the page shows its own, larger way to create a key.
+    var linksToKeysPage = true
     @EnvironmentObject private var model: CaptionModel
     @State private var draft = ""
 
@@ -834,7 +907,10 @@ struct OpenAIKeyField: View {
                 Text(model.apiKey.isEmpty ? missingHint : localized("Chave salva no Keychain."))
                     .foregroundStyle(Theme.muted)
                 Spacer()
-                Link(localized("Criar uma chave"), destination: URL(string: "https://platform.openai.com/api-keys")!)
+                if linksToKeysPage {
+                    Link(localized("Criar uma chave"), destination: Self.keysPage)
+                        .foregroundStyle(Theme.accent)
+                }
             }
             .font(.system(size: 11.5))
         }

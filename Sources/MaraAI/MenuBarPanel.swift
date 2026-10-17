@@ -214,11 +214,26 @@ struct MenuBarPanel: View {
                 }
                 .buttonStyle(PillButtonStyle())
                 .disabled(!model.canSummarize)
-                Text(model.apiKey.isEmpty
-                    ? localized("O resumo usa o GPT: adicione sua chave da OpenAI em Ajustes.")
-                    : localized("Envia a transcrição desta sessão à OpenAI."))
-                    .font(.caption)
-                    .foregroundStyle(Theme.paper.opacity(0.45))
+                if model.apiKey.isEmpty {
+                    // Without a key the summary can't run: say where to get one and where it goes.
+                    Text(localized("O resumo usa o GPT, com a sua chave da OpenAI."))
+                        .font(.caption)
+                        .foregroundStyle(Theme.paper.opacity(0.45))
+                    HStack(spacing: 14) {
+                        Link(localized("Criar uma chave"), destination: OpenAIKeyField.keysPage)
+                        Button(localized("Adicionar em Ajustes")) {
+                            UserDefaults.standard.set("summary", forKey: SettingsView.requestedTabKey)
+                            open(settingsWindowID)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Theme.accent)
+                } else {
+                    Text(localized("Envia a transcrição desta sessão à OpenAI."))
+                        .font(.caption)
+                        .foregroundStyle(Theme.paper.opacity(0.45))
+                }
             }
             if let error = model.summaryError {
                 Text(localized("Não foi possível resumir: \(error)"))
